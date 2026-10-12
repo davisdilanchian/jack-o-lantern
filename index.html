@@ -8,33 +8,43 @@
 <meta name="description" content="Turn an old phone into a talking jack-o'-lantern: it hears visitors, talks back in character, and flickers its flashlight with its voice.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎃</text></svg>">
 <style>
-  :root { --orange:#ff7a00; --amber:#ffc65a; --ink:#140a02; --fg:#ffe9d0; --muted:#c79a72; --panel:#1f1209; --line:#4a2a12; }
+  :root { --bg:#0e0c0b; --surface:#171412; --line:#2c2622; --fg:#f3ece6; --muted:#a39a92; --accent:#f07a1c; --accent-ink:#1a0d03; --amber:#ffc65a; --orange:#ff7a00; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { margin:0; height:100%; background:#000; color:var(--fg); font:16px/1.4 system-ui,-apple-system,sans-serif; overflow:hidden; }
+  html,body { margin:0; height:100%; background:#050403; color:var(--fg); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; overflow:hidden; }
   #glow, #white { position:fixed; inset:0; opacity:0; pointer-events:none; }
   #glow { background:radial-gradient(circle at 50% 50%, var(--amber) 0%, var(--orange) 60%, #c25200 100%); }
-  #white { background:radial-gradient(circle at 50% 50%, #ffffff 0%, #fff1d2 70%, #ffd89a 100%); }
+  #white { background:radial-gradient(circle at 50% 50%, #fffdf9 0%, #fff1d2 70%, #ffd89a 100%); }
   #stage { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:max(16px,env(safe-area-inset-top)) 16px max(20px,env(safe-area-inset-bottom)); text-align:center; }
-  #status { font-weight:700; letter-spacing:.02em; opacity:.85; mix-blend-mode:difference; color:#fff; }
+  #status { font-size:14px; font-weight:600; opacity:.8; mix-blend-mode:difference; color:#fff; }
   #caption { font-size:clamp(18px,5vw,26px); font-weight:600; max-width:640px; mix-blend-mode:difference; color:#fff; min-height:3em; }
-  #gear { position:fixed; top:max(10px,env(safe-area-inset-top)); right:12px; z-index:5; background:rgba(0,0,0,.45); color:#fff; border:1px solid rgba(255,255,255,.25); border-radius:999px; width:44px; height:44px; font-size:22px; }
-  #muted { position:fixed; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; background:#000; gap:14px; }
-  #muted svg { width:46vw; max-width:260px; }
-  #muted b { font-size:clamp(32px,10vw,56px); letter-spacing:.06em; }
-  .overlay { position:fixed; inset:0; z-index:10; background:rgba(8,4,1,.96); display:flex; align-items:flex-start; justify-content:center; overflow:auto; padding:24px 16px; }
-  .card { width:100%; max-width:520px; background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:20px; }
-  h1 { margin:0 0 4px; font-size:28px; color:var(--orange); }
-  p.sub { margin:0 0 16px; color:var(--muted); }
-  label { display:block; margin:14px 0 6px; font-weight:600; }
-  input,select,textarea,button { font:inherit; width:100%; padding:12px; border-radius:12px; border:1px solid var(--line); background:#120a04; color:var(--fg); }
-  textarea { min-height:110px; resize:vertical; }
-  button.primary { background:var(--orange); color:var(--ink); font-weight:800; border:0; margin-top:18px; padding:16px; font-size:18px; }
-  a.key { display:inline-block; margin-top:8px; color:var(--amber); font-weight:600; }
-  .note { font-size:13px; color:var(--muted); margin-top:8px; }
-  .row { display:flex; gap:10px; } .row > * { flex:1; }
-  .check { margin-top:18px; padding:14px; border-radius:14px; background:#2a1708; border:1px solid var(--orange); font-size:14px; }
-  .check ol { margin:8px 0; padding-left:20px; } .check li { margin:6px 0; }
-  #err { color:#ff8a8a; font-weight:600; margin-top:12px; min-height:1.2em; }
+  #gear { position:fixed; top:max(12px,env(safe-area-inset-top)); right:12px; z-index:5; width:auto; padding:8px 14px; font-size:14px; background:rgba(14,12,11,.6); color:var(--fg); border:1px solid rgba(255,255,255,.18); border-radius:8px; }
+  #muted { position:fixed; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; background:#050403; gap:12px; }
+  #muted svg { width:42vw; max-width:240px; }
+  #muted b { font-size:clamp(30px,9vw,52px); letter-spacing:.04em; }
+  #muted span { color:var(--muted); }
+
+  .overlay { position:fixed; inset:0; z-index:10; background:var(--bg); overflow:auto; padding:max(28px,env(safe-area-inset-top)) 20px max(32px,env(safe-area-inset-bottom)); }
+  .wrap { max-width:440px; margin:0 auto; }
+  h1 { margin:0; font-size:24px; line-height:1.2; font-weight:650; letter-spacing:-.01em; }
+  .lede { margin:8px 0 0; color:var(--muted); max-width:38ch; }
+  section { padding:22px 0; border-top:1px solid var(--line); }
+  section:first-of-type { margin-top:24px; }
+  h2 { margin:0 0 12px; font-size:15px; font-weight:650; }
+  label { display:block; margin:0 0 6px; font-size:14px; color:var(--muted); }
+  input,select,textarea,button { font:inherit; width:100%; border-radius:8px; color:var(--fg); }
+  input,select,textarea { padding:11px 12px; background:var(--surface); border:1px solid var(--line); }
+  input:focus,select:focus,textarea:focus { outline:2px solid var(--accent); outline-offset:1px; border-color:transparent; }
+  textarea { min-height:110px; resize:vertical; margin-top:10px; }
+  .field + .field { margin-top:14px; }
+  .help { margin:6px 0 0; font-size:13px; color:var(--muted); }
+  .help a { color:var(--fg); text-underline-offset:3px; }
+  .row { display:flex; gap:8px; } .row select { flex:1; }
+  button { padding:11px 16px; border:1px solid var(--line); background:transparent; font-weight:600; cursor:pointer; }
+  button:active { transform:translateY(1px); }
+  button.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); padding:14px 16px; font-size:17px; }
+  #preview { flex:0 0 auto; width:auto; }
+  ol { margin:0; padding-left:20px; color:var(--muted); font-size:14px; } ol li { margin:0 0 8px; padding-left:2px; } ol b { color:var(--fg); font-weight:600; }
+  #err { color:#ff9a8a; font-size:14px; margin-top:12px; min-height:1.3em; }
 </style>
 </head>
 <body>
@@ -44,48 +54,57 @@
   <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M14 38h16l22-18v60L30 62H14z" fill="#fff"/><path d="M8 12l84 76" stroke="#ff3b3b" stroke-width="9" stroke-linecap="round"/></svg>
   <b>MUTED</b><span>tap to unmute</span>
 </div>
-<button id="gear" aria-label="Settings">⚙︎</button>
+<button id="gear" aria-label="Settings">Settings</button>
 
 <div class="overlay" id="setup">
-  <div class="card">
-    <h1>🎃 Talking Jack-o'-Lantern</h1>
-    <p class="sub">Turns this phone into a pumpkin that hears visitors, talks back in character, and flickers its flashlight with its voice. Works best in Chrome on Android.</p>
+  <div class="wrap">
+    <h1>Talking Jack-o'-Lantern</h1>
+    <p class="lede">Turns this phone into a pumpkin that hears visitors and talks back, with its light flickering as it speaks.</p>
 
-    <label for="key">Your Gemini API key</label>
-    <input id="key" type="password" autocomplete="off" placeholder="Paste your key here">
-    <a class="key" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get a free key from Google →</a>
-    <div class="note">Free with any Google account. Your key stays on this phone and is only sent to Google.</div>
+    <section>
+      <h2>Gemini key</h2>
+      <label for="key">API key</label>
+      <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste key">
+      <p class="help">Free with any Google account. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get a key from Google AI Studio</a>. It stays on this phone and is only sent to Google.</p>
+    </section>
 
-    <label for="persona">Personality</label>
-    <select id="persona"></select>
-    <textarea id="custom" placeholder="Describe your pumpkin: who it is, how it talks, what it cares about." style="display:none;margin-top:10px"></textarea>
+    <section>
+      <h2>Character</h2>
+      <div class="field">
+        <label for="persona">Personality</label>
+        <select id="persona"></select>
+        <textarea id="custom" placeholder="Who it is, how it talks, what it cares about" style="display:none"></textarea>
+      </div>
+      <div class="field">
+        <label for="voice">Voice</label>
+        <div class="row"><select id="voice"></select><button id="preview" type="button">Test</button></div>
+      </div>
+    </section>
 
-    <label for="voice">Voice</label>
-    <div class="row"><select id="voice"></select><button id="preview" type="button" style="flex:0 0 110px">Test</button></div>
+    <section>
+      <h2>Light</h2>
+      <label for="light">Use</label>
+      <select id="light">
+        <option value="both">Screen and flashlight</option>
+        <option value="screen">Screen only</option>
+        <option value="torch">Flashlight only</option>
+      </select>
+      <p class="help">The screen fades from black to orange to white as it talks. Flashlight control needs Chrome on Android; iPhones use the screen.</p>
+    </section>
 
-    <label for="light">Light</label>
-    <select id="light">
-      <option value="both">Screen + flashlight</option>
-      <option value="screen">Screen only (iPhone, or no flashlight)</option>
-      <option value="torch">Flashlight only</option>
-    </select>
-    <div class="note">The screen goes black → orange → white with the voice. The flashlight only works in Chrome on Android.</div>
-
-    <div class="check">
-      <b>Before you put it in the pumpkin</b>
+    <section>
+      <h2>Before you set it out</h2>
       <ol>
-        <li><b>Brightness to max,</b> and turn off auto-brightness (it dims the screen in the dark).</li>
-        <li><b>Stop the screen from sleeping:</b><br>
-          iPhone: Settings → Display &amp; Brightness → Auto-Lock → <b>Never</b>, and turn off Low Power Mode.<br>
-          Android: Settings → Display → Screen timeout → <b>longest</b>, and turn off battery saver.</li>
-        <li><b>Volume all the way up,</b> and keep the phone plugged in.</li>
-        <li>Put yellow or orange tape over the flashlight.</li>
+        <li><b>Brightness to max</b> and auto-brightness off.</li>
+        <li><b>Keep the screen on.</b> iPhone: Settings › Display &amp; Brightness › Auto-Lock › Never, and Low Power Mode off. Android: Settings › Display › Screen timeout › longest, and battery saver off.</li>
+        <li><b>Volume all the way up</b> and the phone plugged in.</li>
+        <li><b>Yellow or orange tape</b> over the flashlight.</li>
       </ol>
-      The page also asks the phone to stay awake, but the settings above are the backup. Tap the screen any time to mute.
-    </div>
+      <p class="help">Tap the screen any time to mute.</p>
+    </section>
 
-    <button class="primary" id="start">Wake the pumpkin</button>
-    <div id="err"></div>
+    <button class="primary" id="start">Start</button>
+    <div id="err" role="alert"></div>
   </div>
 </div>
 
@@ -142,7 +161,7 @@ $("gear").onclick = e => { e.stopPropagation(); $("setup").style.display = "flex
 $("preview").onclick = async () => { save(); if (!$("key").value.trim()) return showErr("Paste your key first."); await ensureAudio(); runVisit(true); };
 $("start").onclick = async () => {
   save();
-  if (!$("key").value.trim()) return showErr("Paste your Gemini key first (tap “Get a free key”).");
+  if (!$("key").value.trim()) return showErr("Paste your Gemini key first.");
   showErr("");
   try { await ensureAudio(); } catch (e) { return showErr("Microphone blocked: " + e.message); }
   $("setup").style.display = "none";
