@@ -11,7 +11,9 @@
   :root { --orange:#ff7a00; --amber:#ffc65a; --ink:#140a02; --fg:#ffe9d0; --muted:#c79a72; --panel:#1f1209; --line:#4a2a12; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { margin:0; height:100%; background:#000; color:var(--fg); font:16px/1.4 system-ui,-apple-system,sans-serif; overflow:hidden; }
-  #glow { position:fixed; inset:0; background:radial-gradient(circle at 50% 50%, var(--amber) 0%, var(--orange) 55%, #b84a00 100%); opacity:0; }
+  #glow, #white { position:fixed; inset:0; opacity:0; pointer-events:none; }
+  #glow { background:radial-gradient(circle at 50% 50%, var(--amber) 0%, var(--orange) 60%, #c25200 100%); }
+  #white { background:radial-gradient(circle at 50% 50%, #ffffff 0%, #fff1d2 70%, #ffd89a 100%); }
   #stage { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:max(16px,env(safe-area-inset-top)) 16px max(20px,env(safe-area-inset-bottom)); text-align:center; }
   #status { font-weight:700; letter-spacing:.02em; opacity:.85; mix-blend-mode:difference; color:#fff; }
   #caption { font-size:clamp(18px,5vw,26px); font-weight:600; max-width:640px; mix-blend-mode:difference; color:#fff; min-height:3em; }
@@ -34,7 +36,7 @@
 </style>
 </head>
 <body>
-<div id="glow"></div>
+<div id="glow"></div><div id="white"></div>
 <div id="stage"><div id="status">Tap to start</div><div id="caption"></div></div>
 <div id="muted">
   <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M14 38h16l22-18v60L30 62H14z" fill="#fff"/><path d="M8 12l84 76" stroke="#ff3b3b" stroke-width="9" stroke-linecap="round"/></svg>
@@ -58,6 +60,14 @@
 
     <label for="voice">Voice</label>
     <div class="row"><select id="voice"></select><button id="preview" type="button" style="flex:0 0 110px">Test</button></div>
+
+    <label for="light">Light</label>
+    <select id="light">
+      <option value="both">Screen + flashlight</option>
+      <option value="screen">Screen only (iPhone, or no flashlight)</option>
+      <option value="torch">Flashlight only</option>
+    </select>
+    <div class="note">The screen goes black → orange → white with the voice. The flashlight only works in Chrome on Android.</div>
 
     <button class="primary" id="start">Wake the pumpkin</button>
     <div id="err"></div>
@@ -89,6 +99,8 @@ for (const v of VOICES) $("voice").add(new Option(v,v));
 $("key").value = store.get("geminiKey","");
 $("persona").value = store.get("persona","jack");
 $("custom").value = store.get("custom","");
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+$("light").value = store.get("light", IOS ? "screen" : "both");
 $("voice").value = store.get("voice", PERSONAS[$("persona").value].voice);
 const syncCustom = () => $("custom").style.display = $("persona").value === "custom" ? "block" : "none";
 syncCustom();
@@ -100,7 +112,7 @@ function personaText() {
 }
 function save() {
   store.set("geminiKey",$("key").value.trim()); store.set("persona",$("persona").value);
-  store.set("custom",$("custom").value); store.set("voice",$("voice").value);
+  store.set("custom",$("custom").value); store.set("voice",$("voice").value); store.set("light",$("light").value);
 }
 
 // ------------------------------------------------------------------ state
@@ -122,8 +134,9 @@ $("start").onclick = async () => {
   $("setup").style.display = "none";
   document.documentElement.requestFullscreen?.().catch(()=>{});
   keepAwake();
-  status(S.torchOK ? "Waiting for visitors" : "Waiting for visitors (no flashlight in this browser; screen glow only)");
+  status(lightMode() === "screen" || S.torchOK ? "Waiting for visitors" : "Waiting for visitors (no flashlight here; using the screen)");
 };
+function lightMode() { const m = store.get("light","both"); return (m === "torch" && S && S.ctx && !S.torchOK) ? "both" : m; }
 function showErr(t) { $("err").textContent = t; }
 
 async function ensureAudio() {
@@ -136,7 +149,7 @@ async function ensureAudio() {
   // Microphone with the phone's echo cancellation
   S.mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true, channelCount:1 } });
   // Flashlight: needs the back camera open; only Chrome on Android supports it.
-  try {
+  if (lightMode() !== "screen" && !IOS) try {
     const cam = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" } } });
     S.camTrack = cam.getVideoTracks()[0];
     S.torchOK = !!(S.camTrack.getCapabilities && S.camTrack.getCapabilities().torch);
@@ -247,8 +260,10 @@ function frame() {
   S.peak = Math.max(rms, S.peak * 0.998, 0.05);
   const lvl = S.muted ? 0 : Math.min(1, rms / S.peak);
   S.level = lvl > S.level ? lvl : S.level * 0.8 + lvl * 0.2;
-  $("glow").style.opacity = S.level.toFixed(3);
-  setTorch(S.level > 0.3);
+  const mode = lightMode(), screenOn = mode !== "torch";
+  $("glow").style.opacity = screenOn ? Math.min(1, S.level * 1.6).toFixed(3) : 0;          // black -> orange
+  $("white").style.opacity = screenOn ? Math.max(0, (S.level - 0.6) / 0.4).toFixed(3) : 0; // orange -> white at his loudest
+  setTorch(mode !== "screen" && S.level > 0.3);
   // timeouts
   const now = Date.now();
   if (S.phase === "talking" && !speaking() && !S.greeting) { S.phase = "listening"; status("Listening"); }
@@ -269,7 +284,7 @@ function setMute(m) {
   if (m) { S.playEnd = 0; S.out.disconnect(); S.out = S.ctx.createGain(); S.out.connect(S.analyser); closeVisit(); setTorch(false); }
   else status("Waiting for visitors");
 }
-for (const el of [$("stage"), $("muted"), $("glow")]) el.addEventListener("click", () => { if (S.ctx) setMute(!S.muted); });
+for (const el of [$("stage"), $("muted"), $("glow"), $("white")]) el.addEventListener("click", () => { if (S.ctx) setMute(!S.muted); });
 </script>
 </body>
 </html>
