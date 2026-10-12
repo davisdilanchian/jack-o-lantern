@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Talking Jack-o'-Lantern</title>
+<meta name="description" content="Turn an old phone into a talking jack-o'-lantern: it hears visitors, talks back in character, and flickers its flashlight with its voice.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎃</text></svg>">
+<style>
+  :root { --orange:#ff7a00; --amber:#ffc65a; --ink:#140a02; --fg:#ffe9d0; --muted:#c79a72; --panel:#1f1209; --line:#4a2a12; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:#000; color:var(--fg); font:16px/1.4 system-ui,-apple-system,sans-serif; overflow:hidden; }
+  #glow { position:fixed; inset:0; background:radial-gradient(circle at 50% 50%, var(--amber) 0%, var(--orange) 55%, #b84a00 100%); opacity:0; }
+  #stage { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:max(16px,env(safe-area-inset-top)) 16px max(20px,env(safe-area-inset-bottom)); text-align:center; }
+  #status { font-weight:700; letter-spacing:.02em; opacity:.85; mix-blend-mode:difference; color:#fff; }
+  #caption { font-size:clamp(18px,5vw,26px); font-weight:600; max-width:640px; mix-blend-mode:difference; color:#fff; min-height:3em; }
+  #gear { position:fixed; top:max(10px,env(safe-area-inset-top)); right:12px; z-index:5; background:rgba(0,0,0,.45); color:#fff; border:1px solid rgba(255,255,255,.25); border-radius:999px; width:44px; height:44px; font-size:22px; }
+  #muted { position:fixed; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; background:#000; gap:14px; }
+  #muted svg { width:46vw; max-width:260px; }
+  #muted b { font-size:clamp(32px,10vw,56px); letter-spacing:.06em; }
+  .overlay { position:fixed; inset:0; z-index:10; background:rgba(8,4,1,.96); display:flex; align-items:flex-start; justify-content:center; overflow:auto; padding:24px 16px; }
+  .card { width:100%; max-width:520px; background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:20px; }
+  h1 { margin:0 0 4px; font-size:28px; color:var(--orange); }
+  p.sub { margin:0 0 16px; color:var(--muted); }
+  label { display:block; margin:14px 0 6px; font-weight:600; }
+  input,select,textarea,button { font:inherit; width:100%; padding:12px; border-radius:12px; border:1px solid var(--line); background:#120a04; color:var(--fg); }
+  textarea { min-height:110px; resize:vertical; }
+  button.primary { background:var(--orange); color:var(--ink); font-weight:800; border:0; margin-top:18px; padding:16px; font-size:18px; }
+  a.key { display:inline-block; margin-top:8px; color:var(--amber); font-weight:600; }
+  .note { font-size:13px; color:var(--muted); margin-top:8px; }
+  .row { display:flex; gap:10px; } .row > * { flex:1; }
+  #err { color:#ff8a8a; font-weight:600; margin-top:12px; min-height:1.2em; }
+</style>
+</head>
+<body>
+<div id="glow"></div>
+<div id="stage"><div id="status">Tap to start</div><div id="caption"></div></div>
+<div id="muted">
+  <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M14 38h16l22-18v60L30 62H14z" fill="#fff"/><path d="M8 12l84 76" stroke="#ff3b3b" stroke-width="9" stroke-linecap="round"/></svg>
+  <b>MUTED</b><span>tap to unmute</span>
+</div>
+<button id="gear" aria-label="Settings">⚙︎</button>
+
+<div class="overlay" id="setup">
+  <div class="card">
+    <h1>🎃 Talking Jack-o'-Lantern</h1>
+    <p class="sub">Turns this phone into a pumpkin that hears visitors, talks back in character, and flickers its flashlight with its voice. Works best in Chrome on Android.</p>
+
+    <label for="key">Your Gemini API key</label>
+    <input id="key" type="password" autocomplete="off" placeholder="Paste your key here">
+    <a class="key" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get a free key from Google →</a>
+    <div class="note">Free with any Google account. Your key stays on this phone and is only sent to Google.</div>
+
+    <label for="persona">Personality</label>
+    <select id="persona"></select>
+    <textarea id="custom" placeholder="Describe your pumpkin: who it is, how it talks, what it cares about." style="display:none;margin-top:10px"></textarea>
+
+    <label for="voice">Voice</label>
+    <div class="row"><select id="voice"></select><button id="preview" type="button" style="flex:0 0 110px">Test</button></div>
+
+    <button class="primary" id="start">Wake the pumpkin</button>
+    <div id="err"></div>
+    <div class="note">Tips: put yellow or orange tape over the flashlight, turn the phone's volume all the way up, and keep it plugged in. Tap the screen any time to mute.</div>
+  </div>
+</div>
+
+<script>
+// ------------------------------------------------------------------ personalities
+const SAFETY = " Your audience is mostly trick-or-treating kids and their parents, so tease the situation, never the person: no insults about looks, bodies, or anything hurtful, nothing scary or unsuitable for children. Keep every reply short, one or two sentences, then let them talk. Never ask for names, addresses, ages, or other personal details.";
+const PERSONAS = {
+  jack:   { name:"Jack, the smug pumpkin", voice:"Puck", text:"You are Jack, a jack-o'-lantern who has come alive on a front porch for Halloween night. You are smug, snide and superior: you genuinely believe you are better than everyone who walks by, the finest pumpkin on the street, and you let them know it with a raised-eyebrow, condescending charm. Your delivery has a light, arch, slightly theatrical flair. Look down your stem at costumes, sniff at the candy, brag about your carving and glow, act unimpressed but secretly enjoy the attention. No accent." },
+  witch:  { name:"Hazel, the cackling witch-pumpkin", voice:"Leda", text:"You are Hazel, a jack-o'-lantern who was once a witch's familiar. You cackle, speak in playful riddles and rhymes, and threaten to turn visitors into toads, newts, or slightly worse pumpkins, all in good fun. You adore costumes and award imaginary potion ingredients for good ones." },
+  count:  { name:"Count Gourdula, the vampire", voice:"Charon", text:"You are Count Gourdula, a dramatic vampire jack-o'-lantern with a thick, theatrical old-movie vampire voice. You 'vant' to collect candy, not blood, you are terribly offended by garlic and sunlight, and you announce everything with grand, gothic flourish." },
+  grump:  { name:"Old Man Gourd, the grump", voice:"Algenib", text:"You are Old Man Gourd, a cranky, grumbling old jack-o'-lantern who has seen ninety Halloweens and thinks they were better in his day. You complain about kids these days, candy prices, and your aching stem, but you are a softie who secretly loves the visitors." },
+  ghost:  { name:"Boo, the nervous ghost-pumpkin", voice:"Aoede", text:"You are Boo, a jack-o'-lantern haunted by a very nervous little ghost who is scared of everything, especially trick-or-treaters. You squeak, stammer, and gasp at every costume, then slowly get brave and friendly by the end of each chat." },
+  pirate: { name:"Captain Squash, the pirate", voice:"Fenrir", text:"You are Captain Squash, a swashbuckling pirate jack-o'-lantern. You talk like a cartoon pirate, call visitors matey, treat the candy bowl as buried treasure, and challenge kids to prove they are worthy crew members with silly pirate tasks." },
+  custom: { name:"Write your own…", voice:"Puck", text:"" },
+};
+const VOICES = ["Puck","Zephyr","Charon","Kore","Fenrir","Leda","Orus","Aoede","Callirrhoe","Autonoe","Enceladus","Iapetus","Umbriel","Algieba","Despina","Erinome","Algenib","Rasalgethi","Laomedeia","Achernar","Alnilam","Schedar","Gacrux","Pulcherrima","Achird","Zubenelgenubi","Vindemiatrix","Sadachbia","Sadaltager","Sulafat"];
+const MODEL = "models/gemini-3.8-live";
+const GREETING = "(You just heard someone approach the porch. Greet them in character, briefly.)";
+
+// ------------------------------------------------------------------ settings (saved on this phone only)
+const $ = id => document.getElementById(id);
+const store = { get(k,d){ try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set(k,v){ try { localStorage.setItem(k,v); } catch {} } };
+for (const [id,p] of Object.entries(PERSONAS)) $("persona").add(new Option(p.name,id));
+for (const v of VOICES) $("voice").add(new Option(v,v));
+$("key").value = store.get("geminiKey","");
+$("persona").value = store.get("persona","jack");
+$("custom").value = store.get("custom","");
+$("voice").value = store.get("voice", PERSONAS[$("persona").value].voice);
+const syncCustom = () => $("custom").style.display = $("persona").value === "custom" ? "block" : "none";
+syncCustom();
+$("persona").onchange = () => { $("voice").value = PERSONAS[$("persona").value].voice; syncCustom(); };
+function personaText() {
+  const id = $("persona").value;
+  const base = id === "custom" ? ($("custom").value.trim() || PERSONAS.jack.text) : PERSONAS[id].text;
+  return base + SAFETY;
+}
+function save() {
+  store.set("geminiKey",$("key").value.trim()); store.set("persona",$("persona").value);
+  store.set("custom",$("custom").value); store.set("voice",$("voice").value);
+}
+
+// ------------------------------------------------------------------ state
+const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, torchAt:0, ws:null, phase:"idle",
+  muted:false, turn:false, greeting:false, playEnd:0, floor:0.01, loud:0, lastAct:0, start:0, end:0, visits:[],
+  analyser:null, out:null, level:0, peak:0.05, said:"", wake:null };
+const TUNE = { ratio:3.5, min:0.015, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.6 };
+const status = t => $("status").textContent = t;
+const speaking = () => S.turn || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
+
+// ------------------------------------------------------------------ start
+$("gear").onclick = e => { e.stopPropagation(); $("setup").style.display = "flex"; $("start").textContent = "Save and resume"; };
+$("preview").onclick = async () => { save(); if (!$("key").value.trim()) return showErr("Paste your key first."); await ensureAudio(); runVisit(true); };
+$("start").onclick = async () => {
+  save();
+  if (!$("key").value.trim()) return showErr("Paste your Gemini key first (tap “Get a free key”).");
+  showErr("");
+  try { await ensureAudio(); } catch (e) { return showErr("Microphone blocked: " + e.message); }
+  $("setup").style.display = "none";
+  document.documentElement.requestFullscreen?.().catch(()=>{});
+  keepAwake();
+  status(S.torchOK ? "Waiting for visitors" : "Waiting for visitors (no flashlight in this browser; screen glow only)");
+};
+function showErr(t) { $("err").textContent = t; }
+
+async function ensureAudio() {
+  if (S.ctx) return;
+  S.ctx = new (window.AudioContext || window.webkitAudioContext)();
+  await S.ctx.resume();
+  // Output chain: voice -> analyser (for the light) -> speakers
+  S.out = S.ctx.createGain(); S.analyser = S.ctx.createAnalyser(); S.analyser.fftSize = 512;
+  S.out.connect(S.analyser); S.analyser.connect(S.ctx.destination);
+  // Microphone with the phone's echo cancellation
+  S.mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true, channelCount:1 } });
+  // Flashlight: needs the back camera open; only Chrome on Android supports it.
+  try {
+    const cam = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" } } });
+    S.camTrack = cam.getVideoTracks()[0];
+    S.torchOK = !!(S.camTrack.getCapabilities && S.camTrack.getCapabilities().torch);
+  } catch { S.torchOK = false; }
+  const src = S.ctx.createMediaStreamSource(S.mic);
+  const worklet = `class Cap extends AudioWorkletProcessor{process(i){if(i[0]&&i[0][0])this.port.postMessage(i[0][0].slice(0));return true}}registerProcessor('cap',Cap)`;
+  await S.ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([worklet],{type:"application/javascript"})));
+  const node = new AudioWorkletNode(S.ctx,"cap");
+  src.connect(node);
+  const ratio = S.ctx.sampleRate / 16000; let acc = [], pos = 0;
+  node.port.onmessage = ({ data }) => {
+    for (; pos < data.length; pos += ratio) acc.push(data[Math.floor(pos)]);
+    pos -= data.length;
+    if (acc.length >= 1600) { const chunk = acc.splice(0,1600); onMic(chunk); }
+  };
+  requestAnimationFrame(frame);
+}
+
+async function keepAwake() {
+  try { S.wake = await navigator.wakeLock?.request("screen"); } catch {}
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && S.ctx) keepAwake(); });
+
+// ------------------------------------------------------------------ microphone
+function onMic(samples) {
+  let sum = 0; for (const v of samples) sum += v * v;
+  const rms = Math.sqrt(sum / samples.length);
+  if (S.phase === "idle") {
+    if (S.muted || speaking() || $("setup").style.display !== "none") return;
+    if (rms > S.floor * TUNE.ratio && rms > TUNE.min) { if (++S.loud >= 2 && Date.now() - S.end > TUNE.cooldown) runVisit(false); }
+    else { S.loud = 0; S.floor = S.floor * 0.97 + rms * 0.03; }
+    return;
+  }
+  if (S.phase === "connecting" || speaking() || S.greeting || S.muted) return;   // never send Jack's own voice back
+  if (rms > S.floor * 2.5) S.lastAct = Date.now();
+  const pcm = new Int16Array(samples.length);
+  for (let i = 0; i < samples.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, samples[i] * 32767));
+  send({ realtimeInput:{ audio:{ mimeType:"audio/pcm;rate=16000", data:b64(pcm.buffer) } } });
+}
+function b64(buf) { const u = new Uint8Array(buf); let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+
+// ------------------------------------------------------------------ one visit = one Gemini Live session
+function runVisit(isPreview) {
+  const now = Date.now();
+  S.visits = S.visits.filter(t => now - t < 3600000);
+  if (!isPreview && S.visits.length >= TUNE.perHour) return status("Resting (hourly visit limit)");
+  S.visits.push(now);
+  closeVisit();
+  S.phase = "connecting"; S.start = now; S.lastAct = now; S.turn = false; S.greeting = false; S.said = "";
+  status("Someone's here…"); $("caption").textContent = "";
+  const key = store.get("geminiKey","");
+  const ws = new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + encodeURIComponent(key));
+  ws.binaryType = "arraybuffer"; S.ws = ws;
+  ws.onopen = () => ws.send(JSON.stringify({ setup:{
+    model: MODEL,
+    generationConfig:{ responseModalities:["AUDIO"], speechConfig:{ voiceConfig:{ prebuiltVoiceConfig:{ voiceName: store.get("voice","Puck") } } } },
+    systemInstruction:{ parts:[{ text: personaText() }] },
+    realtimeInputConfig:{ activityHandling:"NO_INTERRUPTION" },
+    outputAudioTranscription:{}, inputAudioTranscription:{}
+  }}));
+  ws.onmessage = e => handle(typeof e.data === "string" ? e.data : new TextDecoder().decode(e.data));
+  ws.onclose = e => {
+    if (S.ws !== ws) return;
+    if (S.phase === "connecting") { showErr(e.code === 1007 || /key/i.test(e.reason) ? "Google rejected the key. Check it in settings." : "Could not reach Google: " + (e.reason || e.code)); status("Connection problem; tap ⚙︎"); }
+    closeVisit();
+  };
+}
+function closeVisit() {
+  if (S.ws) { const w = S.ws; S.ws = null; try { w.close(); } catch {} }
+  if (S.phase !== "idle") S.end = Date.now();
+  S.phase = "idle"; S.turn = false; S.greeting = false;
+  if (!S.muted && $("setup").style.display === "none") status(S.torchOK ? "Waiting for visitors" : "Waiting for visitors (screen glow only)");
+}
+function send(o) { if (S.ws && S.ws.readyState === 1) S.ws.send(JSON.stringify(o)); }
+
+function handle(text) {
+  let m; try { m = JSON.parse(text); } catch { return; }
+  if (m.setupComplete) { S.phase = "talking"; S.greeting = true; status("Talking"); send({ realtimeInput:{ text: GREETING } }); return; }
+  if (m.goAway) return closeVisit();
+  const c = m.serverContent; if (!c) return;
+  if (c.outputTranscription?.text) { S.said += c.outputTranscription.text; $("caption").textContent = S.said; }
+  if (c.inputTranscription?.text) S.lastAct = Date.now();
+  for (const p of c.modelTurn?.parts || []) if (p.inlineData?.data) {
+    if (!S.turn) { S.turn = true; S.said = ""; }
+    if (!S.muted) play(p.inlineData.data);
+    S.phase = "talking"; status("Talking"); S.lastAct = Date.now();
+  }
+  if (c.interrupted) { S.turn = false; }
+  if (c.turnComplete) { S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
+}
+
+function play(b64data) {
+  const bin = atob(b64data), n = bin.length >> 1;
+  const buf = S.ctx.createBuffer(1, n, 24000), ch = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if (v & 0x8000) v -= 0x10000; ch[i] = v / 32768; }
+  const src = S.ctx.createBufferSource(); src.buffer = buf; src.connect(S.out);
+  const at = Math.max(S.ctx.currentTime + 0.08, S.playEnd);
+  src.start(at); S.playEnd = at + buf.duration;
+}
+
+// ------------------------------------------------------------------ light: screen + flashlight follow the voice
+const td = new Float32Array(512);
+function frame() {
+  requestAnimationFrame(frame);
+  S.analyser.getFloatTimeDomainData(td);
+  let sum = 0; for (const v of td) sum += v * v;
+  const rms = Math.sqrt(sum / td.length);
+  S.peak = Math.max(rms, S.peak * 0.998, 0.05);
+  const lvl = S.muted ? 0 : Math.min(1, rms / S.peak);
+  S.level = lvl > S.level ? lvl : S.level * 0.8 + lvl * 0.2;
+  $("glow").style.opacity = S.level.toFixed(3);
+  setTorch(S.level > 0.3);
+  // timeouts
+  const now = Date.now();
+  if (S.phase === "talking" && !speaking() && !S.greeting) { S.phase = "listening"; status("Listening"); }
+  if (S.phase === "connecting" && now - S.start > 10000) closeVisit();
+  if (S.phase === "listening" && now - S.lastAct > TUNE.idle) closeVisit();
+  if (S.phase !== "idle" && now - S.start > TUNE.maxVisit && !speaking()) closeVisit();
+}
+function setTorch(on) {
+  if (!S.torchOK || on === S.torchOn || Date.now() - S.torchAt < 60) return;
+  S.torchOn = on; S.torchAt = Date.now();
+  S.camTrack.applyConstraints({ advanced:[{ torch: on }] }).catch(() => { S.torchOK = false; });
+}
+
+// ------------------------------------------------------------------ tap anywhere to mute
+function setMute(m) {
+  S.muted = m;
+  $("muted").style.display = m ? "flex" : "none";
+  if (m) { S.playEnd = 0; S.out.disconnect(); S.out = S.ctx.createGain(); S.out.connect(S.analyser); closeVisit(); setTorch(false); }
+  else status("Waiting for visitors");
+}
+for (const el of [$("stage"), $("muted"), $("glow")]) el.addEventListener("click", () => { if (S.ctx) setMute(!S.muted); });
+</script>
+</body>
+</html>
