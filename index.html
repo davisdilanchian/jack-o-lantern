@@ -96,6 +96,11 @@
   .overlay ol b, .overlay .by b { color:var(--fg); }
   .overlay #err { color:#b3261e; }
   .overlay #scanbox video { border:1.5px solid var(--ink); }
+.overlay ol.how { margin:4px 0 18px; padding-left:22px; font-size:17px; } .overlay ol.how li { margin:6px 0; }
+.steps { margin:10px 0; border:1.5px solid rgba(58,40,26,.45); border-radius:10px; padding:10px 14px; background:var(--surface); }
+.steps summary { cursor:pointer; font-weight:600; color:var(--ink); } .steps ol { margin:10px 0 2px; padding-left:20px; } .steps li { margin:6px 0; }
+.steps a { color:var(--ink); font-weight:600; }
+ul.plain { margin:0; padding-left:20px; } ul.plain li { margin:6px 0; }
 </style>
 </head>
 <body>
@@ -115,13 +120,29 @@
   <div class="wrap">
     <img class="hero" src="og.jpg" width="1200" height="630" alt="Watercolor of a hand dropping a phone into a pumpkin, which then glows as a jack-o'-lantern.">
     <h1>Talking Jack-o'-Lantern</h1>
-    <p class="lede">Turns this phone into a pumpkin that hears visitors and talks back, with its light flickering as it speaks.</p>
+    <p class="lede">Put a phone inside a pumpkin and it talks to trick-or-treaters. It hears them, answers out loud, and glows as it speaks. No app to install.</p>
+    <ol class="how">
+      <li><b>Get a free key from Google.</b> About 2 minutes.</li>
+      <li><b>Pick a character</b> and a voice.</li>
+      <li><b>Tap Start</b> and put the phone in your pumpkin.</li>
+    </ol>
 
     <section>
-      <h2>Gemini key</h2>
-      <label for="key">API key</label>
-      <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste key">
-      <p class="help">Free with any Google account. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get a key from Google AI Studio</a>. It stays on this phone and is only sent to Google.</p>
+      <h2>1. Your free Google key</h2>
+      <p class="help" style="margin-top:0">The pumpkin's brain is Google's AI. A "key" is a long code, like a password, that lets your pumpkin use it. It's free.</p>
+      <label for="key">Key</label>
+      <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your key here">
+      <details class="steps">
+        <summary>How do I get a key?</summary>
+        <ol>
+          <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> and sign in with any Google or Gmail account. Agree to the terms if it asks.</li>
+          <li>Tap <b>Create API key</b>.</li>
+          <li>Tap the copy button next to the long code.</li>
+          <li>Come back here and paste it in the box above.</li>
+        </ol>
+      </details>
+      <p class="help">Your key stays on this phone. It only goes to Google. Don't share it with people you don't know.</p>
+      <p class="help"><b>Using an old phone?</b> Get the key on your main phone first. Tap <b>Share my key</b> there, then tap <b>Scan a key</b> on the old phone and point it at the code.</p>
       <div class="btnrow">
         <button id="scan" type="button">Scan a key</button>
         <button id="share" type="button">Share my key</button>
@@ -129,59 +150,66 @@
       <p id="keymsg" class="help" role="status" style="color:var(--fg)"></p>
       <div id="scanbox">
         <video id="scanvid" playsinline muted></video>
-        <p class="help">Point this camera at the QR code on the other phone (Settings, Share my key).</p>
+        <p class="help">Point this camera at the square code on the other phone.</p>
         <button id="stopscan" type="button" style="margin-top:8px">Cancel</button>
       </div>
       <div id="qrbox" role="dialog" aria-label="QR code with your key">
         <div id="qr"></div>
-        <p>Scan with the other phone's camera, then open the link. Anyone who scans this gets your key, so hide it when you're done.</p>
+        <p>On the other phone, tap <b>Scan a key</b> and point it here. You can also use its camera app and open the link. Anyone who scans this gets your key, so hide it when you're done.</p>
         <button id="hideqr" type="button" style="margin-top:10px;color:#1a1410;border-color:#d9cfc6">Hide code</button>
       </div>
     </section>
 
     <section>
-      <h2>Character</h2>
+      <h2>2. Pick a character</h2>
       <div class="field">
         <label for="persona">Personality</label>
         <select id="persona"></select>
-        <textarea id="custom" placeholder="Who it is, how it talks, what it cares about" style="display:none"></textarea>
+        <textarea id="custom" placeholder="Describe your pumpkin: who it is, how it talks, what it likes. For example: a sleepy grandpa pumpkin who loves bad jokes." style="display:none"></textarea>
       </div>
       <div class="field">
         <label for="voice">Voice</label>
-        <div class="row"><select id="voice"></select><button id="preview" type="button">Test</button></div>
+        <div class="row"><select id="voice"></select><button id="preview" type="button">Hear it</button></div>
+        <p class="help">Each character comes with a voice that fits. Tap <b>Hear it</b> to listen.</p>
       </div>
       <div class="field">
         <label for="lang">Language</label>
         <select id="lang"></select>
-        <p class="help">"Match the visitor" answers in whatever language someone speaks, but can switch on background noise. A fixed language is steadier.</p>
+        <p class="help"><b>Match the visitor</b> answers in the language people speak to it. If it switches languages by mistake, pick one language.</p>
       </div>
     </section>
 
     <section>
       <h2>Light</h2>
-      <label for="light">Use</label>
+      <label for="light">What lights up</label>
       <select id="light">
         <option value="both">Screen and flashlight</option>
         <option value="screen">Screen only</option>
         <option value="torch">Flashlight only</option>
       </select>
-      <p class="help">The screen fades from black to orange to white as it talks. Flashlight control needs Chrome on Android; iPhones use the screen.</p>
+      <p class="help">The screen glows orange and gets brighter as it talks. The flashlight can flicker too, but only on Android phones in Chrome. iPhones use the screen.</p>
     </section>
 
     <section>
       <h2>Privacy</h2>
-      <p class="help" style="margin-top:0">While someone is talking to it, the pumpkin streams what it hears to Google's Gemini API, using your key, so it can answer. This site has no server and stores no audio or keys anywhere but this phone. On Gemini's free tier Google may use inputs to improve its products; a paid key opts out. A small "talking pumpkin" sign lets visitors know it is listening.</p>
+      <ul class="help plain">
+        <li>When someone talks to the pumpkin, what they say goes to Google so it can answer.</li>
+        <li>This website doesn't record or keep anything. Your key and settings stay on this phone.</li>
+        <li>With a free key, Google may use what it hears to improve its AI.</li>
+        <li>Put a small "talking pumpkin" sign nearby so people know it's listening.</li>
+      </ul>
     </section>
 
     <section>
-      <h2>Before you set it out</h2>
+      <h2>3. Set up the phone</h2>
       <ol>
-        <li><b>Brightness to max</b> and auto-brightness off.</li>
-        <li><b>Keep the screen on.</b> iPhone: Settings › Display &amp; Brightness › Auto-Lock › Never, and Low Power Mode off. Android: Settings › Display › Screen timeout › longest, and battery saver off.</li>
-        <li><b>Volume all the way up</b> and the phone plugged in.</li>
-        <li><b>Yellow or orange tape</b> over the flashlight.</li>
+        <li><b>Turn brightness all the way up.</b> Turn off auto-brightness.</li>
+        <li><b>Stop the screen from turning off.</b> iPhone: open Settings › Display &amp; Brightness › Auto-Lock › Never. Also turn off Low Power Mode. Android: open Settings › Display › Screen timeout › pick the longest. Also turn off battery saver.</li>
+        <li><b>Turn the volume all the way up</b> and plug the phone in to charge.</li>
+        <li><b>Optional:</b> put yellow or orange tape over the flashlight for a warmer glow.</li>
+        <li><b>Tap Start,</b> allow the microphone when asked, and put the phone in the pumpkin with the screen facing out.</li>
       </ol>
-      <p class="help">Tap the screen any time to mute.</p>
+      <p class="help">Tap the screen any time to mute it. Tap <b>Settings</b> in the corner to change things.</p>
     </section>
 
     <button class="primary" id="start">Start</button>
@@ -246,7 +274,8 @@ const GREETING = "(You just heard someone approach the porch. Greet them in char
 const $ = id => document.getElementById(id);
 const store = { get(k,d){ try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set(k,v){ try { localStorage.setItem(k,v); } catch {} } };
 for (const [id,p] of Object.entries(PERSONAS)) $("persona").add(new Option(p.name,id));
-for (const v of VOICES) $("voice").add(new Option(v,v));
+const VOICE_FEEL = {"Puck":"upbeat","Zephyr":"bright","Charon":"informative","Kore":"firm","Fenrir":"excitable","Leda":"youthful","Orus":"firm","Aoede":"breezy","Callirrhoe":"easy-going","Autonoe":"bright","Enceladus":"breathy","Iapetus":"clear","Umbriel":"easy-going","Algieba":"smooth","Despina":"smooth","Erinome":"clear","Algenib":"gravelly","Rasalgethi":"informative","Laomedeia":"upbeat","Achernar":"soft","Alnilam":"firm","Schedar":"even","Gacrux":"mature","Pulcherrima":"forward","Achird":"friendly","Zubenelgenubi":"casual","Vindemiatrix":"gentle","Sadachbia":"lively","Sadaltager":"knowledgeable","Sulafat":"warm"};
+for (const v of VOICES) $("voice").add(new Option(VOICE_FEEL[v] ? v + " (" + VOICE_FEEL[v] + ")" : v, v));
 for (const [code,name] of LANGS) $("lang").add(new Option(name,code));
 $("key").value = store.get("geminiKey","");
 $("persona").value = store.get("persona","jack");
@@ -282,22 +311,22 @@ const speaking = () => S.turn || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime 
 
 // ------------------------------------------------------------------ start
 $("gear").onclick = e => { e.stopPropagation(); $("setup").style.display = "flex"; $("start").textContent = "Save and resume"; };
-$("preview").onclick = async () => { save(); if (!$("key").value.trim()) return showErr("Paste your key first."); try { await ensureAudio(); } catch (e) { return showErr(micHelp(e)); } runVisit(true); };
+$("preview").onclick = async () => { save(); if (!$("key").value.trim()) return showErr("Paste your key in step 1 first."); try { await ensureAudio(); } catch (e) { return showErr(micHelp(e)); } runVisit(true); };
 $("start").onclick = async () => {
   save();
-  if (!$("key").value.trim()) return showErr("Paste your Gemini key first.");
+  if (!$("key").value.trim()) return showErr("Paste your key in step 1 first.");
   showErr("");
   try { await ensureAudio(); } catch (e) { return showErr(micHelp(e)); }
   $("setup").style.display = "none";
   document.documentElement.requestFullscreen?.().catch(()=>{});
   keepAwake();
-  status(lightMode() === "screen" || S.torchOK ? "Waiting for visitors" : "Waiting for visitors (no flashlight here; using the screen)");
+  status(lightMode() === "screen" || S.torchOK ? "Waiting for visitors" : "Waiting for visitors (using the screen to glow)");
 };
 function lightMode() { const m = store.get("light","both"); return (m === "torch" && S && S.ctx && !S.torchOK) ? "both" : m; }
 $("share").onclick = () => {
   const key = $("key").value.trim();
   if (!key) return showErr("Paste a key on this phone first.");
-  if (typeof qrcode !== "function") return showErr("Could not load the QR maker. Check the connection and try again.");
+  if (typeof qrcode !== "function") return showErr("Couldn't make the code. Check your internet and try again.");
   const q = qrcode(0, "M"); q.addData(location.origin + location.pathname + "#k=" + key); q.make();
   $("qr").innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
   $("qrbox").style.display = "block"; $("share").style.display = "none";
@@ -314,17 +343,17 @@ $("stopscan").onclick = stopScan;
 const keyMsg = t => { $("keymsg").textContent = t; };
 $("scan").onclick = async () => {
   keyMsg("Opening camera...");
-  if (typeof jsQR !== "function") return keyMsg("Could not load the QR reader. Check the connection and reload.");
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return keyMsg("This browser cannot open the camera. Try Chrome.");
+  if (typeof jsQR !== "function") return keyMsg("Couldn't start the scanner. Check your internet and reload the page.");
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return keyMsg("This browser can't use the camera. Try opening this page in Chrome.");
   try { scanStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" } }); }
   catch (e1) {
     try { scanStream = await navigator.mediaDevices.getUserMedia({ video:true }); }   // older phones: any camera
-    catch (e) { return keyMsg(e.name === "NotAllowedError" ? "Camera is blocked. Tap the lock icon by the address, then Permissions, Camera, Allow. Then reload." : "Could not open the camera (" + e.name + "): " + e.message); }
+    catch (e) { return keyMsg(e.name === "NotAllowedError" ? "The camera is blocked. Tap the lock icon next to the web address, then Permissions, Camera, Allow. Then reload the page." : "Couldn't open the camera. Close other camera apps and try again."); }
   }
   const v = $("scanvid"); v.setAttribute("autoplay", ""); v.srcObject = scanStream;
   $("scanbox").style.display = "block"; $("scan").disabled = true;
   try { await v.play(); } catch {}
-  keyMsg("Point the camera at the other phone's key QR code.");
+  keyMsg("Point the camera at the square code on the other phone.");
   const c = document.createElement("canvas"), g = c.getContext("2d");
   const tick = () => {
     if (!scanStream) return;
@@ -345,12 +374,12 @@ function showErr(t) { $("err").textContent = t; }
 function micHelp(e) {
   const n = e && e.name;
   if (n === "NotAllowedError" || n === "SecurityError")
-    return IOS ? "Microphone is blocked for this site. In Safari tap aA in the address bar, then Website Settings, Microphone, Allow. Also check Settings, Apps, Safari, Microphone. Then reload."
-               : "Microphone is blocked. Tap the lock icon by the address, then Permissions, Microphone, Allow. If there is no prompt, also allow the browser's microphone in phone Settings, Apps, Chrome, Permissions. Then reload.";
+    return IOS ? "The pumpkin can't hear. In Safari, tap aA next to the web address, then Website Settings, Microphone, Allow. Then reload the page."
+               : "The pumpkin can't hear. Tap the lock icon next to the web address, then Permissions, Microphone, Allow. Still stuck? Open phone Settings, Apps, Chrome, Permissions, Microphone, Allow. Then reload the page.";
   if (n === "NotFoundError" || n === "OverconstrainedError") return "No microphone found on this device.";
-  if (n === "NotReadableError" || n === "AbortError") return "The microphone is busy. Close other apps using it (calls, voice recorder) and try again.";
-  if (n === "NoMediaDevices") return "This browser cannot use the microphone. Open the page in " + (IOS ? "Safari." : "Chrome.");
-  return "Audio setup failed (" + (n || "error") + "): " + (e && e.message || e);
+  if (n === "NotReadableError" || n === "AbortError") return "Another app is using the microphone. Hang up any calls, close other apps, and try again.";
+  if (n === "NoMediaDevices") return "This browser can't use the microphone. Open this page in " + (IOS ? "Safari." : "Chrome.");
+  return "Sound didn't start. Reload the page and try again.";
 }
 
 async function ensureAudio() {
@@ -436,7 +465,7 @@ function b64(buf) { const u = new Uint8Array(buf); let s = ""; for (let i = 0; i
 function runVisit(isPreview) {
   const now = Date.now();
   S.visits = S.visits.filter(t => now - t < 3600000);
-  if (!isPreview && S.visits.length >= TUNE.perHour) return status("Resting (hourly visit limit)");
+  if (!isPreview && S.visits.length >= TUNE.perHour) return status("Taking a short break (lots of visitors this hour)");
   S.visits.push(now);
   closeVisit();
   S.phase = "connecting"; S.start = now; S.lastAct = now; S.turn = false; S.greeting = false; S.said = "";
@@ -457,7 +486,7 @@ function runVisit(isPreview) {
     if (S.phase === "connecting" && !/key/i.test(e.reason || "") && modelIdx < MODELS.length - 1) {
       modelIdx++; S.ws = null; S.phase = "idle"; return runVisit(isPreview);    // try the next model
     }
-    if (S.phase === "connecting") { showErr(e.code === 1007 || /key/i.test(e.reason) ? "Google rejected the key. Check it in settings." : "Could not reach Google: " + (e.reason || e.code)); status("Connection problem; tap ⚙︎"); }
+    if (S.phase === "connecting") { showErr(e.code === 1007 || /key/i.test(e.reason) ? "Google didn't accept the key. Tap Settings and paste it again." : "Couldn't connect. Check the Wi-Fi and try again."); status("Can't connect. Check Wi-Fi, then tap Settings."); }
     closeVisit();
   };
 }
@@ -465,7 +494,7 @@ function closeVisit() {
   if (S.ws) { const w = S.ws; S.ws = null; try { w.close(); } catch {} }
   if (S.phase !== "idle") S.end = Date.now();
   S.phase = "idle"; S.turn = false; S.greeting = false;
-  if (!S.muted && $("setup").style.display === "none") status(S.torchOK ? "Waiting for visitors" : "Waiting for visitors (screen glow only)");
+  if (!S.muted && $("setup").style.display === "none") status(S.torchOK ? "Waiting for visitors" : "Waiting for visitors (using the screen to glow)");
 }
 function send(o) { if (S.ws && S.ws.readyState === 1) S.ws.send(JSON.stringify(o)); }
 
