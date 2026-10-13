@@ -130,7 +130,7 @@ ul.plain { margin:0; padding-left:20px; } ul.plain li { margin:6px 0; }
 
     <section>
       <h2>1. Your free Google key</h2>
-      <p class="help" style="margin-top:0">The pumpkin's brain is Google's AI. A "key" is a long code, like a password, that lets your pumpkin use it. It's free.</p>
+      <p class="help" style="margin-top:0">The pumpkin's brain is an AI from Google. A "key" is a long code, like a password, that lets your pumpkin use it. Google's is free.</p>
       <label for="key">Key</label>
       <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your key here">
       <details class="steps">
@@ -142,7 +142,9 @@ ul.plain { margin:0; padding-left:20px; } ul.plain li { margin:6px 0; }
           <li>Come back here and paste it in the box above.</li>
         </ol>
       </details>
-      <p class="help">Your key stays on this phone. It only goes to Google. Don't share it with people you don't know.</p>
+      <p id="keykind" class="help" role="status"></p>
+      <p class="help"><b>Have an OpenAI key?</b> You can paste that instead (it starts with sk-). OpenAI isn't free. It costs a few cents per conversation, billed to your OpenAI account.</p>
+      <p class="help">Your key stays on this phone. It only goes to Google (or OpenAI). Don't share it with people you don't know.</p>
       <p class="help"><b>Using an old phone?</b> Get the key on your main phone first. Tap <b>Share my key</b> there, then tap <b>Scan a key</b> on the old phone and point it at the code.</p>
       <div class="btnrow">
         <button id="scan" type="button">Scan a key</button>
@@ -194,9 +196,9 @@ ul.plain { margin:0; padding-left:20px; } ul.plain li { margin:6px 0; }
     <section>
       <h2>Privacy</h2>
       <ul class="help plain">
-        <li>When someone talks to the pumpkin, what they say goes to Google so it can answer.</li>
+        <li>When someone talks to the pumpkin, what they say goes to Google (or OpenAI, if you use an OpenAI key) so it can answer.</li>
         <li>This website doesn't record or keep anything. Your key and settings stay on this phone.</li>
-        <li>With a free key, Google may use what it hears to improve its AI.</li>
+        <li>With a free Google key, Google may use what it hears to improve its AI.</li>
         <li>Put a small "talking pumpkin" sign nearby so people know it's listening.</li>
       </ul>
     </section>
@@ -236,7 +238,7 @@ ul.plain { margin:0; padding-left:20px; } ul.plain li { margin:6px 0; }
 // ------------------------------------------------------------------ key handoff: a QR link with the key after "#".
 // The part after "#" is never sent to the server; we save it on this phone and wipe it from the address bar.
 (function importKeyFromLink() {
-  const m = location.hash.match(/^#k=([A-Za-z0-9._-]{20,200})$/);
+  const m = location.hash.match(/^#k=([A-Za-z0-9._-]{20,300})$/);
   if (!m) return;
   try { localStorage.setItem("geminiKey", m[1]); } catch {}
   history.replaceState(null, "", location.pathname + location.search);
@@ -265,6 +267,13 @@ const LANGS = [
   ["ru-RU","Русский"],["ar-EG","العربية"],["hi-IN","हिन्दी"],["ja-JP","日本語"],["ko-KR","한국어"],["cmn-CN","中文"],["vi-VN","Tiếng Việt"],["id-ID","Bahasa Indonesia"]
 ];
 const VOICES = ["Puck","Zephyr","Charon","Kore","Fenrir","Leda","Orus","Aoede","Callirrhoe","Autonoe","Enceladus","Iapetus","Umbriel","Algieba","Despina","Erinome","Algenib","Rasalgethi","Laomedeia","Achernar","Alnilam","Schedar","Gacrux","Pulcherrima","Achird","Zubenelgenubi","Vindemiatrix","Sadachbia","Sadaltager","Sulafat"];
+// OpenAI keys start with "sk-"; anything else is treated as a Google Gemini key.
+const providerOf = k => /^sk-/.test((k || "").trim()) ? "openai" : "gemini";
+const OA_VOICES = { alloy:"neutral", ash:"confident", ballad:"expressive", coral:"warm", echo:"smooth", sage:"calm", shimmer:"bright", verse:"dynamic", marin:"natural", cedar:"deep" };
+const OA_PERSONA_VOICE = { jack:"ash", witch:"shimmer", count:"verse", grump:"echo", ghost:"coral", denial:"alloy", prof:"ballad", cabbie:"cedar", custom:"ash" };
+const OA_MODELS = ["gpt-realtime-2.1", "gpt-realtime"];
+let oaIdx = 0;
+try { oaIdx = Math.max(0, OA_MODELS.indexOf(localStorage.getItem("oaModel") || OA_MODELS[0])); } catch {}
 // Google renames live models often; try these in order and remember the first that works.
 const MODELS = ["models/gemini-3.8-live", "models/gemini-2.5-flash-native-audio-latest"];
 let modelIdx = 0;
@@ -276,7 +285,20 @@ const $ = id => document.getElementById(id);
 const store = { get(k,d){ try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set(k,v){ try { localStorage.setItem(k,v); } catch {} } };
 for (const [id,p] of Object.entries(PERSONAS)) $("persona").add(new Option(p.name,id));
 const VOICE_FEEL = {"Puck":"upbeat","Zephyr":"bright","Charon":"informative","Kore":"firm","Fenrir":"excitable","Leda":"youthful","Orus":"firm","Aoede":"breezy","Callirrhoe":"easy-going","Autonoe":"bright","Enceladus":"breathy","Iapetus":"clear","Umbriel":"easy-going","Algieba":"smooth","Despina":"smooth","Erinome":"clear","Algenib":"gravelly","Rasalgethi":"informative","Laomedeia":"upbeat","Achernar":"soft","Alnilam":"firm","Schedar":"even","Gacrux":"mature","Pulcherrima":"forward","Achird":"friendly","Zubenelgenubi":"casual","Vindemiatrix":"gentle","Sadachbia":"lively","Sadaltager":"knowledgeable","Sulafat":"warm"};
-for (const v of VOICES) $("voice").add(new Option(VOICE_FEEL[v] ? v + " (" + VOICE_FEEL[v] + ")" : v, v));
+const cap = w => w[0].toUpperCase() + w.slice(1);
+const voiceKey = () => providerOf($("key").value) === "openai" ? "voiceOA" : "voice";
+const personaVoice = () => providerOf($("key").value) === "openai" ? (OA_PERSONA_VOICE[$("persona").value] || "ash") : PERSONAS[$("persona").value].voice;
+let shownProvider = "";
+function fillVoices() {
+  const prov = providerOf($("key").value);
+  if (prov === shownProvider) return;
+  shownProvider = prov; $("voice").length = 0;
+  if (prov === "openai") for (const [v,f] of Object.entries(OA_VOICES)) $("voice").add(new Option(cap(v) + " (" + f + ")", v));
+  else for (const v of VOICES) $("voice").add(new Option(VOICE_FEEL[v] ? v + " (" + VOICE_FEEL[v] + ")" : v, v));
+  $("voice").value = store.get(voiceKey(), personaVoice());
+  if (!$("voice").value) $("voice").value = personaVoice();
+  $("keykind").textContent = !$("key").value.trim() ? "" : prov === "openai" ? "OpenAI key. Voices below are OpenAI's." : "Google key.";
+}
 for (const [code,name] of LANGS) $("lang").add(new Option(name,code));
 $("key").value = store.get("geminiKey","");
 $("persona").value = store.get("persona","jack");
@@ -284,10 +306,11 @@ $("custom").value = store.get("custom","");
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 $("light").value = store.get("light", IOS ? "screen" : "both");
 $("lang").value = store.get("lang", "auto");
-$("voice").value = store.get("voice", PERSONAS[$("persona").value].voice);
+fillVoices();
+$("key").addEventListener("input", fillVoices);
 const syncCustom = () => $("custom").style.display = $("persona").value === "custom" ? "block" : "none";
 syncCustom();
-$("persona").onchange = () => { $("voice").value = PERSONAS[$("persona").value].voice; syncCustom(); };
+$("persona").onchange = () => { $("voice").value = personaVoice(); syncCustom(); };
 function personaText() {
   const id = $("persona").value;
   const base = id === "custom" ? ($("custom").value.trim() || PERSONAS.jack.text) : PERSONAS[id].text;
@@ -299,13 +322,13 @@ function personaText() {
 }
 function save() {
   store.set("geminiKey",$("key").value.trim()); store.set("persona",$("persona").value);
-  store.set("custom",$("custom").value); store.set("voice",$("voice").value); store.set("lang",$("lang").value); store.set("light",$("light").value);
+  store.set("custom",$("custom").value); store.set(voiceKey(),$("voice").value); S.inRate = providerOf($("key").value) === "openai" ? 24000 : 16000; store.set("lang",$("lang").value); store.set("light",$("light").value);
 }
 
 // ------------------------------------------------------------------ state
 const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, torchAt:0, ws:null, phase:"idle",
   muted:false, turn:false, greeting:false, playEnd:0, floor:0.01, loud:0, lastAct:0, start:0, end:0, visits:[],
-  analyser:null, out:null, level:0, peak:0.05, said:"", wake:null };
+  analyser:null, out:null, level:0, peak:0.05, said:"", wake:null, visitId:0, inRate: providerOf(store.get("geminiKey","")) === "openai" ? 24000 : 16000 };
 const TUNE = { ratio:3.5, min:0.015, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.6 };
 const status = t => $("status").textContent = t;
 const speaking = () => S.turn || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
@@ -362,7 +385,7 @@ $("scan").onclick = async () => {
       const w = 400, h = Math.round(400 * v.videoHeight / v.videoWidth);
       c.width = w; c.height = h; g.drawImage(v, 0, 0, w, h);
       const code = jsQR(g.getImageData(0, 0, w, h).data, w, h, { inversionAttempts:"dontInvert" });
-      const m = code && (code.data.match(/#k=([A-Za-z0-9._-]{20,200})$/) || code.data.match(/^([A-Za-z0-9._-]{20,200})$/));
+      const m = code && (code.data.match(/#k=([A-Za-z0-9._-]{20,300})$/) || code.data.match(/^([A-Za-z0-9._-]{20,300})$/));
       if (m) { $("key").value = m[1]; save(); stopScan(); keyMsg("Key added from the other phone."); return; }
     }
     setTimeout(tick, 250);
@@ -404,11 +427,12 @@ async function ensureAudio() {
     S.torchOK = !!(S.camTrack.getCapabilities && S.camTrack.getCapabilities().torch);
   } catch { S.torchOK = false; }
   const src = S.ctx.createMediaStreamSource(S.mic);
-  const ratio = S.ctx.sampleRate / 16000; let acc = [], pos = 0;
+  let acc = [], pos = 0;
   const feed = data => {
+    const ratio = S.ctx.sampleRate / S.inRate, chunk = S.inRate / 10;   // 100 ms chunks
     for (; pos < data.length; pos += ratio) acc.push(data[Math.floor(pos)]);
     pos -= data.length;
-    while (acc.length >= 1600) onMic(acc.splice(0, 1600));
+    while (acc.length >= chunk) onMic(acc.splice(0, chunk));
   };
   // Preferred capture path: AudioWorklet. Fallback for browsers where it is missing or fails: ScriptProcessor.
   let captured = false;
@@ -458,7 +482,8 @@ function onMic(samples) {
   if (rms > S.floor * 2.5) S.lastAct = Date.now();
   const pcm = new Int16Array(samples.length);
   for (let i = 0; i < samples.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, samples[i] * 32767));
-  send({ realtimeInput:{ audio:{ mimeType:"audio/pcm;rate=16000", data:b64(pcm.buffer) } } });
+  if (S.provider === "openai") send({ type:"input_audio_buffer.append", audio:b64(pcm.buffer) });
+  else send({ realtimeInput:{ audio:{ mimeType:"audio/pcm;rate=16000", data:b64(pcm.buffer) } } });
 }
 function b64(buf) { const u = new Uint8Array(buf); let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
 
@@ -472,6 +497,9 @@ function runVisit(isPreview) {
   S.phase = "connecting"; S.start = now; S.lastAct = now; S.turn = false; S.greeting = false; S.said = "";
   status("Someone's here…"); $("caption").textContent = "";
   const key = store.get("geminiKey","");
+  S.provider = providerOf(key); S.inRate = S.provider === "openai" ? 24000 : 16000;
+  const id = ++S.visitId;
+  if (S.provider === "openai") return openAIVisit(isPreview, key, id);
   const ws = new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + encodeURIComponent(key));
   ws.binaryType = "arraybuffer"; S.ws = ws;
   ws.onopen = () => ws.send(JSON.stringify({ setup:{
@@ -491,6 +519,74 @@ function runVisit(isPreview) {
     closeVisit();
   };
 }
+// ------------------------------------------------------------------ OpenAI Realtime (when the key is an OpenAI key)
+// Trade the key for a short-lived session key, then talk over a WebSocket. Same audio format as Gemini's output (24 kHz PCM).
+async function openAIVisit(isPreview, key, id) {
+  const session = { type:"realtime", model: OA_MODELS[oaIdx], instructions: personaText(),
+    audio:{ input:{ format:{ type:"audio/pcm", rate:24000 },
+                    turn_detection:{ type:"server_vad", threshold:0.6, silence_duration_ms:700, create_response:true, interrupt_response:false } },
+            output:{ format:{ type:"audio/pcm", rate:24000 }, voice: store.get("voiceOA", "ash") } } };
+  let r, j = {};
+  try {
+    r = await fetch("https://api.openai.com/v1/realtime/client_secrets", { method:"POST",
+      headers:{ "Authorization":"Bearer " + key, "Content-Type":"application/json" },
+      body: JSON.stringify({ expires_after:{ anchor:"created_at", seconds:120 }, session }) });
+    j = await r.json().catch(() => ({}));
+  } catch { if (S.visitId === id) failConnect("Couldn't connect. Check the Wi-Fi and try again."); return; }
+  if (S.visitId !== id || S.phase !== "connecting") return;      // visit was cancelled meanwhile
+  if (!r.ok) {
+    const msg = (j.error && j.error.message) || "";
+    if (r.status >= 400 && r.status < 500 && r.status !== 401 && r.status !== 429 && /model/i.test(msg) && oaIdx < OA_MODELS.length - 1) {
+      oaIdx++; S.phase = "idle"; return runVisit(isPreview);       // try the next model
+    }
+    return failConnect(oaError(r.status, j.error && j.error.code, msg));
+  }
+  store.set("oaModel", OA_MODELS[oaIdx]);
+  const ws = new WebSocket("wss://api.openai.com/v1/realtime?model=" + encodeURIComponent(OA_MODELS[oaIdx]), ["realtime", "openai-insecure-api-key." + j.value]);
+  S.ws = ws;
+  ws.onmessage = e => { if (S.ws === ws) handleOA(e.data); };
+  ws.onclose = () => { if (S.ws !== ws) return; if (S.phase === "connecting") return failConnect("Couldn't connect to OpenAI. Try again in a minute."); closeVisit(); };
+}
+function oaError(status, code, msg) {
+  if (status === 401) return "OpenAI didn't accept the key. Tap Settings and paste it again.";
+  if (code === "insufficient_quota" || /quota|billing|credit/i.test(msg)) return "Your OpenAI account is out of credit. Add some at platform.openai.com, under Billing.";
+  if (status === 429) return "OpenAI is busy right now. Try again in a minute.";
+  if (status === 403) return "This OpenAI key can't use voice. Make a new key with All permissions.";
+  return "OpenAI said: " + (msg || "error " + status);
+}
+function failConnect(msg) { showErr(msg); status("Can't connect. Check Wi-Fi, then tap Settings."); closeVisit(); }
+function handleOA(text) {
+  let m; try { m = JSON.parse(text); } catch { return; }
+  switch (m.type) {
+    case "session.created":
+      S.phase = "talking"; S.greeting = true; status("Talking");
+      send({ type:"conversation.item.create", item:{ type:"message", role:"user", content:[{ type:"input_text", text: GREETING }] } });
+      send({ type:"response.create" });
+      return;
+    case "response.output_audio.delta": case "response.audio.delta":
+      if (!S.turn) { S.turn = true; S.said = ""; }
+      if (!S.muted) play(m.delta);
+      S.phase = "talking"; status("Talking"); S.lastAct = Date.now();
+      return;
+    case "response.output_audio_transcript.delta": case "response.audio_transcript.delta":
+      S.said += m.delta || ""; $("caption").textContent = S.said;
+      return;
+    case "input_audio_buffer.speech_started": case "input_audio_buffer.speech_stopped":
+      S.lastAct = Date.now();
+      return;
+    case "response.done": {
+      pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now();
+      const er = m.response && m.response.status === "failed" && m.response.status_details && m.response.status_details.error;
+      if (er) { showErr(oaError(0, er.code, er.message || "")); closeVisit(); }
+      return;
+    }
+    case "error":
+      console.warn("OpenAI:", m.error);
+      if (S.phase === "connecting") failConnect(oaError(0, m.error && m.error.code, (m.error && m.error.message) || ""));
+      return;
+  }
+}
+
 function closeVisit() {
   if (S.ws) { const w = S.ws; S.ws = null; try { w.close(); } catch {} }
   if (S.phase !== "idle") S.end = Date.now();
