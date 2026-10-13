@@ -130,6 +130,11 @@
     </section>
 
     <section>
+      <h2>Privacy</h2>
+      <p class="help" style="margin-top:0">While someone is talking to it, the pumpkin streams what it hears to Google's Gemini API, using your key, so it can answer. This site has no server and stores no audio or keys anywhere but this phone. On Gemini's free tier Google may use inputs to improve its products; a paid key opts out. A small "talking pumpkin" sign lets visitors know it is listening.</p>
+    </section>
+
+    <section>
       <h2>Before you set it out</h2>
       <ol>
         <li><b>Brightness to max</b> and auto-brightness off.</li>
@@ -157,8 +162,8 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js" integrity="sha384-lQXOAyZwHXE55JFyrOMB7nY2Wv+m5ZWNtJcHrd1rceRQXAYNLak8ukN5TjBTcIwz" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" integrity="sha384-b5Ya4Bq3qCyz39m2ISh+4DxjAIljdeFwK/BsXLuj9gugaNwAcj/ia15fxNZL9Nlx" crossorigin="anonymous"></script>
 <script>
 // ------------------------------------------------------------------ key handoff: a QR link with the key after "#".
 // The part after "#" is never sent to the server; we save it on this phone and wipe it from the address bar.
@@ -185,7 +190,10 @@ const PERSONAS = {
   custom: { name:"Write your own…", voice:"Puck", text:"" },
 };
 const VOICES = ["Puck","Zephyr","Charon","Kore","Fenrir","Leda","Orus","Aoede","Callirrhoe","Autonoe","Enceladus","Iapetus","Umbriel","Algieba","Despina","Erinome","Algenib","Rasalgethi","Laomedeia","Achernar","Alnilam","Schedar","Gacrux","Pulcherrima","Achird","Zubenelgenubi","Vindemiatrix","Sadachbia","Sadaltager","Sulafat"];
-const MODEL = "models/gemini-3.8-live";
+// Google renames live models often; try these in order and remember the first that works.
+const MODELS = ["models/gemini-3.8-live", "models/gemini-2.5-flash-native-audio-latest"];
+let modelIdx = 0;
+try { modelIdx = Math.max(0, MODELS.indexOf(localStorage.getItem("model") || MODELS[0])); } catch {}
 const GREETING = "(You just heard someone approach the porch. Greet them in character, briefly.)";
 
 // ------------------------------------------------------------------ settings (saved on this phone only)
@@ -385,7 +393,7 @@ function runVisit(isPreview) {
   const ws = new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + encodeURIComponent(key));
   ws.binaryType = "arraybuffer"; S.ws = ws;
   ws.onopen = () => ws.send(JSON.stringify({ setup:{
-    model: MODEL,
+    model: MODELS[modelIdx],
     generationConfig:{ responseModalities:["AUDIO"], speechConfig:{ languageCode:"en-US", voiceConfig:{ prebuiltVoiceConfig:{ voiceName: store.get("voice","Puck") } } } },
     systemInstruction:{ parts:[{ text: personaText() }] },
     realtimeInputConfig:{ activityHandling:"NO_INTERRUPTION" },
@@ -394,6 +402,9 @@ function runVisit(isPreview) {
   ws.onmessage = e => handle(typeof e.data === "string" ? e.data : new TextDecoder().decode(e.data));
   ws.onclose = e => {
     if (S.ws !== ws) return;
+    if (S.phase === "connecting" && !/key/i.test(e.reason || "") && modelIdx < MODELS.length - 1) {
+      modelIdx++; S.ws = null; S.phase = "idle"; return runVisit(isPreview);    // try the next model
+    }
     if (S.phase === "connecting") { showErr(e.code === 1007 || /key/i.test(e.reason) ? "Google rejected the key. Check it in settings." : "Could not reach Google: " + (e.reason || e.code)); status("Connection problem; tap ⚙︎"); }
     closeVisit();
   };
@@ -408,7 +419,7 @@ function send(o) { if (S.ws && S.ws.readyState === 1) S.ws.send(JSON.stringify(o
 
 function handle(text) {
   let m; try { m = JSON.parse(text); } catch { return; }
-  if (m.setupComplete) { S.phase = "talking"; S.greeting = true; status("Talking"); send({ realtimeInput:{ text: GREETING } }); return; }
+  if (m.setupComplete) { store.set("model", MODELS[modelIdx]); S.phase = "talking"; S.greeting = true; status("Talking"); send({ realtimeInput:{ text: GREETING } }); return; }
   if (m.goAway) return closeVisit();
   const c = m.serverContent; if (!c) return;
   if (c.outputTranscription?.text) { S.said += c.outputTranscription.text; $("caption").textContent = S.said; }
