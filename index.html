@@ -66,6 +66,10 @@
 </style>
 </head>
 <body>
+<video id="wakevid" playsinline muted loop aria-hidden="true" style="position:fixed;width:1px;height:1px;opacity:0.01;pointer-events:none;bottom:0;left:0">
+  <source src="data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAIEEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHYTbuMU6uEElTDZ1OsggElTbuMU6uEHFO7a1OsggHu7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsirXsYMPQkBNgI1MYXZmNjIuMTIuMTAwV0GNTGF2ZjYyLjEyLjEwMESJiECfQAAAAAAAFlSua8iuAQAAAAAAAD/XgQFzxYhk3qQnwK8XUpyBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhDuaygDgkLCBELqBEJqBAlWwhFW5gQESVMNn/HNzoGPAgGfImkWjh0VOQ09ERVJEh41MYXZmNjIuMTIuMTAwc3PWY8CLY8WIZN6kJ8CvF1JnyKFFo4dFTkNPREVSRIeUTGF2YzYyLjI4LjEwMCBsaWJ2cHhnyKFFo4hEVVJBVElPTkSHkzAwOjAwOjAyLjAwMDAwMDAwMAAfQ7Z1w+eBAKOjgQAAgBACAJ0BKhAAEAAARwiFhYiZhIgCAgAMDWAA/v+rUICjmYED6ACxAQABEBAAGAAwP/QMAAAA/v+rUIAcU7trkbuPs4EAt4r3gQHxggGm8IED" type="video/webm">
+  <source src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMrbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAB9AAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAlV0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAfQAAAAAAABAAAAAAHNbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAgABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABeG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAThzdGJsAAAAuHN0c2QAAAAAAAAAAQAAAKhhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2Mi4yOC4xMDAgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAALmF2Y0MBQsAK/+EAFmdCwArZHsBEAAADAAQAAAMACDxImSABAAVoy4PLIAAAABBwYXNwAAAAAQAAAAEAAAAUYnRydAAAAAAAAApAAAAAAAAAABhzdHRzAAAAAAAAAAEAAAACAABAAAAAABRzdHNzAAAAAAAAAAEAAAABAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAACAAAAAQAAABxzdHN6AAAAAAAAAAAAAAACAAAChgAAAAoAAAAUc3RjbwAAAAAAAAABAAADWwAAAGJ1ZHRhAAAAWm1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNjIuMTIuMTAwAAAACGZyZWUAAAKYbWRhdAAAAnAGBf//bNxF6b3m2Ui3lizYINkj7u94MjY0IC0gY29yZSAxNjUgcjMyMjIgYjM1NjA1YSAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMjUgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0wIHJlZj0zIGRlYmxvY2s9MTowOjAgYW5hbHlzZT0weDE6MHgxMTEgbWU9aGV4IHN1Ym1lPTcgcHN5PTEgcHN5X3JkPTEuMDA6MC4wMCBtaXhlZF9yZWY9MSBtZV9yYW5nZT0xNiBjaHJvbWFfbWU9MSB0cmVsbGlzPTEgOHg4ZGN0PTAgY3FtPTAgZGVhZHpvbmU9MjEsMTEgZmFzdF9wc2tpcD0xIGNocm9tYV9xcF9vZmZzZXQ9LTIgdGhyZWFkcz0xIGxvb2thaGVhZF90aHJlYWRzPTEgc2xpY2VkX3RocmVhZHM9MCBucj0wIGRlY2ltYXRlPTEgaW50ZXJsYWNlZD0wIGJsdXJheV9jb21wYXQ9MCBjb25zdHJhaW5lZF9pbnRyYT0wIGJmcmFtZXM9MCB3ZWlnaHRwPTAga2V5aW50PTI1MCBrZXlpbnRfbWluPTEgc2NlbmVjdXQ9NDAgaW50cmFfcmVmcmVzaD0wIHJjX2xvb2thaGVhZD00MCByYz1jcmYgbWJ0cmVlPTEgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MToxLjAwAIAAAAAOZYiEBb///w9FAAFPf4AAAAAGQZo4CvqA" type="video/mp4">
+</video>
 <div id="glow"></div><div id="white"></div>
 <div id="stage"><div id="status">Tap to start</div><div id="caption"></div></div>
 <div id="muted">
@@ -170,7 +174,7 @@ const TIP_URL = "https://buy.stripe.com/00w14ogdM3CV75T4K08Zq00";
 if (TIP_URL) { document.getElementById("tip").href = TIP_URL; document.getElementById("tipwrap").style.display = "block"; }
 
 // ------------------------------------------------------------------ personalities
-const SAFETY = " Your audience is mostly trick-or-treating kids and their parents, so tease the situation, never the person: no insults about looks, bodies, or anything hurtful, nothing scary or unsuitable for children. Keep every reply short, one or two sentences, then let them talk. Never ask for names, addresses, ages, or other personal details.";
+const SAFETY = " Always speak English, every reply, no matter what language you think you hear; if you cannot make out what someone said, ask them to say it again in English instead of guessing. Your audience is mostly trick-or-treating kids and their parents, so tease the situation, never the person: no insults about looks, bodies, or anything hurtful, nothing scary or unsuitable for children. Keep every reply short, one or two sentences, then let them talk. Never ask for names, addresses, ages, or other personal details.";
 const PERSONAS = {
   jack:   { name:"Jack, the smug pumpkin", voice:"Puck", text:"You are Jack, a jack-o'-lantern who has come alive on a front porch for Halloween night. You are smug, snide and superior: you genuinely believe you are better than everyone who walks by, the finest pumpkin on the street, and you let them know it with a raised-eyebrow, condescending charm. Your delivery has a light, arch, slightly theatrical flair. Look down your stem at costumes, sniff at the candy, brag about your carving and glow, act unimpressed but secretly enjoy the attention. No accent." },
   witch:  { name:"Hazel, the cackling witch-pumpkin", voice:"Leda", text:"You are Hazel, a jack-o'-lantern who was once a witch's familiar. You cackle, speak in playful riddles and rhymes, and threaten to turn visitors into toads, newts, or slightly worse pumpkins, all in good fun. You adore costumes and award imaginary potion ingredients for good ones." },
@@ -335,8 +339,18 @@ async function ensureAudio() {
   requestAnimationFrame(frame);
 }
 
+// Keep the screen on and undimmed. Newer browsers: the Screen Wake Lock API (re-requested if the
+// phone releases it). Older phones: a tiny invisible looping video, which phones treat as video
+// playback and so do not dim or sleep.
 async function keepAwake() {
-  try { S.wake = await navigator.wakeLock?.request("screen"); } catch {}
+  try {
+    if ("wakeLock" in navigator) {
+      S.wake = await navigator.wakeLock.request("screen");
+      S.wake.addEventListener("release", () => { if (document.visibilityState === "visible") setTimeout(keepAwake, 1000); });
+    }
+  } catch {}
+  const v = document.getElementById("wakevid");
+  try { await v.play(); } catch {}
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && S.ctx) keepAwake(); });
 
@@ -372,7 +386,7 @@ function runVisit(isPreview) {
   ws.binaryType = "arraybuffer"; S.ws = ws;
   ws.onopen = () => ws.send(JSON.stringify({ setup:{
     model: MODEL,
-    generationConfig:{ responseModalities:["AUDIO"], speechConfig:{ voiceConfig:{ prebuiltVoiceConfig:{ voiceName: store.get("voice","Puck") } } } },
+    generationConfig:{ responseModalities:["AUDIO"], speechConfig:{ languageCode:"en-US", voiceConfig:{ prebuiltVoiceConfig:{ voiceName: store.get("voice","Puck") } } } },
     systemInstruction:{ parts:[{ text: personaText() }] },
     realtimeInputConfig:{ activityHandling:"NO_INTERRUPTION" },
     outputAudioTranscription:{}, inputAudioTranscription:{}
