@@ -44,6 +44,9 @@
   button.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); padding:14px 16px; font-size:17px; }
   #preview { flex:0 0 auto; width:auto; }
   ol { margin:0; padding-left:20px; color:var(--muted); font-size:14px; } ol li { margin:0 0 8px; padding-left:2px; } ol b { color:var(--fg); font-weight:600; }
+  #qrbox { display:none; margin-top:14px; padding:16px; background:#fffdf9; border-radius:8px; text-align:center; color:#1a1410; }
+  #qrbox svg { width:100%; max-width:260px; height:auto; display:block; margin:0 auto 10px; }
+  #qrbox p { margin:0; font-size:13px; }
   #err { color:#ff9a8a; font-size:14px; margin-top:12px; min-height:1.3em; }
 </style>
 </head>
@@ -66,6 +69,12 @@
       <label for="key">API key</label>
       <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste key">
       <p class="help">Free with any Google account. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get a key from Google AI Studio</a>. It stays on this phone and is only sent to Google.</p>
+      <button id="share" type="button" style="margin-top:12px">Copy key to another phone</button>
+      <div id="qrbox" role="dialog" aria-label="QR code with your key">
+        <div id="qr"></div>
+        <p>Scan with the other phone's camera, then open the link. Anyone who scans this gets your key, so hide it when you're done.</p>
+        <button id="hideqr" type="button" style="margin-top:10px;color:#1a1410;border-color:#d9cfc6">Hide code</button>
+      </div>
     </section>
 
     <section>
@@ -108,7 +117,17 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 <script>
+// ------------------------------------------------------------------ key handoff: a QR link with the key after "#".
+// The part after "#" is never sent to the server; we save it on this phone and wipe it from the address bar.
+(function importKeyFromLink() {
+  const m = location.hash.match(/^#k=([A-Za-z0-9._-]{20,200})$/);
+  if (!m) return;
+  try { localStorage.setItem("geminiKey", m[1]); } catch {}
+  history.replaceState(null, "", location.pathname + location.search);
+})();
+
 // ------------------------------------------------------------------ personalities
 const SAFETY = " Your audience is mostly trick-or-treating kids and their parents, so tease the situation, never the person: no insults about looks, bodies, or anything hurtful, nothing scary or unsuitable for children. Keep every reply short, one or two sentences, then let them talk. Never ask for names, addresses, ages, or other personal details.";
 const PERSONAS = {
@@ -170,6 +189,15 @@ $("start").onclick = async () => {
   status(lightMode() === "screen" || S.torchOK ? "Waiting for visitors" : "Waiting for visitors (no flashlight here; using the screen)");
 };
 function lightMode() { const m = store.get("light","both"); return (m === "torch" && S && S.ctx && !S.torchOK) ? "both" : m; }
+$("share").onclick = () => {
+  const key = $("key").value.trim();
+  if (!key) return showErr("Paste a key on this phone first.");
+  if (typeof qrcode !== "function") return showErr("Could not load the QR maker. Check the connection and try again.");
+  const q = qrcode(0, "M"); q.addData(location.origin + location.pathname + "#k=" + key); q.make();
+  $("qr").innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+  $("qrbox").style.display = "block"; $("share").style.display = "none";
+};
+$("hideqr").onclick = () => { $("qr").innerHTML = ""; $("qrbox").style.display = "none"; $("share").style.display = "block"; };
 function showErr(t) { $("err").textContent = t; }
 
 async function ensureAudio() {
