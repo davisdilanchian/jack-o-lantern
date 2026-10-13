@@ -116,6 +116,11 @@
         <label for="voice">Voice</label>
         <div class="row"><select id="voice"></select><button id="preview" type="button">Test</button></div>
       </div>
+      <div class="field">
+        <label for="lang">Language</label>
+        <select id="lang"></select>
+        <p class="help">"Match the visitor" answers in whatever language someone speaks, but can switch on background noise. A fixed language is steadier.</p>
+      </div>
     </section>
 
     <section>
@@ -179,7 +184,7 @@ const TIP_URL = "https://buy.stripe.com/00w14ogdM3CV75T4K08Zq00";
 if (TIP_URL) { document.getElementById("tip").href = TIP_URL; document.getElementById("tipwrap").style.display = "block"; }
 
 // ------------------------------------------------------------------ personalities
-const SAFETY = " Always speak English, every reply, no matter what language you think you hear; if you cannot make out what someone said, ask them to say it again in English instead of guessing. Your audience is mostly trick-or-treating kids and their parents, so tease the situation, never the person: no insults about looks, bodies, or anything hurtful, nothing scary or unsuitable for children. Keep every reply short, one or two sentences, then let them talk. Never ask for names, addresses, ages, or other personal details.";
+const SAFETY = " Your audience is mostly trick-or-treating kids and their parents, so tease the situation, never the person: no insults about looks, bodies, or anything hurtful, nothing scary or unsuitable for children. Keep every reply short, one or two sentences, then let them talk. Never ask for names, addresses, ages, or other personal details.";
 const PERSONAS = {
   jack:   { name:"Jack, the smug pumpkin", voice:"Puck", text:"You are Jack, a jack-o'-lantern who has come alive on a front porch for Halloween night. You are smug, snide and superior: you genuinely believe you are better than everyone who walks by, the finest pumpkin on the street, and you let them know it with a raised-eyebrow, condescending charm. Your delivery has a light, arch, slightly theatrical flair. Look down your stem at costumes, sniff at the candy, brag about your carving and glow, act unimpressed but secretly enjoy the attention. No accent." },
   witch:  { name:"Hazel, the cackling witch-pumpkin", voice:"Leda", text:"You are Hazel, a jack-o'-lantern who was once a witch's familiar. You cackle, speak in playful riddles and rhymes, and threaten to turn visitors into toads, newts, or slightly worse pumpkins, all in good fun. You adore costumes and award imaginary potion ingredients for good ones." },
@@ -189,6 +194,11 @@ const PERSONAS = {
   pirate: { name:"Captain Squash, the pirate", voice:"Fenrir", text:"You are Captain Squash, a swashbuckling pirate jack-o'-lantern. You talk like a cartoon pirate, call visitors matey, treat the candy bowl as buried treasure, and challenge kids to prove they are worthy crew members with silly pirate tasks." },
   custom: { name:"Write your own…", voice:"Puck", text:"" },
 };
+const LANGS = [
+  ["auto","Match the visitor"],["en-US","English"],["es-US","Español"],["fr-FR","Français"],["de-DE","Deutsch"],
+  ["it-IT","Italiano"],["pt-BR","Português"],["nl-NL","Nederlands"],["pl-PL","Polski"],["tr-TR","Türkçe"],
+  ["ru-RU","Русский"],["ar-EG","العربية"],["hi-IN","हिन्दी"],["ja-JP","日本語"],["ko-KR","한국어"],["cmn-CN","中文"],["vi-VN","Tiếng Việt"],["id-ID","Bahasa Indonesia"]
+];
 const VOICES = ["Puck","Zephyr","Charon","Kore","Fenrir","Leda","Orus","Aoede","Callirrhoe","Autonoe","Enceladus","Iapetus","Umbriel","Algieba","Despina","Erinome","Algenib","Rasalgethi","Laomedeia","Achernar","Alnilam","Schedar","Gacrux","Pulcherrima","Achird","Zubenelgenubi","Vindemiatrix","Sadachbia","Sadaltager","Sulafat"];
 // Google renames live models often; try these in order and remember the first that works.
 const MODELS = ["models/gemini-3.8-live", "models/gemini-2.5-flash-native-audio-latest"];
@@ -201,11 +211,13 @@ const $ = id => document.getElementById(id);
 const store = { get(k,d){ try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set(k,v){ try { localStorage.setItem(k,v); } catch {} } };
 for (const [id,p] of Object.entries(PERSONAS)) $("persona").add(new Option(p.name,id));
 for (const v of VOICES) $("voice").add(new Option(v,v));
+for (const [code,name] of LANGS) $("lang").add(new Option(name,code));
 $("key").value = store.get("geminiKey","");
 $("persona").value = store.get("persona","jack");
 $("custom").value = store.get("custom","");
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 $("light").value = store.get("light", IOS ? "screen" : "both");
+$("lang").value = store.get("lang", "auto");
 $("voice").value = store.get("voice", PERSONAS[$("persona").value].voice);
 const syncCustom = () => $("custom").style.display = $("persona").value === "custom" ? "block" : "none";
 syncCustom();
@@ -213,11 +225,15 @@ $("persona").onchange = () => { $("voice").value = PERSONAS[$("persona").value].
 function personaText() {
   const id = $("persona").value;
   const base = id === "custom" ? ($("custom").value.trim() || PERSONAS.jack.text) : PERSONAS[id].text;
-  return base + SAFETY;
+  const code = $("lang").value, lang = (LANGS.find(l => l[0] === code) || LANGS[0])[1];
+  const rule = code === "auto"
+    ? " Reply in the language the visitor is speaking. If you cannot make out what they said, ask them to repeat it rather than guessing or switching languages."
+    : " Always speak " + lang + ", every reply, no matter what language you think you hear. If you cannot make out what someone said, ask them to repeat it rather than guessing.";
+  return base + rule + SAFETY;
 }
 function save() {
   store.set("geminiKey",$("key").value.trim()); store.set("persona",$("persona").value);
-  store.set("custom",$("custom").value); store.set("voice",$("voice").value); store.set("light",$("light").value);
+  store.set("custom",$("custom").value); store.set("voice",$("voice").value); store.set("lang",$("lang").value); store.set("light",$("light").value);
 }
 
 // ------------------------------------------------------------------ state
@@ -394,7 +410,7 @@ function runVisit(isPreview) {
   ws.binaryType = "arraybuffer"; S.ws = ws;
   ws.onopen = () => ws.send(JSON.stringify({ setup:{
     model: MODELS[modelIdx],
-    generationConfig:{ responseModalities:["AUDIO"], speechConfig:{ languageCode:"en-US", voiceConfig:{ prebuiltVoiceConfig:{ voiceName: store.get("voice","Puck") } } } },
+    generationConfig:{ responseModalities:["AUDIO"], speechConfig: Object.assign(store.get("lang","auto") === "auto" ? {} : { languageCode: store.get("lang","auto") }, { voiceConfig:{ prebuiltVoiceConfig:{ voiceName: store.get("voice","Puck") } } }) },
     systemInstruction:{ parts:[{ text: personaText() }] },
     realtimeInputConfig:{ activityHandling:"NO_INTERRUPTION" },
     outputAudioTranscription:{}, inputAudioTranscription:{}
