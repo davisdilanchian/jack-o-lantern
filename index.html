@@ -218,7 +218,7 @@ const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, tor
   analyser:null, out:null, level:0, peak:0.05, said:"", wake:null };
 const TUNE = { ratio:3.5, min:0.015, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.6 };
 const status = t => $("status").textContent = t;
-const speaking = () => S.turn || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
+const speaking = () => S.turn || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
 
 // ------------------------------------------------------------------ start
 $("gear").onclick = e => { e.stopPropagation(); $("setup").style.display = "flex"; $("start").textContent = "Save and resume"; };
@@ -323,7 +323,7 @@ async function ensureAudio() {
   // Preferred capture path: AudioWorklet. Fallback for browsers where it is missing or fails: ScriptProcessor.
   let captured = false;
   if (S.ctx.audioWorklet && window.AudioWorkletNode) try {
-    const worklet = `class Cap extends AudioWorkletProcessor{process(i){if(i[0]&&i[0][0])this.port.postMessage(i[0][0].slice(0));return true}}registerProcessor('cap',Cap)`;
+    const worklet = `class Cap extends AudioWorkletProcessor{constructor(){super();this.b=new Float32Array(2048);this.n=0}process(i){const x=i[0]&&i[0][0];if(x){for(let k=0;k<x.length;k++){this.b[this.n++]=x[k];if(this.n===2048){this.port.postMessage(this.b.slice(0));this.n=0}}}return true}}registerProcessor('cap',Cap)`;
     await S.ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([worklet],{type:"application/javascript"})));
     const node = new AudioWorkletNode(S.ctx, "cap");
     src.connect(node);
@@ -418,14 +418,14 @@ function handle(text) {
     if (!S.muted) play(p.inlineData.data);
     S.phase = "talking"; status("Talking"); S.lastAct = Date.now();
   }
-  if (c.interrupted) { S.turn = false; }
-  if (c.turnComplete) { S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
+  if (c.interrupted) { resetPlayback(); S.turn = false; }
+  if (c.turnComplete) { pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
 }
 
 // Jack's voice arrives as 24 kHz chunks. Resample them to the output rate as one continuous
 // stream (carrying the position across chunks) so chunk joins do not click, and keep a small
 // cushion so network jitter does not cause gaps.
-const PLAY = { pos:0, prev:0, cushion:0.25 };
+const PLAY = { pos:0, prev:0, cushion:0.6, queue:[], queued:0, started:false };
 function play(b64data) {
   const bin = atob(b64data), n = bin.length >> 1;
   const inp = new Float32Array(n);
@@ -443,12 +443,28 @@ function play(b64data) {
     out[i] = s0 + (s1 - s0) * f;
   }
   PLAY.pos = q - n; PLAY.prev = inp[n - 1];
-  const src = S.ctx.createBufferSource(); src.buffer = buf; src.connect(S.out);
-  const now = S.ctx.currentTime;
-  // Starting fresh (or after running dry): leave a cushion before the first sample.
-  const at = S.playEnd > now + 0.01 ? S.playEnd : now + PLAY.cushion;
-  src.start(at); S.playEnd = at + buf.duration;
+  PLAY.queue.push(buf); PLAY.queued += buf.duration;
+  pumpAudio(false);
 }
+// Schedule queued audio. Waits until about PLAY.cushion seconds are buffered before starting, so
+// uneven network delivery does not cause gaps. If playback ever runs dry mid-turn, the cushion grows.
+function pumpAudio(flush) {
+  const now = S.ctx.currentTime;
+  if (PLAY.started && S.playEnd < now - 0.02) {          // ran dry: rebuffer with a bigger cushion
+    PLAY.started = false; PLAY.cushion = Math.min(1.2, PLAY.cushion + 0.2);
+  }
+  if (!PLAY.started) {
+    if (!flush && PLAY.queued < PLAY.cushion) return;
+    PLAY.started = true; S.playEnd = now + 0.05;
+  }
+  while (PLAY.queue.length) {
+    const buf = PLAY.queue.shift(); PLAY.queued -= buf.duration;
+    const src = S.ctx.createBufferSource(); src.buffer = buf; src.connect(S.out);
+    const at = Math.max(S.playEnd, now + 0.02);
+    src.start(at); S.playEnd = at + buf.duration;
+  }
+}
+function resetPlayback() { PLAY.queue = []; PLAY.queued = 0; PLAY.started = false; }
 
 // ------------------------------------------------------------------ light: screen + flashlight follow the voice
 const td = new Float32Array(512);
@@ -481,7 +497,7 @@ function setTorch(on) {
 function setMute(m) {
   S.muted = m;
   $("muted").style.display = m ? "flex" : "none";
-  if (m) { S.playEnd = 0; S.out.disconnect(); S.out = S.ctx.createGain(); S.out.connect(S.analyser); closeVisit(); setTorch(false); }
+  if (m) { resetPlayback(); S.playEnd = 0; S.out.disconnect(); S.out = S.ctx.createGain(); S.out.connect(S.analyser); closeVisit(); setTorch(false); }
   else status("Waiting for visitors");
 }
 for (const el of [$("stage"), $("muted"), $("glow"), $("white")]) el.addEventListener("click", () => { if (S.ctx) setMute(!S.muted); });
