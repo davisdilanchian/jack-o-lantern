@@ -47,6 +47,9 @@
   #qrbox { display:none; margin-top:14px; padding:16px; background:#fffdf9; border-radius:8px; text-align:center; color:#1a1410; }
   #qrbox svg { width:100%; max-width:260px; height:auto; display:block; margin:0 auto 10px; }
   #qrbox p { margin:0; font-size:13px; }
+  #scanbox { display:none; margin-top:14px; }
+  #scanbox video { width:100%; border-radius:8px; background:#000; aspect-ratio:1; object-fit:cover; }
+  .btnrow { display:flex; gap:8px; margin-top:12px; } .btnrow button { flex:1; }
   #err { color:#ff9a8a; font-size:14px; margin-top:12px; min-height:1.3em; }
 </style>
 </head>
@@ -69,7 +72,15 @@
       <label for="key">API key</label>
       <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste key">
       <p class="help">Free with any Google account. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get a key from Google AI Studio</a>. It stays on this phone and is only sent to Google.</p>
-      <button id="share" type="button" style="margin-top:12px">Copy key to another phone</button>
+      <div class="btnrow">
+        <button id="scan" type="button">Scan key from a phone</button>
+        <button id="share" type="button">Show key as QR</button>
+      </div>
+      <div id="scanbox">
+        <video id="scanvid" playsinline muted></video>
+        <p class="help">Point this camera at the QR code on the other phone (Settings, Show key as QR).</p>
+        <button id="stopscan" type="button" style="margin-top:8px">Cancel</button>
+      </div>
       <div id="qrbox" role="dialog" aria-label="QR code with your key">
         <div id="qr"></div>
         <p>Scan with the other phone's camera, then open the link. Anyone who scans this gets your key, so hide it when you're done.</p>
@@ -118,6 +129,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script>
 // ------------------------------------------------------------------ key handoff: a QR link with the key after "#".
 // The part after "#" is never sent to the server; we save it on this phone and wipe it from the address bar.
@@ -198,6 +210,35 @@ $("share").onclick = () => {
   $("qrbox").style.display = "block"; $("share").style.display = "none";
 };
 $("hideqr").onclick = () => { $("qr").innerHTML = ""; $("qrbox").style.display = "none"; $("share").style.display = "block"; };
+
+// Scan a key QR with this phone's own camera (for phones whose camera app cannot read QR codes).
+let scanStream = null;
+function stopScan() {
+  if (scanStream) scanStream.getTracks().forEach(t => t.stop());
+  scanStream = null; $("scanbox").style.display = "none"; $("scan").disabled = false;
+}
+$("stopscan").onclick = stopScan;
+$("scan").onclick = async () => {
+  showErr("");
+  if (typeof jsQR !== "function") return showErr("Could not load the QR reader. Check the connection and try again.");
+  try { scanStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" } } }); }
+  catch (e) { return showErr("Camera blocked: " + e.message); }
+  const v = $("scanvid"); v.srcObject = scanStream; await v.play();
+  $("scanbox").style.display = "block"; $("scan").disabled = true;
+  const c = document.createElement("canvas"), g = c.getContext("2d", { willReadFrequently:true });
+  const tick = () => {
+    if (!scanStream) return;
+    if (v.videoWidth) {
+      const w = 480, h = Math.round(480 * v.videoHeight / v.videoWidth);
+      c.width = w; c.height = h; g.drawImage(v, 0, 0, w, h);
+      const code = jsQR(g.getImageData(0, 0, w, h).data, w, h, { inversionAttempts:"dontInvert" });
+      const m = code && code.data.match(/#k=([A-Za-z0-9._-]{20,200})$/) || (code && code.data.match(/^([A-Za-z0-9._-]{20,200})$/));
+      if (m) { $("key").value = m[1]; save(); stopScan(); showErr(""); $("err").style.color = "var(--fg)"; $("err").textContent = "Key added from the other phone."; setTimeout(() => { $("err").textContent = ""; $("err").style.color = ""; }, 4000); return; }
+    }
+    setTimeout(tick, 200);
+  };
+  tick();
+};
 function showErr(t) { $("err").textContent = t; }
 
 async function ensureAudio() {
