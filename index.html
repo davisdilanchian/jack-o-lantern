@@ -88,6 +88,7 @@
         <button id="scan" type="button">Scan key from a phone</button>
         <button id="share" type="button">Show key as QR</button>
       </div>
+      <p id="keymsg" class="help" role="status" style="color:var(--fg)"></p>
       <div id="scanbox">
         <video id="scanvid" playsinline muted></video>
         <p class="help">Point this camera at the QR code on the other phone (Settings, Show key as QR).</p>
@@ -243,27 +244,34 @@ $("hideqr").onclick = () => { $("qr").innerHTML = ""; $("qrbox").style.display =
 let scanStream = null;
 function stopScan() {
   if (scanStream) scanStream.getTracks().forEach(t => t.stop());
-  scanStream = null; $("scanbox").style.display = "none"; $("scan").disabled = false;
+  scanStream = null; $("scanbox").style.display = "none"; $("scan").disabled = false; if (/Opening|Point/.test($("keymsg").textContent)) $("keymsg").textContent = "";
 }
 $("stopscan").onclick = stopScan;
+const keyMsg = t => { $("keymsg").textContent = t; };
 $("scan").onclick = async () => {
-  showErr("");
-  if (typeof jsQR !== "function") return showErr("Could not load the QR reader. Check the connection and try again.");
-  try { scanStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" } } }); }
-  catch (e) { return showErr("Camera blocked: " + e.message); }
-  const v = $("scanvid"); v.srcObject = scanStream; await v.play();
+  keyMsg("Opening camera...");
+  if (typeof jsQR !== "function") return keyMsg("Could not load the QR reader. Check the connection and reload.");
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return keyMsg("This browser cannot open the camera. Try Chrome.");
+  try { scanStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" } }); }
+  catch (e1) {
+    try { scanStream = await navigator.mediaDevices.getUserMedia({ video:true }); }   // older phones: any camera
+    catch (e) { return keyMsg(e.name === "NotAllowedError" ? "Camera is blocked. Tap the lock icon by the address, then Permissions, Camera, Allow. Then reload." : "Could not open the camera (" + e.name + "): " + e.message); }
+  }
+  const v = $("scanvid"); v.setAttribute("autoplay", ""); v.srcObject = scanStream;
   $("scanbox").style.display = "block"; $("scan").disabled = true;
-  const c = document.createElement("canvas"), g = c.getContext("2d", { willReadFrequently:true });
+  try { await v.play(); } catch {}
+  keyMsg("Point the camera at the other phone's key QR code.");
+  const c = document.createElement("canvas"), g = c.getContext("2d");
   const tick = () => {
     if (!scanStream) return;
     if (v.videoWidth) {
-      const w = 480, h = Math.round(480 * v.videoHeight / v.videoWidth);
+      const w = 400, h = Math.round(400 * v.videoHeight / v.videoWidth);
       c.width = w; c.height = h; g.drawImage(v, 0, 0, w, h);
       const code = jsQR(g.getImageData(0, 0, w, h).data, w, h, { inversionAttempts:"dontInvert" });
-      const m = code && code.data.match(/#k=([A-Za-z0-9._-]{20,200})$/) || (code && code.data.match(/^([A-Za-z0-9._-]{20,200})$/));
-      if (m) { $("key").value = m[1]; save(); stopScan(); showErr(""); $("err").style.color = "var(--fg)"; $("err").textContent = "Key added from the other phone."; setTimeout(() => { $("err").textContent = ""; $("err").style.color = ""; }, 4000); return; }
+      const m = code && (code.data.match(/#k=([A-Za-z0-9._-]{20,200})$/) || code.data.match(/^([A-Za-z0-9._-]{20,200})$/));
+      if (m) { $("key").value = m[1]; save(); stopScan(); keyMsg("Key added from the other phone."); return; }
     }
-    setTimeout(tick, 200);
+    setTimeout(tick, 250);
   };
   tick();
 };
@@ -400,12 +408,31 @@ function handle(text) {
   if (c.turnComplete) { S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
 }
 
+// Jack's voice arrives as 24 kHz chunks. Resample them to the output rate as one continuous
+// stream (carrying the position across chunks) so chunk joins do not click, and keep a small
+// cushion so network jitter does not cause gaps.
+const PLAY = { pos:0, prev:0, cushion:0.25 };
 function play(b64data) {
   const bin = atob(b64data), n = bin.length >> 1;
-  const buf = S.ctx.createBuffer(1, n, 24000), ch = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if (v & 0x8000) v -= 0x10000; ch[i] = v / 32768; }
+  const inp = new Float32Array(n);
+  for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if (v & 0x8000) v -= 0x10000; inp[i] = v / 32768; }
+  const rate = S.ctx.sampleRate, step = 24000 / rate;
+  const outLen = Math.max(0, Math.ceil((n - 1 - PLAY.pos) / step));   // stop before the last input sample; the next chunk finishes the gap
+  if (outLen <= 0) return;
+  const buf = S.ctx.createBuffer(1, outLen, rate), out = buf.getChannelData(0);
+  // simple linear interpolation between neighbouring samples, continuous across chunks
+  let q = PLAY.pos;
+  for (let i = 0; i < outLen; i++, q += step) {
+    const k = Math.floor(q), f = q - k;
+    const s0 = k <= 0 ? (k === 0 ? inp[0] : PLAY.prev) : inp[k];
+    const s1 = k + 1 < n ? inp[k + 1] : inp[n - 1];
+    out[i] = s0 + (s1 - s0) * f;
+  }
+  PLAY.pos = q - n; PLAY.prev = inp[n - 1];
   const src = S.ctx.createBufferSource(); src.buffer = buf; src.connect(S.out);
-  const at = Math.max(S.ctx.currentTime + 0.08, S.playEnd);
+  const now = S.ctx.currentTime;
+  // Starting fresh (or after running dry): leave a cushion before the first sample.
+  const at = S.playEnd > now + 0.01 ? S.playEnd : now + PLAY.cushion;
   src.start(at); S.playEnd = at + buf.duration;
 }
 
