@@ -216,12 +216,12 @@ const speaking = () => S.turn || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.
 
 // ------------------------------------------------------------------ start
 $("gear").onclick = e => { e.stopPropagation(); $("setup").style.display = "flex"; $("start").textContent = "Save and resume"; };
-$("preview").onclick = async () => { save(); if (!$("key").value.trim()) return showErr("Paste your key first."); await ensureAudio(); runVisit(true); };
+$("preview").onclick = async () => { save(); if (!$("key").value.trim()) return showErr("Paste your key first."); try { await ensureAudio(); } catch (e) { return showErr(micHelp(e)); } runVisit(true); };
 $("start").onclick = async () => {
   save();
   if (!$("key").value.trim()) return showErr("Paste your Gemini key first.");
   showErr("");
-  try { await ensureAudio(); } catch (e) { return showErr("Microphone blocked: " + e.message); }
+  try { await ensureAudio(); } catch (e) { return showErr(micHelp(e)); }
   $("setup").style.display = "none";
   document.documentElement.requestFullscreen?.().catch(()=>{});
   keepAwake();
@@ -268,15 +268,32 @@ $("scan").onclick = async () => {
 };
 function showErr(t) { $("err").textContent = t; }
 
+// Turn a getUserMedia/audio failure into a message that says what to do.
+function micHelp(e) {
+  const n = e && e.name;
+  if (n === "NotAllowedError" || n === "SecurityError")
+    return IOS ? "Microphone is blocked for this site. In Safari tap aA in the address bar, then Website Settings, Microphone, Allow. Also check Settings, Apps, Safari, Microphone. Then reload."
+               : "Microphone is blocked. Tap the lock icon by the address, then Permissions, Microphone, Allow. If there is no prompt, also allow the browser's microphone in phone Settings, Apps, Chrome, Permissions. Then reload.";
+  if (n === "NotFoundError" || n === "OverconstrainedError") return "No microphone found on this device.";
+  if (n === "NotReadableError" || n === "AbortError") return "The microphone is busy. Close other apps using it (calls, voice recorder) and try again.";
+  if (n === "NoMediaDevices") return "This browser cannot use the microphone. Open the page in " + (IOS ? "Safari." : "Chrome.");
+  return "Audio setup failed (" + (n || "error") + "): " + (e && e.message || e);
+}
+
 async function ensureAudio() {
   if (S.ctx) return;
-  S.ctx = new (window.AudioContext || window.webkitAudioContext)();
-  await S.ctx.resume();
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { const e = new Error("no mediaDevices"); e.name = "NoMediaDevices"; throw e; }
+  // Create the audio context synchronously inside the tap (iPhones only allow sound that starts from a tap).
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  // Ask for the microphone first, so its prompt appears before anything else can fail.
+  let mic;
+  try { mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); }
+  catch (e) { try { ctx.close(); } catch {} throw e; }
+  try { await ctx.resume(); } catch {}
+  S.ctx = ctx; S.mic = mic;
   // Output chain: voice -> analyser (for the light) -> speakers
   S.out = S.ctx.createGain(); S.analyser = S.ctx.createAnalyser(); S.analyser.fftSize = 512;
   S.out.connect(S.analyser); S.analyser.connect(S.ctx.destination);
-  // Microphone with the phone's echo cancellation
-  S.mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true, channelCount:1 } });
   // Flashlight: needs the back camera open; only Chrome on Android supports it.
   if (lightMode() !== "screen" && !IOS) try {
     const cam = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" } } });
@@ -284,16 +301,28 @@ async function ensureAudio() {
     S.torchOK = !!(S.camTrack.getCapabilities && S.camTrack.getCapabilities().torch);
   } catch { S.torchOK = false; }
   const src = S.ctx.createMediaStreamSource(S.mic);
-  const worklet = `class Cap extends AudioWorkletProcessor{process(i){if(i[0]&&i[0][0])this.port.postMessage(i[0][0].slice(0));return true}}registerProcessor('cap',Cap)`;
-  await S.ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([worklet],{type:"application/javascript"})));
-  const node = new AudioWorkletNode(S.ctx,"cap");
-  src.connect(node);
   const ratio = S.ctx.sampleRate / 16000; let acc = [], pos = 0;
-  node.port.onmessage = ({ data }) => {
+  const feed = data => {
     for (; pos < data.length; pos += ratio) acc.push(data[Math.floor(pos)]);
     pos -= data.length;
-    if (acc.length >= 1600) { const chunk = acc.splice(0,1600); onMic(chunk); }
+    while (acc.length >= 1600) onMic(acc.splice(0, 1600));
   };
+  // Preferred capture path: AudioWorklet. Fallback for browsers where it is missing or fails: ScriptProcessor.
+  let captured = false;
+  if (S.ctx.audioWorklet && window.AudioWorkletNode) try {
+    const worklet = `class Cap extends AudioWorkletProcessor{process(i){if(i[0]&&i[0][0])this.port.postMessage(i[0][0].slice(0));return true}}registerProcessor('cap',Cap)`;
+    await S.ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([worklet],{type:"application/javascript"})));
+    const node = new AudioWorkletNode(S.ctx, "cap");
+    src.connect(node);
+    node.port.onmessage = ({ data }) => feed(data);
+    captured = true;
+  } catch {}
+  if (!captured) {
+    const sp = S.ctx.createScriptProcessor(4096, 1, 1);
+    const sink = S.ctx.createGain(); sink.gain.value = 0;   // keeps the processor running without echoing the mic
+    sp.onaudioprocess = ev => feed(ev.inputBuffer.getChannelData(0).slice(0));
+    src.connect(sp); sp.connect(sink); sink.connect(S.ctx.destination);
+  }
   requestAnimationFrame(frame);
 }
 
