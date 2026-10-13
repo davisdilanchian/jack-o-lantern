@@ -59,6 +59,7 @@
   .by p { margin:0 0 10px; } .by b { color:var(--fg); font-weight:600; }
   .by .links { display:flex; flex-wrap:wrap; gap:8px; }
   .by .links a { color:var(--fg); text-decoration:none; padding:8px 12px; border:1px solid var(--line); border-radius:8px; }
+  .tipbtn { display:inline-block; padding:10px 16px; border-radius:8px; background:var(--accent); color:var(--accent-ink); font-weight:650; text-decoration:none; }
   .by .made a { color:var(--fg); text-underline-offset:3px; }
   #err { color:#ff9a8a; font-size:14px; margin-top:12px; min-height:1.3em; }
 </style>
@@ -144,6 +145,7 @@
         <a href="https://youtube.com/@davisdilanchian" target="_blank" rel="noopener">YouTube</a>
         <a href="https://x.com/davisdilanchian" target="_blank" rel="noopener">X</a>
       </p>
+      <p id="tipwrap" style="display:none"><a id="tip" class="tipbtn" target="_blank" rel="noopener">Tip the pumpkin</a></p>
       <p class="made">Made by <a href="https://davisdilanchian.com" target="_blank" rel="noopener">Davis Dilanchian</a>. More projects on my site.</p>
     </footer>
   </div>
@@ -160,6 +162,10 @@
   try { localStorage.setItem("geminiKey", m[1]); } catch {}
   history.replaceState(null, "", location.pathname + location.search);
 })();
+
+// ------------------------------------------------------------------ tip link (Stripe Payment Link; hidden until set)
+const TIP_URL = "";
+if (TIP_URL) { document.getElementById("tip").href = TIP_URL; document.getElementById("tipwrap").style.display = "block"; }
 
 // ------------------------------------------------------------------ personalities
 const SAFETY = " Your audience is mostly trick-or-treating kids and their parents, so tease the situation, never the person: no insults about looks, bodies, or anything hurtful, nothing scary or unsuitable for children. Keep every reply short, one or two sentences, then let them talk. Never ask for names, addresses, ages, or other personal details.";
