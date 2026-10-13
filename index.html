@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <script>if (location.protocol === "http:" && location.hostname !== "localhost") location.replace("https://" + location.host + location.pathname + location.search + location.hash);</script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#f6efe2">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
 <link rel="canonical" href="https://jack-o.io/">
 <meta property="og:title" content="Jack-o: turn an old phone into a talking jack-o'-lantern">
 <meta property="og:description" content="It hears trick-or-treaters, talks back in character, and flickers its flashlight as it speaks. Free, runs in the browser.">
@@ -68,6 +70,32 @@
   .tipbtn { display:inline-block; padding:10px 16px; border-radius:8px; background:var(--accent); color:var(--accent-ink); font-weight:650; text-decoration:none; }
   .by .made a { color:var(--fg); text-underline-offset:3px; }
   #err { color:#ff9a8a; font-size:14px; margin-top:12px; min-height:1.3em; }
+
+  /* Setup screen: watercolor-paper look matching the jack-o.io illustration */
+  .overlay { --bg:#f6efe2; --surface:#fffaf1; --line:rgba(58,40,26,.28); --ink:#3a281a; --fg:#2b1d12; --muted:#6e5a48; --accent:#e5782a; --accent-ink:#2b1d12;
+    color:var(--fg);
+    background:
+      radial-gradient(900px 500px at 105% -10%, rgba(255,170,80,.16), transparent 60%),
+      radial-gradient(700px 420px at -10% 110%, rgba(230,120,40,.10), transparent 60%),
+      var(--bg); }
+  .hero { display:block; width:100%; height:auto; border-radius:12px; margin:0 0 18px; }
+  .overlay h1, .overlay h2, .overlay button, .overlay .tipbtn { font-family:"Patrick Hand", "Comic Neue", system-ui, sans-serif; }
+  .overlay h1 { font-size:34px; font-weight:400; letter-spacing:0; color:var(--ink); }
+  .overlay h2 { font-size:22px; font-weight:400; margin-bottom:10px; color:var(--ink); }
+  .overlay section { border-top:1.5px dashed var(--line); }
+  .overlay input, .overlay select, .overlay textarea { background:var(--surface); border:1.5px solid rgba(58,40,26,.45); border-radius:10px; color:var(--fg); }
+  .overlay input:focus, .overlay select:focus, .overlay textarea:focus { outline:2.5px solid var(--accent); outline-offset:1px; border-color:var(--ink); }
+  .overlay button { border:1.5px solid var(--ink); border-radius:10px; color:var(--ink); background:var(--surface); font-size:19px; font-weight:400; padding:9px 16px; }
+  .overlay button.primary, .overlay .tipbtn { background:var(--accent); border:1.5px solid var(--ink); color:var(--accent-ink); font-size:24px; font-weight:400;
+    box-shadow:2px 3px 0 rgba(58,40,26,.85); }
+  .overlay button.primary:active, .overlay .tipbtn:active { transform:translate(1px,2px); box-shadow:1px 1px 0 rgba(58,40,26,.85); }
+  .overlay .tipbtn { font-size:20px; padding:8px 16px; }
+  .overlay .by { border-top:1.5px dashed var(--line); }
+  .overlay .by .links a { border:1.5px solid var(--ink); border-radius:10px; color:var(--ink); background:var(--surface); }
+  .overlay .help a, .overlay .by .made a { color:var(--ink); }
+  .overlay ol b, .overlay .by b { color:var(--fg); }
+  .overlay #err { color:#b3261e; }
+  .overlay #scanbox video { border:1.5px solid var(--ink); }
 </style>
 </head>
 <body>
@@ -85,6 +113,7 @@
 
 <div class="overlay" id="setup">
   <div class="wrap">
+    <img class="hero" src="og.jpg" width="1200" height="630" alt="Watercolor of a hand dropping a phone into a pumpkin, which then glows as a jack-o'-lantern.">
     <h1>Talking Jack-o'-Lantern</h1>
     <p class="lede">Turns this phone into a pumpkin that hears visitors and talks back, with its light flickering as it speaks.</p>
 
@@ -94,13 +123,13 @@
       <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste key">
       <p class="help">Free with any Google account. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get a key from Google AI Studio</a>. It stays on this phone and is only sent to Google.</p>
       <div class="btnrow">
-        <button id="scan" type="button">Scan key from a phone</button>
-        <button id="share" type="button">Show key as QR</button>
+        <button id="scan" type="button">Scan a key</button>
+        <button id="share" type="button">Share my key</button>
       </div>
       <p id="keymsg" class="help" role="status" style="color:var(--fg)"></p>
       <div id="scanbox">
         <video id="scanvid" playsinline muted></video>
-        <p class="help">Point this camera at the QR code on the other phone (Settings, Show key as QR).</p>
+        <p class="help">Point this camera at the QR code on the other phone (Settings, Share my key).</p>
         <button id="stopscan" type="button" style="margin-top:8px">Cancel</button>
       </div>
       <div id="qrbox" role="dialog" aria-label="QR code with your key">
