@@ -4,7 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<title>Talking Jack-o'-Lantern</title>
+<link rel="canonical" href="https://jack-o.io/">
+<meta property="og:title" content="Jack-o: turn an old phone into a talking jack-o'-lantern">
+<meta property="og:description" content="It hears trick-or-treaters, talks back in character, and flickers its flashlight as it speaks. Free, runs in the browser.">
+<meta property="og:url" content="https://jack-o.io/">
+<meta name="twitter:card" content="summary">
+<title>Jack-o: Talking Jack-o'-Lantern</title>
 <meta name="description" content="Turn an old phone into a talking jack-o'-lantern: it hears visitors, talks back in character, and flickers its flashlight with its voice.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎃</text></svg>">
 <style>
@@ -50,6 +55,11 @@
   #scanbox { display:none; margin-top:14px; }
   #scanbox video { width:100%; border-radius:8px; background:#000; aspect-ratio:1; object-fit:cover; }
   .btnrow { display:flex; gap:8px; margin-top:12px; } .btnrow button { flex:1; }
+  .by { margin-top:28px; padding-top:20px; border-top:1px solid var(--line); font-size:14px; color:var(--muted); }
+  .by p { margin:0 0 10px; } .by b { color:var(--fg); font-weight:600; }
+  .by .links { display:flex; flex-wrap:wrap; gap:8px; }
+  .by .links a { color:var(--fg); text-decoration:none; padding:8px 12px; border:1px solid var(--line); border-radius:8px; }
+  .by .made a { color:var(--fg); text-underline-offset:3px; }
   #err { color:#ff9a8a; font-size:14px; margin-top:12px; min-height:1.3em; }
 </style>
 </head>
@@ -125,6 +135,17 @@
 
     <button class="primary" id="start">Start</button>
     <div id="err" role="alert"></div>
+
+    <footer class="by">
+      <p><b>Post your pumpkin</b> and tag <b>@davisdilanchian</b>.</p>
+      <p class="links">
+        <a href="https://instagram.com/davisdilanchian" target="_blank" rel="noopener">Instagram</a>
+        <a href="https://tiktok.com/@davisdilanchian" target="_blank" rel="noopener">TikTok</a>
+        <a href="https://youtube.com/@davisdilanchian" target="_blank" rel="noopener">YouTube</a>
+        <a href="https://x.com/davisdilanchian" target="_blank" rel="noopener">X</a>
+      </p>
+      <p class="made">Made by <a href="https://davisdilanchian.com" target="_blank" rel="noopener">Davis Dilanchian</a>. More projects on my site.</p>
+    </footer>
   </div>
 </div>
 
