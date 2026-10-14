@@ -327,16 +327,23 @@ const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform 
 $("light").value = store.get("light", IOS ? "screen" : "both");
 $("lang").value = store.get("lang", "auto");
 // Volume boost (1x-3x) for quiet phones, followed by a limiter so loud peaks are squashed instead of crackling.
-const boostLevel = () => (+store.get("boost", "100") || 100) / 100;
-function makeLimiter(ctx) {
-  const c = ctx.createDynamicsCompressor();
-  c.threshold.value = -6; c.knee.value = 3; c.ratio.value = 20; c.attack.value = 0.002; c.release.value = 0.12;
-  return c;
+const boostLevel = () => Math.min(300, Math.max(100, +store.get("boost", "100") || 100)) / 100;
+// Boost = compressor (evens out loud and quiet parts) -> make-up gain -> soft clipper (rounds off peaks
+// instead of crackling). The slider sets how hard it compresses and how much it lifts; measured on real
+// speech, 100% -> about -16 dB and 300% -> about -8.5 dB, so roughly 1.75 times as loud.
+const CLIP_CURVE = (() => { const n = 2048, c = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; c[i] = Math.tanh(1.5 * x) / Math.tanh(1.5); } return c; })();
+function makeBoost(ctx) {
+  const comp = ctx.createDynamicsCompressor(), gain = ctx.createGain(), clip = ctx.createWaveShaper();
+  comp.knee.value = 12; comp.attack.value = 0.003; comp.release.value = 0.2; clip.curve = CLIP_CURVE;
+  comp.connect(gain); gain.connect(clip);
+  const set = b => { comp.threshold.value = -8 - 7 * (b - 1); comp.ratio.value = 1 + 4 * (b - 1); gain.gain.value = 0.75 * b; };
+  set(boostLevel());
+  return { input:comp, output:clip, set };
 }
 $("boost").value = store.get("boost", "100"); $("boostval").textContent = $("boost").value + "%";
 $("boost").oninput = () => {
   store.set("boost", $("boost").value); $("boostval").textContent = $("boost").value + "%";
-  if (S.boost) S.boost.gain.value = boostLevel();
+  if (S.boostChain) S.boostChain.set(boostLevel());
 };
 
 // Voice picker: one button per voice. Tapping selects it and plays a short sample, cutting off any sample still playing.
@@ -351,6 +358,7 @@ function renderChips() {
     box.appendChild(b);
   }
 }
+const DEBUG = /debug/.test(location.search);
 const SAMPLE = { ctx:null, src:null, ctl:null, n:0, cache:{} };
 const SAMPLE_LINE = "Well, hello there! Happy Halloween. Do you dare come a little closer?";
 const voiceMsg = t => { $("voicemsg").textContent = t; };
@@ -400,8 +408,7 @@ async function sampleVoice(v) {
   const d = buf.getChannelData(0); let sum = 0, cnt = 0;
   for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i]) > 0.01) { sum += d[i] * d[i]; cnt++; }
   const g = ctx.createGain(); g.gain.value = cnt ? Math.min(4, Math.max(0.5, LOUD.target / Math.sqrt(sum / cnt))) : 1;
-  g.gain.value *= boostLevel();
-  const lim = makeLimiter(ctx); g.connect(lim); lim.connect(ctx.destination);
+  const bc = makeBoost(ctx); g.connect(bc.input); bc.output.connect(ctx.destination);
   const src = ctx.createBufferSource(); src.buffer = buf; src.connect(g);
   src.onended = () => { if (SAMPLE.src === src) stopSample(); };
   src.start(); SAMPLE.src = src;
@@ -441,7 +448,7 @@ function save() {
 // ------------------------------------------------------------------ state
 const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, torchAt:0, ws:null, phase:"idle",
   muted:false, turn:false, greeting:false, playEnd:0, floor:0.01, loud:0, lastAct:0, start:0, end:0, visits:[],
-  analyser:null, out:null, level:0, peak:0.05, said:"", wake:null, visitId:0, echo:0.02, heard:"", cmd:null, pre:[], cmdBusy:false, cmdTimes:[], inRate: providerOf(store.get("geminiKey","")) === "openai" ? 24000 : 16000 };
+  analyser:null, out:null, level:0, peak:0.05, said:"", wake:null, visitId:0, echo:0.02, couple:0.5, outHist:[], hold:[], barge:false, dbg:{ barge:0, interrupted:0, underrun:0 }, heard:"", cmd:null, pre:[], cmdBusy:false, cmdTimes:[], inRate: providerOf(store.get("geminiKey","")) === "openai" ? 24000 : 16000 };
 const TUNE = { ratio:3.5, min:0.015, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.3 };
 const status = t => $("status").textContent = t;
 const speaking = () => S.turn || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
@@ -546,9 +553,8 @@ async function ensureAudio() {
   // Output chain: voice -> analyser (for the light) -> speakers
   // Output chain: voice -> volume boost -> limiter (keeps boosted peaks from distorting) -> analyser (for the light) -> speakers
   S.out = S.ctx.createGain(); S.analyser = S.ctx.createAnalyser(); S.analyser.fftSize = 512;
-  S.boost = S.ctx.createGain(); S.boost.gain.value = boostLevel();
-  S.limiter = makeLimiter(S.ctx);
-  S.out.connect(S.boost); S.boost.connect(S.limiter); S.limiter.connect(S.analyser); S.analyser.connect(S.ctx.destination);
+  S.boostChain = makeBoost(S.ctx); S.boost = S.boostChain.input;
+  S.out.connect(S.boost); S.boostChain.output.connect(S.analyser); S.analyser.connect(S.ctx.destination);
   // Flashlight: needs the back camera open; only Chrome on Android supports it.
   if (lightMode() !== "screen" && !IOS) try {
     const cam = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" } } });
@@ -611,12 +617,31 @@ function onMic(samples) {
   if (S.phase === "connecting") return;
   if (speaking() || S.greeting) {
     // While it talks, the mic also hears its own voice. With interruptions off, send nothing.
-    // With them on, pass on only sound clearly louder than that echo, so it doesn't interrupt itself.
+    // With them on, compare the mic with what the speaker is playing right now (loud syllables make
+    // loud echo), learn how much of the speaker leaks into the mic, and only pass on sound that is
+    // clearly more than that leak for at least 120 ms. Everything else is sent as silence.
     if (store.get("interrupt", "1") !== "1") return;
-    if (rms > Math.max(S.echo * (S.fullEcho ? 2.5 : 4), S.floor * 4, S.fullEcho ? 0.03 : 0.05)) S.lastAct = Date.now();   // stricter where the phone can't fully cancel its own voice
-    else { S.echo = S.echo * 0.9 + rms * 0.1; samples = new Array(samples.length).fill(0); }
+    if (!S.barge) {
+      const now = performance.now();
+      let outMax = 0.005; for (const h of S.outHist) if (now - h.t < 400 && h.v > outMax) outMax = h.v;
+      const thresh = Math.max(S.floor * 4, S.fullEcho ? 0.02 : 0.04, S.couple * outMax * (S.fullEcho ? 3 : 5));
+      if (rms > thresh) {
+        S.hold.push(samples);
+        if (S.hold.length < 3) return;
+        S.barge = true; S.dbg.barge++;                  // someone is really talking over it
+        for (const h of S.hold.splice(0)) sendAudio(h);
+        S.lastAct = Date.now();
+        return;
+      }
+      S.couple = S.couple * 0.95 + Math.min(rms / outMax, 3) * 0.05;
+      for (const h of S.hold.splice(0)) sendAudio(new Array(h.length).fill(0));
+      samples = new Array(samples.length).fill(0);
+    } else S.lastAct = Date.now();
   }
-  else if (rms > S.floor * 2.5) S.lastAct = Date.now();
+  else { S.barge = false; S.hold = []; if (rms > S.floor * 2.5) S.lastAct = Date.now(); }
+  sendAudio(samples);
+}
+function sendAudio(samples) {
   const pcm = new Int16Array(samples.length);
   for (let i = 0; i < samples.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, samples[i] * 32767));
   if (S.provider === "openai") send({ type:"input_audio_buffer.append", audio:b64(pcm.buffer) });
@@ -716,7 +741,7 @@ function handleOA(text) {
       // Someone talked over it: stop its voice right away and tell OpenAI how much was actually heard.
       if (store.get("interrupt","1") === "1" && (S.turn || speaking())) {
         if (S.oaItem && S.ctx) send({ type:"conversation.item.truncate", item_id:S.oaItem, content_index:0, audio_end_ms: Math.max(0, Math.round((S.ctx.currentTime - S.oaItemStart) * 1000)) });
-        stopPlayback(); S.turn = false; S.greeting = false;
+        S.dbg.interrupted++; stopPlayback(); S.turn = false; S.greeting = false;
       }
       return;
     case "input_audio_buffer.speech_stopped":
@@ -761,7 +786,7 @@ function handle(text) {
     if (!S.muted) play(p.inlineData.data);
     S.phase = "talking"; status("Talking"); S.lastAct = Date.now();
   }
-  if (c.interrupted) { stopPlayback(); S.turn = false; S.greeting = false; }
+  if (c.interrupted) { S.dbg.interrupted++; stopPlayback(); S.turn = false; S.greeting = false; }
   if (c.turnComplete) { S.heard = ""; pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
 }
 
@@ -810,7 +835,7 @@ function play(b64data) {
 function pumpAudio(flush) {
   const now = S.ctx.currentTime, rate = S.ctx.sampleRate;
   if (PLAY.started && S.playEnd < now - 0.02) {          // ran dry: rebuffer with a bigger cushion
-    PLAY.started = false; PLAY.cushion = Math.min(1.5, PLAY.cushion + 0.2);
+    PLAY.started = false; PLAY.cushion = Math.min(1.5, PLAY.cushion + 0.2); S.dbg.underrun++;
   }
   if (!PLAY.started) {
     if (!flush && PLAY.queued < PLAY.cushion) return;
@@ -842,6 +867,8 @@ function frame() {
   S.analyser.getFloatTimeDomainData(td);
   let sum = 0; for (const v of td) sum += v * v;
   const rms = Math.sqrt(sum / td.length);
+  const tnow = performance.now(); S.outHist.push({ t:tnow, v:rms }); while (S.outHist.length && tnow - S.outHist[0].t > 500) S.outHist.shift();
+  if (DEBUG) $("caption").textContent = "talk-overs " + S.dbg.barge + " · interrupted " + S.dbg.interrupted + " · gaps " + S.dbg.underrun + " · leak " + S.couple.toFixed(2) + (S.fullEcho ? " · full echo cancel" : " · basic echo cancel");
   S.peak = Math.max(rms, S.peak * 0.998, 0.05);
   const lvl = S.muted ? 0 : Math.min(1, rms / S.peak);
   S.level = lvl > S.level ? lvl : S.level * 0.8 + lvl * 0.2;
