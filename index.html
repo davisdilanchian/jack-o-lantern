@@ -490,7 +490,7 @@ function micHelp(e) {
   if (n === "NotFoundError" || n === "OverconstrainedError") return "No microphone found on this device.";
   if (n === "NotReadableError" || n === "AbortError") return "Another app is using the microphone. Hang up any calls, close other apps, and try again.";
   if (n === "NoMediaDevices") return "This browser can't use the microphone. Open this page in " + (IOS ? "Safari." : "Chrome.");
-  return "Sound didn't start. Reload the page and try again.";
+  return "Sound didn't start. Reload the page and try again. (" + (n || "error") + ")";
 }
 
 async function ensureAudio() {
@@ -512,7 +512,7 @@ async function ensureAudio() {
     }
   }
   catch (e) { try { ctx.close(); } catch {} throw e; }
-  const ec = (mic.getAudioTracks()[0].getSettings || (() => ({})))().echoCancellation;
+  let ec; try { ec = mic.getAudioTracks()[0].getSettings().echoCancellation; } catch {}
   S.fullEcho = IOS || ec === "all";
   try { await ctx.resume(); } catch {}
   S.ctx = ctx; S.mic = mic;
