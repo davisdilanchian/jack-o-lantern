@@ -102,6 +102,12 @@
 .steps summary { cursor:pointer; font-weight:600; color:var(--ink); } .steps ol { margin:10px 0 2px; padding-left:20px; } .steps li { margin:6px 0; }
 .steps a { color:var(--ink); font-weight:600; }
 ul.plain { margin:0; padding-left:20px; } ul.plain li { margin:6px 0; }
+.chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }
+.overlay .chips button { width:auto; flex:0 0 auto; margin:0; line-height:1.2; font-family:system-ui,sans-serif; font-size:15px; padding:8px 12px; border-radius:999px; background:var(--surface); border:1.5px solid rgba(58,40,26,.45); color:var(--fg); min-height:40px; }
+.overlay .chips button.on { background:var(--accent); border-color:var(--ink); color:var(--accent-ink); font-weight:600; }
+.overlay .chips button.playing { box-shadow:0 0 0 3px rgba(229,120,42,.45); }
+label.check { display:flex; align-items:center; gap:10px; font-size:17px; color:var(--fg); }
+label.check input { width:22px; height:22px; accent-color:var(--accent); }
 </style>
 </head>
 <body>
@@ -113,7 +119,7 @@ ul.plain { margin:0; padding-left:20px; } ul.plain li { margin:6px 0; }
 <div id="stage"><div id="status">Tap to start</div><div id="caption"></div></div>
 <div id="muted">
   <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M14 38h16l22-18v60L30 62H14z" fill="#fff"/><path d="M8 12l84 76" stroke="#ff3b3b" stroke-width="9" stroke-linecap="round"/></svg>
-  <b>MUTED</b><span>tap to unmute</span>
+  <b>MUTED</b><span>tap, or say "Pumpkin, unmute"</span>
 </div>
 <button id="gear" aria-label="Settings">Settings</button>
 
@@ -172,13 +178,18 @@ ul.plain { margin:0; padding-left:20px; } ul.plain li { margin:6px 0; }
       </div>
       <div class="field">
         <label for="voice">Voice</label>
-        <div class="row"><select id="voice"></select><button id="preview" type="button">Hear it</button></div>
-        <p class="help">Each character comes with a voice that fits. Tap <b>Hear it</b> to listen.</p>
+        <select id="voice" hidden></select>
+        <div id="voicechips" class="chips" role="radiogroup" aria-label="Voice"></div>
+        <p id="voicemsg" class="help" role="status">Tap a voice to hear it. The one you tap is the one it uses.</p>
       </div>
       <div class="field">
         <label for="lang">Language</label>
         <select id="lang"></select>
         <p class="help"><b>Match the visitor</b> answers in the language people speak to it. If it switches languages by mistake, pick one language.</p>
+      </div>
+      <div class="field">
+        <label class="check"><input type="checkbox" id="interrupt"> Let people interrupt it</label>
+        <p class="help">People can talk over the pumpkin and it stops to listen. If it keeps cutting itself off, turn this off.</p>
       </div>
     </section>
 
@@ -212,7 +223,7 @@ ul.plain { margin:0; padding-left:20px; } ul.plain li { margin:6px 0; }
         <li><b>Optional:</b> put yellow or orange tape over the flashlight for a warmer glow.</li>
         <li><b>Tap Start,</b> allow the microphone when asked, and put the phone in the pumpkin with the screen facing out.</li>
       </ol>
-      <p class="help">Tap the screen any time to mute it. Tap <b>Settings</b> in the corner to change things.</p>
+      <p class="help">To mute it, tap the screen or say <b>"Pumpkin, stop talking"</b> or <b>"mute"</b>. To unmute, tap again or say <b>"Pumpkin, unmute"</b>. Tap <b>Settings</b> in the corner to change things.</p>
     </section>
 
     <button class="primary" id="start">Start</button>
@@ -297,6 +308,7 @@ function fillVoices() {
   else for (const v of VOICES) $("voice").add(new Option(VOICE_FEEL[v] ? v + " (" + VOICE_FEEL[v] + ")" : v, v));
   $("voice").value = store.get(voiceKey(), personaVoice());
   if (!$("voice").value) $("voice").value = personaVoice();
+  renderChips();
   $("keykind").textContent = !$("key").value.trim() ? "" : prov === "openai" ? "OpenAI key. Voices below are OpenAI's." : "Google key.";
 }
 for (const [code,name] of LANGS) $("lang").add(new Option(name,code));
@@ -306,6 +318,70 @@ $("custom").value = store.get("custom","");
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 $("light").value = store.get("light", IOS ? "screen" : "both");
 $("lang").value = store.get("lang", "auto");
+// Voice picker: one button per voice. Tapping selects it and plays a short sample, cutting off any sample still playing.
+// Google samples are pre-recorded files (instant, no key needed); OpenAI samples are made with the visitor's key, in character.
+function renderChips() {
+  const box = $("voicechips"); box.innerHTML = "";
+  for (const o of $("voice").options) {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = o.text; b.dataset.v = o.value;
+    b.setAttribute("role", "radio"); b.setAttribute("aria-checked", o.value === $("voice").value);
+    if (o.value === $("voice").value) b.className = "on";
+    b.onclick = () => { $("voice").value = o.value; store.set(voiceKey(), o.value); renderChips(); sampleVoice(o.value); };
+    box.appendChild(b);
+  }
+}
+const SAMPLE = { ctx:null, src:null, ctl:null, n:0, cache:{} };
+const SAMPLE_LINE = "Well, hello there! Happy Halloween. Do you dare come a little closer?";
+const voiceMsg = t => { $("voicemsg").textContent = t; };
+function stopSample() {
+  try { SAMPLE.src && SAMPLE.src.stop(); } catch {}
+  SAMPLE.src = null; if (SAMPLE.ctl) SAMPLE.ctl.abort(); SAMPLE.ctl = null;
+  for (const b of $("voicechips").children) b.classList.remove("playing");
+}
+async function sampleVoice(v) {
+  stopSample();
+  const mine = ++SAMPLE.n;
+  // Create/resume the audio context inside the tap (iPhones only allow sound that starts from a tap).
+  const ctx = S.ctx || SAMPLE.ctx || (SAMPLE.ctx = new (window.AudioContext || window.webkitAudioContext)());
+  try { ctx.resume(); } catch {}
+  const prov = providerOf($("key").value), persona = $("persona").value;
+  const id = prov === "openai" ? "oa:" + v + ":" + persona : "g:" + v;
+  let buf = SAMPLE.cache[id];
+  if (!buf) {
+    const ctl = SAMPLE.ctl = new AbortController();
+    voiceMsg(prov === "openai" ? "Getting a sample from OpenAI…" : "Loading…");
+    try {
+      let r;
+      if (prov === "openai") {
+        const p = PERSONAS[persona], who = persona === "custom" ? ($("custom").value.trim() || "a spooky talking jack-o'-lantern") : p.name + ". " + p.text.slice(0, 400);
+        r = await fetch("https://api.openai.com/v1/audio/speech", { method:"POST", signal:ctl.signal,
+          headers:{ "Authorization":"Bearer " + $("key").value.trim(), "Content-Type":"application/json" },
+          body: JSON.stringify({ model:"gpt-4o-mini-tts", voice:v, input:SAMPLE_LINE, response_format:"mp3", instructions:"Speak in character as " + who }) });
+        if (!r.ok) { const j = await r.json().catch(() => ({})); throw Object.assign(new Error((j.error && j.error.message) || ""), { status:r.status, code:j.error && j.error.code }); }
+      } else {
+        r = await fetch("voices/" + v + ".mp3", { signal:ctl.signal });
+        if (!r.ok) throw new Error("missing");
+      }
+      const ab = await r.arrayBuffer();
+      buf = await new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej));   // callback form works on older phones
+      SAMPLE.cache[id] = buf;
+    } catch (e) {
+      if (e.name === "AbortError" || mine !== SAMPLE.n) return;
+      return voiceMsg(e.status ? oaError(e.status, e.code, e.message) : "Couldn't play that sample. Check your internet and try again.");
+    }
+  }
+  if (mine !== SAMPLE.n) return;
+  // Match the loudness of every sample, like the live voice.
+  const d = buf.getChannelData(0); let sum = 0, cnt = 0;
+  for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i]) > 0.01) { sum += d[i] * d[i]; cnt++; }
+  const g = ctx.createGain(); g.gain.value = cnt ? Math.min(4, Math.max(0.5, LOUD.target / Math.sqrt(sum / cnt))) : 1;
+  const src = ctx.createBufferSource(); src.buffer = buf; src.connect(g); g.connect(ctx.destination);
+  src.onended = () => { if (SAMPLE.src === src) stopSample(); };
+  src.start(); SAMPLE.src = src;
+  for (const b of $("voicechips").children) b.classList.toggle("playing", b.dataset.v === v);
+  voiceMsg("Tap a voice to hear it. The one you tap is the one it uses.");
+}
+
 // Notice the key however it arrives: typing, pasting, autofill, a scanned QR, or a saved key.
 // Also pull the key out if extra text came along with it (spaces, quotes, "OPENAI_API_KEY=").
 function checkKey() {
@@ -318,7 +394,9 @@ for (const ev of ["input","change","paste","keyup","blur"]) $("key").addEventLis
 setInterval(() => { if ($("setup").style.display !== "none") checkKey(); }, 700);
 const syncCustom = () => $("custom").style.display = $("persona").value === "custom" ? "block" : "none";
 syncCustom();
-$("persona").onchange = () => { $("voice").value = personaVoice(); syncCustom(); };
+$("persona").onchange = () => { $("voice").value = personaVoice(); store.set(voiceKey(), $("voice").value); syncCustom(); renderChips(); endVisitForNewSettings(); };
+$("interrupt").checked = store.get("interrupt", "1") === "1";
+$("lang").onchange = () => endVisitForNewSettings();
 function personaText() {
   const id = $("persona").value;
   const base = id === "custom" ? ($("custom").value.trim() || PERSONAS.jack.text) : PERSONAS[id].text;
@@ -330,22 +408,23 @@ function personaText() {
 }
 function save() {
   store.set("geminiKey",$("key").value.trim()); store.set("persona",$("persona").value);
-  store.set("custom",$("custom").value); store.set(voiceKey(),$("voice").value); S.inRate = providerOf($("key").value) === "openai" ? 24000 : 16000; store.set("lang",$("lang").value); store.set("light",$("light").value);
+  store.set("custom",$("custom").value); store.set(voiceKey(),$("voice").value); store.set("interrupt", $("interrupt").checked ? "1" : "0"); S.inRate = providerOf($("key").value) === "openai" ? 24000 : 16000; store.set("lang",$("lang").value); store.set("light",$("light").value);
 }
 
 // ------------------------------------------------------------------ state
 const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, torchAt:0, ws:null, phase:"idle",
   muted:false, turn:false, greeting:false, playEnd:0, floor:0.01, loud:0, lastAct:0, start:0, end:0, visits:[],
-  analyser:null, out:null, level:0, peak:0.05, said:"", wake:null, visitId:0, inRate: providerOf(store.get("geminiKey","")) === "openai" ? 24000 : 16000 };
-const TUNE = { ratio:3.5, min:0.015, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.6 };
+  analyser:null, out:null, level:0, peak:0.05, said:"", wake:null, visitId:0, echo:0.02, heard:"", cmd:null, pre:[], cmdBusy:false, cmdTimes:[], inRate: providerOf(store.get("geminiKey","")) === "openai" ? 24000 : 16000 };
+const TUNE = { ratio:3.5, min:0.015, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.3 };
 const status = t => $("status").textContent = t;
 const speaking = () => S.turn || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
 
 // ------------------------------------------------------------------ start
 $("gear").onclick = e => { e.stopPropagation(); $("setup").style.display = "flex"; $("start").textContent = "Save and resume"; };
-$("preview").onclick = async () => { save(); if (!$("key").value.trim()) return showErr("Paste your key in step 1 first."); try { await ensureAudio(); } catch (e) { return showErr(micHelp(e)); } runVisit(true); };
+// Settings changed: hang up any conversation in progress so the next one uses the new character, voice and language.
+function endVisitForNewSettings() { if (S.ctx && S.phase !== "idle") { stopPlayback(); closeVisit(); } }
 $("start").onclick = async () => {
-  save();
+  save(); stopSample(); endVisitForNewSettings();
   if (!$("key").value.trim()) return showErr("Paste your key in step 1 first.");
   showErr("");
   try { await ensureAudio(); } catch (e) { return showErr(micHelp(e)); }
@@ -418,11 +497,23 @@ async function ensureAudio() {
   if (S.ctx) return;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { const e = new Error("no mediaDevices"); e.name = "NoMediaDevices"; throw e; }
   // Create the audio context synchronously inside the tap (iPhones only allow sound that starts from a tap).
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const ctx = SAMPLE.ctx || new (window.AudioContext || window.webkitAudioContext)();
+  SAMPLE.ctx = null;
   // Ask for the microphone first, so its prompt appears before anything else can fail.
   let mic;
-  try { mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); }
+  // echoCancellation "all" (Chrome 141+) removes everything this phone plays, including the pumpkin's own
+  // voice, so it can listen while talking without hearing itself. Older browsers only accept true.
+  // iPhones already cancel all of the phone's own sound.
+  try {
+    try { mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:"all", noiseSuppression:true, autoGainControl:true } }); }
+    catch (e) {
+      if (e.name === "NotAllowedError" || e.name === "SecurityError") throw e;
+      mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
+    }
+  }
   catch (e) { try { ctx.close(); } catch {} throw e; }
+  const ec = (mic.getAudioTracks()[0].getSettings || (() => ({})))().echoCancellation;
+  S.fullEcho = IOS || ec === "all";
   try { await ctx.resume(); } catch {}
   S.ctx = ctx; S.mic = mic;
   // Output chain: voice -> analyser (for the light) -> speakers
@@ -437,7 +528,7 @@ async function ensureAudio() {
   const src = S.ctx.createMediaStreamSource(S.mic);
   let acc = [], pos = 0;
   const feed = data => {
-    const ratio = S.ctx.sampleRate / S.inRate, chunk = S.inRate / 10;   // 100 ms chunks
+    const ratio = S.ctx.sampleRate / S.inRate, chunk = S.inRate / 25;   // 40 ms chunks, so the AI hears speech sooner
     for (; pos < data.length; pos += ratio) acc.push(data[Math.floor(pos)]);
     pos -= data.length;
     while (acc.length >= chunk) onMic(acc.splice(0, chunk));
@@ -480,14 +571,22 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 function onMic(samples) {
   let sum = 0; for (const v of samples) sum += v * v;
   const rms = Math.sqrt(sum / samples.length);
+  if (S.muted) return listenWhileMuted(samples, rms);
   if (S.phase === "idle") {
-    if (S.muted || speaking() || $("setup").style.display !== "none") return;
+    if (speaking() || $("setup").style.display !== "none") return;
     if (rms > S.floor * TUNE.ratio && rms > TUNE.min) { if (++S.loud >= 2 && Date.now() - S.end > TUNE.cooldown) runVisit(false); }
     else { S.loud = 0; S.floor = S.floor * 0.97 + rms * 0.03; }
     return;
   }
-  if (S.phase === "connecting" || speaking() || S.greeting || S.muted) return;   // never send Jack's own voice back
-  if (rms > S.floor * 2.5) S.lastAct = Date.now();
+  if (S.phase === "connecting") return;
+  if (speaking() || S.greeting) {
+    // While it talks, the mic also hears its own voice. With interruptions off, send nothing.
+    // With them on, pass on only sound clearly louder than that echo, so it doesn't interrupt itself.
+    if (store.get("interrupt", "1") !== "1") return;
+    if (rms > Math.max(S.echo * (S.fullEcho ? 2.5 : 4), S.floor * 4, S.fullEcho ? 0.03 : 0.05)) S.lastAct = Date.now();   // stricter where the phone can't fully cancel its own voice
+    else { S.echo = S.echo * 0.9 + rms * 0.1; samples = new Array(samples.length).fill(0); }
+  }
+  else if (rms > S.floor * 2.5) S.lastAct = Date.now();
   const pcm = new Int16Array(samples.length);
   for (let i = 0; i < samples.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, samples[i] * 32767));
   if (S.provider === "openai") send({ type:"input_audio_buffer.append", audio:b64(pcm.buffer) });
@@ -514,7 +613,8 @@ function runVisit(isPreview) {
     model: MODELS[modelIdx],
     generationConfig:{ responseModalities:["AUDIO"], speechConfig: Object.assign(store.get("lang","auto") === "auto" ? {} : { languageCode: store.get("lang","auto") }, { voiceConfig:{ prebuiltVoiceConfig:{ voiceName: store.get("voice","Puck") } } }) },
     systemInstruction:{ parts:[{ text: personaText() }] },
-    realtimeInputConfig:{ activityHandling:"NO_INTERRUPTION" },
+    realtimeInputConfig:{ activityHandling: store.get("interrupt","1") === "1" ? "START_OF_ACTIVITY_INTERRUPTS" : "NO_INTERRUPTION",
+      automaticActivityDetection:{ endOfSpeechSensitivity:"END_SENSITIVITY_HIGH", silenceDurationMs:500 } },
     outputAudioTranscription:{}, inputAudioTranscription:{}
   }}));
   ws.onmessage = e => handle(typeof e.data === "string" ? e.data : new TextDecoder().decode(e.data));
@@ -532,7 +632,8 @@ function runVisit(isPreview) {
 async function openAIVisit(isPreview, key, id) {
   const session = { type:"realtime", model: OA_MODELS[oaIdx], instructions: personaText(),
     audio:{ input:{ format:{ type:"audio/pcm", rate:24000 },
-                    turn_detection:{ type:"server_vad", threshold:0.6, silence_duration_ms:700, create_response:true, interrupt_response:false } },
+                    transcription:{ model:"gpt-4o-mini-transcribe" },
+                    turn_detection:{ type:"server_vad", threshold:0.55, silence_duration_ms:450, prefix_padding_ms:250, create_response:true, interrupt_response: store.get("interrupt","1") === "1" } },
             output:{ format:{ type:"audio/pcm", rate:24000 }, voice: store.get("voiceOA", "ash") } } };
   let r, j = {};
   try {
@@ -573,14 +674,29 @@ function handleOA(text) {
       return;
     case "response.output_audio.delta": case "response.audio.delta":
       if (!S.turn) { S.turn = true; S.said = ""; }
+      if (m.item_id && m.item_id !== S.oaItem) { S.oaItem = m.item_id; S.oaItemStart = S.ctx ? Math.max(S.ctx.currentTime, S.playEnd) : 0; }
       if (!S.muted) play(m.delta);
       S.phase = "talking"; status("Talking"); S.lastAct = Date.now();
       return;
     case "response.output_audio_transcript.delta": case "response.audio_transcript.delta":
       S.said += m.delta || ""; $("caption").textContent = S.said;
       return;
-    case "input_audio_buffer.speech_started": case "input_audio_buffer.speech_stopped":
+    case "input_audio_buffer.speech_started":
       S.lastAct = Date.now();
+      // Someone talked over it: stop its voice right away and tell OpenAI how much was actually heard.
+      if (store.get("interrupt","1") === "1" && (S.turn || speaking())) {
+        if (S.oaItem && S.ctx) send({ type:"conversation.item.truncate", item_id:S.oaItem, content_index:0, audio_end_ms: Math.max(0, Math.round((S.ctx.currentTime - S.oaItemStart) * 1000)) });
+        stopPlayback(); S.turn = false; S.greeting = false;
+      }
+      return;
+    case "input_audio_buffer.speech_stopped":
+      S.lastAct = Date.now();
+      return;
+    case "conversation.item.input_audio_transcription.delta":
+      S.heard += m.delta || ""; voiceCommand(S.heard);
+      return;
+    case "conversation.item.input_audio_transcription.completed":
+      voiceCommand(m.transcript || ""); S.heard = "";
       return;
     case "response.done": {
       pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now();
@@ -609,20 +725,21 @@ function handle(text) {
   if (m.goAway) return closeVisit();
   const c = m.serverContent; if (!c) return;
   if (c.outputTranscription?.text) { S.said += c.outputTranscription.text; $("caption").textContent = S.said; }
-  if (c.inputTranscription?.text) S.lastAct = Date.now();
+  if (c.inputTranscription?.text) { S.lastAct = Date.now(); S.heard += c.inputTranscription.text; if (voiceCommand(S.heard)) return; }
   for (const p of c.modelTurn?.parts || []) if (p.inlineData?.data) {
     if (!S.turn) { S.turn = true; S.said = ""; }
     if (!S.muted) play(p.inlineData.data);
     S.phase = "talking"; status("Talking"); S.lastAct = Date.now();
   }
-  if (c.interrupted) { resetPlayback(); S.turn = false; }
-  if (c.turnComplete) { pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
+  if (c.interrupted) { stopPlayback(); S.turn = false; S.greeting = false; }
+  if (c.turnComplete) { S.heard = ""; pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
 }
 
 // Jack's voice arrives as 24 kHz chunks. Resample them to the output rate as one continuous
 // stream (carrying the position across chunks) so chunk joins do not click, and keep a small
 // cushion so network jitter does not cause gaps.
-const PLAY = { pos:0, prev:0, cushion:0.6, pend:[], pendLen:0, queued:0, started:false, endFrame:0 };
+const LOUD = { target:0.14, avg:0, gain:1 };   // target speech level: about where Google's voices already are
+const PLAY = { pos:0, prev:0, cushion:0.25, pend:[], pendLen:0, queued:0, started:false, endFrame:0 };
 function play(b64data) {
   const bin = atob(b64data), n = bin.length >> 1;
   if (!n) return;
@@ -641,6 +758,18 @@ function play(b64data) {
     out[i] = s0 + (s1 - s0) * f;
   }
   PLAY.pos = q - n; PLAY.prev = inp[n - 1];
+  // Loudness matching: OpenAI's voices come out quieter than Google's. Track how loud the speech
+  // is and scale it to the same level, easing between gains and softly limiting peaks.
+  let ss = 0; for (let i = 0; i < n; i++) ss += inp[i] * inp[i];
+  const crms = Math.sqrt(ss / n);
+  if (crms > 0.01) LOUD.avg = LOUD.avg ? LOUD.avg * 0.92 + crms * 0.08 : crms;
+  const g1 = LOUD.avg ? Math.min(4, Math.max(1, LOUD.target / LOUD.avg)) : 1, g0 = LOUD.gain;
+  for (let i = 0; i < outLen; i++) {
+    let x = out[i] * (g0 + (g1 - g0) * i / outLen);
+    const a = Math.abs(x); if (a > 0.85) x = Math.sign(x) * (0.85 + 0.15 * Math.tanh((a - 0.85) / 0.15));
+    out[i] = x;
+  }
+  LOUD.gain = g1;
   PLAY.pend.push(out); PLAY.pendLen += outLen; PLAY.queued += outLen / rate;
   pumpAudio(false);
 }
@@ -668,6 +797,11 @@ function pumpAudio(flush) {
   if (PLAY.endFrame / rate < now + 0.01) PLAY.endFrame = Math.ceil((now + 0.02) * rate);
   src.start(PLAY.endFrame / rate);
   PLAY.endFrame += block.length; S.playEnd = PLAY.endFrame / rate;
+}
+// Cut the voice off now, including audio already scheduled to play.
+function stopPlayback() {
+  resetPlayback(); S.playEnd = 0; PLAY.pos = 0;
+  if (S.out) { try { S.out.disconnect(); } catch {} S.out = S.ctx.createGain(); S.out.connect(S.analyser); }
 }
 function resetPlayback() { PLAY.pend = []; PLAY.pendLen = 0; PLAY.queued = 0; PLAY.started = false; }
 
@@ -699,11 +833,65 @@ function setTorch(on) {
   S.camTrack.applyConstraints({ advanced:[{ torch: on }] }).catch(() => { S.torchOK = false; });
 }
 
+// ------------------------------------------------------------------ voice commands: "Pumpkin, stop talking" / "mute" / "Pumpkin, unmute"
+const norm = t => (t || "").toLowerCase().replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ");
+const UNMUTE_RE = /\bun ?mute\b|\bpumpkin\b.*\b(wake up|start talking|you can talk|talk again)\b/;
+const MUTE_RE = /\bmute\b|\bpumpkin\b.*\b(stop talking|be quiet|go to sleep|shush|hush)\b/;
+function voiceCommand(text) {
+  const t = norm(text);
+  if (!S.muted && !UNMUTE_RE.test(t) && MUTE_RE.test(t)) { S.heard = ""; setMute(true); return true; }
+  return false;
+}
+// While muted nothing goes to the AI. When someone speaks up, record about 2.5 seconds and ask for a
+// quick transcript (about a second, a fraction of a cent) to catch "Pumpkin, unmute".
+function listenWhileMuted(samples, rms) {
+  if (S.cmd) {
+    S.cmd.push(...samples);
+    if (S.cmd.length >= S.inRate * 2.5) { const clip = S.cmd; S.cmd = null; checkUnmute(clip); }
+    return;
+  }
+  S.pre.push(samples); if (S.pre.length > 8) S.pre.shift();          // keep ~0.3 s from before the sound started
+  if (rms > S.floor * TUNE.ratio && rms > TUNE.min) {
+    const now = Date.now(); S.cmdTimes = S.cmdTimes.filter(t => now - t < 3600000);
+    if (++S.loud >= 2 && !S.cmdBusy && S.cmdTimes.length < 150) { S.cmdTimes.push(now); S.cmd = [].concat(...S.pre); S.pre = []; S.loud = 0; }
+  } else { S.loud = 0; S.floor = S.floor * 0.97 + rms * 0.03; }
+}
+function wavBlob(samples, rate) {
+  const n = samples.length, b = new DataView(new ArrayBuffer(44 + n * 2));
+  const w = (o, str) => { for (let i = 0; i < str.length; i++) b.setUint8(o + i, str.charCodeAt(i)); };
+  w(0,"RIFF"); b.setUint32(4, 36 + n * 2, true); w(8,"WAVE"); w(12,"fmt "); b.setUint32(16,16,true); b.setUint16(20,1,true); b.setUint16(22,1,true);
+  b.setUint32(24, rate, true); b.setUint32(28, rate * 2, true); b.setUint16(32,2,true); b.setUint16(34,16,true); w(36,"data"); b.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) b.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, samples[i] * 32767)), true);
+  return new Blob([b.buffer], { type:"audio/wav" });
+}
+async function checkUnmute(clip) {
+  S.cmdBusy = true;
+  try {
+    const key = store.get("geminiKey",""), blob = wavBlob(clip, S.inRate);
+    let text = "";
+    if (providerOf(key) === "openai") {
+      const fd = new FormData(); fd.append("file", blob, "clip.wav"); fd.append("model", "gpt-4o-mini-transcribe");
+      const r = await fetch("https://api.openai.com/v1/audio/transcriptions", { method:"POST", headers:{ "Authorization":"Bearer " + key }, body:fd });
+      text = ((await r.json()) || {}).text || "";
+    } else {
+      const data = b64(await blob.arrayBuffer());
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent", { method:"POST",
+        headers:{ "x-goog-api-key":key, "Content-Type":"application/json" },
+        body: JSON.stringify({ contents:[{ parts:[{ inlineData:{ mimeType:"audio/wav", data } }, { text:"Write down exactly what is said in this audio, in lowercase, nothing else. If nobody speaks, write nothing." }] }],
+          generationConfig:{ maxOutputTokens:40, temperature:0 } }) });
+      const j = await r.json(); text = (((j.candidates || [])[0] || {}).content || { parts:[{}] }).parts.map(p => p.text || "").join(" ");
+    }
+    if (S.muted && UNMUTE_RE.test(norm(text))) { setMute(false); S.end = 0; runVisit(false); }
+  } catch {}
+  S.cmdBusy = false;
+}
+
 // ------------------------------------------------------------------ tap anywhere to mute
 function setMute(m) {
   S.muted = m;
   $("muted").style.display = m ? "flex" : "none";
-  if (m) { resetPlayback(); S.playEnd = 0; S.out.disconnect(); S.out = S.ctx.createGain(); S.out.connect(S.analyser); closeVisit(); setTorch(false); }
+  S.cmd = null; S.pre = []; S.loud = 0;
+  if (m) { stopPlayback(); closeVisit(); setTorch(false); }
   else status("Waiting for visitors");
 }
 for (const el of [$("stage"), $("muted"), $("glow"), $("white")]) el.addEventListener("click", () => { if (S.ctx) setMute(!S.muted); });
