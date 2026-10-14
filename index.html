@@ -108,6 +108,7 @@ ul.plain { margin:0; padding-left:20px; } ul.plain li { margin:6px 0; }
 .overlay .chips button.playing { box-shadow:0 0 0 3px rgba(229,120,42,.45); }
 label.check { display:flex; align-items:center; gap:10px; font-size:17px; color:var(--fg); }
 label.check input { width:22px; height:22px; accent-color:var(--accent); }
+input[type=range]#boost { width:100%; accent-color:var(--accent); height:32px; }
 </style>
 </head>
 <body>
@@ -119,7 +120,7 @@ label.check input { width:22px; height:22px; accent-color:var(--accent); }
 <div id="stage"><div id="status">Tap to start</div><div id="caption"></div></div>
 <div id="muted">
   <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M14 38h16l22-18v60L30 62H14z" fill="#fff"/><path d="M8 12l84 76" stroke="#ff3b3b" stroke-width="9" stroke-linecap="round"/></svg>
-  <b>MUTED</b><span>tap, or say "Pumpkin, unmute"</span>
+  <b>MUTED</b><span>tap, or say "Mute off"</span>
 </div>
 <button id="gear" aria-label="Settings">Settings</button>
 
@@ -194,6 +195,13 @@ label.check input { width:22px; height:22px; accent-color:var(--accent); }
     </section>
 
     <section>
+      <h2>Sound</h2>
+      <label for="boost">Volume boost: <span id="boostval">100%</span></label>
+      <input id="boost" type="range" min="100" max="300" step="10" value="100">
+      <p class="help">Turn the phone's own volume all the way up first. If it's still too quiet (older phones often are), slide this up. Higher settings make the voice louder but a bit flatter. Tap a voice above to hear the difference.</p>
+    </section>
+
+    <section>
       <h2>Light</h2>
       <label for="light">What lights up</label>
       <select id="light">
@@ -223,7 +231,7 @@ label.check input { width:22px; height:22px; accent-color:var(--accent); }
         <li><b>Optional:</b> put yellow or orange tape over the flashlight for a warmer glow.</li>
         <li><b>Tap Start,</b> allow the microphone when asked, and put the phone in the pumpkin with the screen facing out.</li>
       </ol>
-      <p class="help">To mute it, tap the screen or say <b>"Pumpkin, stop talking"</b> or <b>"mute"</b>. To unmute, tap again or say <b>"Pumpkin, unmute"</b>. Tap <b>Settings</b> in the corner to change things.</p>
+      <p class="help">To mute it, tap the screen or say <b>"Mute on"</b> (or "Pumpkin, stop talking"). To unmute, tap again or say <b>"Mute off"</b> (or "Pumpkin, unmute"). Tap <b>Settings</b> in the corner to change things.</p>
     </section>
 
     <button class="primary" id="start">Start</button>
@@ -318,6 +326,19 @@ $("custom").value = store.get("custom","");
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 $("light").value = store.get("light", IOS ? "screen" : "both");
 $("lang").value = store.get("lang", "auto");
+// Volume boost (1x-3x) for quiet phones, followed by a limiter so loud peaks are squashed instead of crackling.
+const boostLevel = () => (+store.get("boost", "100") || 100) / 100;
+function makeLimiter(ctx) {
+  const c = ctx.createDynamicsCompressor();
+  c.threshold.value = -6; c.knee.value = 3; c.ratio.value = 20; c.attack.value = 0.002; c.release.value = 0.12;
+  return c;
+}
+$("boost").value = store.get("boost", "100"); $("boostval").textContent = $("boost").value + "%";
+$("boost").oninput = () => {
+  store.set("boost", $("boost").value); $("boostval").textContent = $("boost").value + "%";
+  if (S.boost) S.boost.gain.value = boostLevel();
+};
+
 // Voice picker: one button per voice. Tapping selects it and plays a short sample, cutting off any sample still playing.
 // Google samples are pre-recorded files (instant, no key needed); OpenAI samples are made with the visitor's key, in character.
 function renderChips() {
@@ -379,7 +400,9 @@ async function sampleVoice(v) {
   const d = buf.getChannelData(0); let sum = 0, cnt = 0;
   for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i]) > 0.01) { sum += d[i] * d[i]; cnt++; }
   const g = ctx.createGain(); g.gain.value = cnt ? Math.min(4, Math.max(0.5, LOUD.target / Math.sqrt(sum / cnt))) : 1;
-  const src = ctx.createBufferSource(); src.buffer = buf; src.connect(g); g.connect(ctx.destination);
+  g.gain.value *= boostLevel();
+  const lim = makeLimiter(ctx); g.connect(lim); lim.connect(ctx.destination);
+  const src = ctx.createBufferSource(); src.buffer = buf; src.connect(g);
   src.onended = () => { if (SAMPLE.src === src) stopSample(); };
   src.start(); SAMPLE.src = src;
   for (const b of $("voicechips").children) b.classList.toggle("playing", b.dataset.v === v);
@@ -521,8 +544,11 @@ async function ensureAudio() {
   try { await ctx.resume(); } catch {}
   S.ctx = ctx; S.mic = mic;
   // Output chain: voice -> analyser (for the light) -> speakers
+  // Output chain: voice -> volume boost -> limiter (keeps boosted peaks from distorting) -> analyser (for the light) -> speakers
   S.out = S.ctx.createGain(); S.analyser = S.ctx.createAnalyser(); S.analyser.fftSize = 512;
-  S.out.connect(S.analyser); S.analyser.connect(S.ctx.destination);
+  S.boost = S.ctx.createGain(); S.boost.gain.value = boostLevel();
+  S.limiter = makeLimiter(S.ctx);
+  S.out.connect(S.boost); S.boost.connect(S.limiter); S.limiter.connect(S.analyser); S.analyser.connect(S.ctx.destination);
   // Flashlight: needs the back camera open; only Chrome on Android supports it.
   if (lightMode() !== "screen" && !IOS) try {
     const cam = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" } } });
@@ -805,7 +831,7 @@ function pumpAudio(flush) {
 // Cut the voice off now, including audio already scheduled to play.
 function stopPlayback() {
   resetPlayback(); S.playEnd = 0; PLAY.pos = 0;
-  if (S.out) { try { S.out.disconnect(); } catch {} S.out = S.ctx.createGain(); S.out.connect(S.analyser); }
+  if (S.out) { try { S.out.disconnect(); } catch {} S.out = S.ctx.createGain(); S.out.connect(S.boost); }
 }
 function resetPlayback() { PLAY.pend = []; PLAY.pendLen = 0; PLAY.queued = 0; PLAY.started = false; }
 
@@ -839,8 +865,8 @@ function setTorch(on) {
 
 // ------------------------------------------------------------------ voice commands: "Pumpkin, stop talking" / "mute" / "Pumpkin, unmute"
 const norm = t => (t || "").toLowerCase().replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ");
-const UNMUTE_RE = /\bun ?mute\b|\bpumpkin\b.*\b(wake up|start talking|you can talk|talk again)\b/;
-const MUTE_RE = /\bmute\b|\bpumpkin\b.*\b(stop talking|be quiet|go to sleep|shush|hush)\b/;
+const UNMUTE_RE = /\bun ?mute\b|\bmute off\b|\bsound on\b|\bpumpkin\b.*\b(wake up|start talking|you can talk|talk again)\b/;
+const MUTE_RE = /\bmute( on)?\b|\bsound off\b|\bpumpkin\b.*\b(stop talking|be quiet|go to sleep|shush|hush)\b/;
 function voiceCommand(text) {
   const t = norm(text);
   if (!S.muted && !UNMUTE_RE.test(t) && MUTE_RE.test(t)) { S.heard = ""; setMute(true); return true; }
