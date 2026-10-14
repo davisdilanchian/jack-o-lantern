@@ -349,18 +349,22 @@ async function sampleVoice(v) {
   let buf = SAMPLE.cache[id];
   if (!buf) {
     const ctl = SAMPLE.ctl = new AbortController();
-    voiceMsg(prov === "openai" ? "Getting a sample from OpenAI…" : "Loading…");
+    voiceMsg(prov === "openai" && persona === "custom" ? "Getting a sample from OpenAI…" : "Loading…");
     try {
       let r;
-      if (prov === "openai") {
+      if (prov === "openai" && persona !== "custom") {
+        r = await fetch("voices/oa/" + persona + "/" + v + ".mp3", { signal:ctl.signal });   // pre-recorded in character
+        if (!r.ok || !/audio/.test(r.headers.get("content-type") || "")) r = null;   // the site answers unknown paths with the page itself
+      }
+      if (prov === "openai" && !r) {
         const p = PERSONAS[persona], who = persona === "custom" ? ($("custom").value.trim() || "a spooky talking jack-o'-lantern") : p.name + ". " + p.text.slice(0, 400);
         r = await fetch("https://api.openai.com/v1/audio/speech", { method:"POST", signal:ctl.signal,
           headers:{ "Authorization":"Bearer " + $("key").value.trim(), "Content-Type":"application/json" },
           body: JSON.stringify({ model:"gpt-4o-mini-tts", voice:v, input:SAMPLE_LINE, response_format:"mp3", instructions:"Speak in character as " + who }) });
         if (!r.ok) { const j = await r.json().catch(() => ({})); throw Object.assign(new Error((j.error && j.error.message) || ""), { status:r.status, code:j.error && j.error.code }); }
-      } else {
+      } else if (prov !== "openai") {
         r = await fetch("voices/" + v + ".mp3", { signal:ctl.signal });
-        if (!r.ok) throw new Error("missing");
+        if (!r.ok || !/audio/.test(r.headers.get("content-type") || "")) throw new Error("missing");
       }
       const ab = await r.arrayBuffer();
       buf = await new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej));   // callback form works on older phones
