@@ -109,6 +109,15 @@ ul.plain { margin:0; padding-left:20px; } ul.plain li { margin:6px 0; }
 label.check { display:flex; align-items:center; gap:10px; font-size:17px; color:var(--fg); }
 label.check input { width:22px; height:22px; accent-color:var(--accent); }
 input[type=range]#boost { width:100%; accent-color:var(--accent); height:32px; }
+.swatches { display:flex; flex-wrap:wrap; gap:10px; margin:4px 0 2px; }
+.overlay .swatches button { width:44px; height:44px; min-height:0; padding:0; border-radius:50%; border:2px solid rgba(58,40,26,.45); box-shadow:none; position:relative; }
+.overlay .swatches button.on { outline:3px solid var(--ink); outline-offset:2px; }
+.overlay .swatches button.locked::after, .overlay .chips button.locked::after { content:"🔒"; font-size:11px; position:absolute; right:-4px; top:-6px; }
+.overlay .chips button.locked { position:relative; opacity:.85; }
+.overlay .swatches input[type=color] { width:44px; height:44px; border:2px dashed rgba(58,40,26,.45); border-radius:50%; padding:0; background:none; }
+.lockbadge { font-size:13px; }
+body.paid .lockbadge, body.paid [data-lock] { display:none; }
+#unlockbox .tipbtn { display:block; text-align:center; margin:12px 0 4px; }
 </style>
 </head>
 <body>
@@ -203,13 +212,42 @@ input[type=range]#boost { width:100%; accent-color:var(--accent); height:32px; }
 
     <section>
       <h2>Light</h2>
+      <label>Lantern color <span class="lockbadge" data-lock>🔒</span></label>
+      <div id="colors" class="swatches" role="radiogroup" aria-label="Lantern color"></div>
+      <p id="colormsg" class="help" role="status"></p>
       <label for="light">What lights up</label>
       <select id="light">
         <option value="both">Screen and flashlight</option>
         <option value="screen">Screen only</option>
         <option value="torch">Flashlight only</option>
       </select>
-      <p class="help">The screen glows orange and gets brighter as it talks. The flashlight can flicker too, but only on Android phones in Chrome. iPhones use the screen.</p>
+      <p class="help">The screen glows in the lantern color and gets brighter as it talks. The flashlight can flicker too (always white), but only on Android phones in Chrome. iPhones use the screen.</p>
+    </section>
+
+    <section id="unlockbox">
+      <h2>Unlock everything</h2>
+      <div id="locked">
+        <p class="help" style="margin-top:0">One payment of <b>$1.99</b>, yours to keep on this phone:</p>
+        <ul class="help plain">
+          <li><b>Any voice for any character.</b> Free characters use their own voice.</li>
+          <li><b>Write your own character.</b> Make it anyone you like.</li>
+          <li><b>Lantern colors.</b> Red, green, purple, ghostly white, or any color you pick.</li>
+        </ul>
+        <a id="buy" class="tipbtn" target="_self" rel="noopener">🎃 Unlock for $1.99</a>
+        <details class="steps"><summary>Already paid on another phone?</summary>
+          <p class="help">On the phone you paid on, open Settings and tap <b>Share my key</b>. Scan that code with this phone and it unlocks here too.</p>
+          <label for="unlockcode">Or paste your unlock code</label>
+          <div class="row"><input id="unlockcode" type="text" autocomplete="off" spellcheck="false" placeholder="Unlock code"><button id="useunlock" type="button">Unlock</button></div>
+        </details>
+      </div>
+      <div id="unlocked" style="display:none">
+        <p class="help" style="margin-top:0"><b>Unlocked. Thank you!</b> Every voice, your own characters, and lantern colors are yours on this phone.</p>
+        <details class="steps"><summary>Your unlock code</summary>
+          <p class="help">Keep this to unlock another phone. <b>Share my key</b> also passes it along.</p>
+          <input id="mycode" type="text" readonly>
+        </details>
+      </div>
+      <p id="unlockmsg" class="help" role="status"></p>
     </section>
 
     <section>
@@ -245,7 +283,6 @@ input[type=range]#boost { width:100%; accent-color:var(--accent); height:32px; }
         <a href="https://youtube.com/@davisdilanchian" target="_blank" rel="noopener">YouTube</a>
         <a href="https://x.com/davisdilanchian" target="_blank" rel="noopener">X</a>
       </p>
-      <div id="tipwrap" style="display:none"><p class="tipnote">Enjoying your pumpkin? A small tip keeps it free for everyone.</p><a id="tip" class="tipbtn" target="_blank" rel="noopener">🎃 Tip the pumpkin</a></div>
       <p class="made">Made by <a href="https://davisdilanchian.com" target="_blank" rel="noopener">Davis Dilanchian</a>. More projects on my site.</p>
     </footer>
   </div>
@@ -257,15 +294,32 @@ input[type=range]#boost { width:100%; accent-color:var(--accent); height:32px; }
 // ------------------------------------------------------------------ key handoff: a QR link with the key after "#".
 // The part after "#" is never sent to the server; we save it on this phone and wipe it from the address bar.
 (function importKeyFromLink() {
-  const m = location.hash.match(/^#k=([A-Za-z0-9._-]{20,300})$/);
+  const m = location.hash.match(/^#k=([A-Za-z0-9._-]{20,300})(&|$)/);
   if (!m) return;
   try { localStorage.setItem("geminiKey", m[1]); } catch {}
   history.replaceState(null, "", location.pathname + location.search);
 })();
 
-// ------------------------------------------------------------------ tip link (Stripe Payment Link; hidden until set)
-const TIP_URL = "https://buy.stripe.com/00w14ogdM3CV75T4K08Zq00";
-if (TIP_URL) { document.getElementById("tip").href = TIP_URL; document.getElementById("tipwrap").style.display = "block"; }
+
+// ------------------------------------------------------------------ $1.99 unlock (Stripe Payment Link)
+// After paying, Stripe sends the buyer back with ?paid=<checkout session>. Our Cloudflare worker asks Stripe
+// whether that session was really paid and answers with a signed unlock code, which this phone keeps.
+const PAY_URL = "https://buy.stripe.com/3cIeVe4v4ddv1Lz7Wc8Zq01";
+const API = /(^|\.)jack-o\.io$/.test(location.hostname) ? "/api" : "https://jack-o.io/api";
+const unlocked = () => { try { return !!localStorage.getItem("unlock"); } catch { return false; } };
+async function claimUnlock(param, value) {
+  try {
+    const r = await fetch(API + "/" + param + "?" + (param === "claim" ? "session_id=" : "t=") + encodeURIComponent(value));
+    const j = await r.json();
+    if (j.token) { localStorage.setItem("unlock", j.token); return true; }
+  } catch {}
+  return false;
+}
+(function importUnlock() {
+  const q = new URLSearchParams(location.search), paid = q.get("paid"), m = location.hash.match(/[#&]u=([A-Za-z0-9_.-]{20,300})/);
+  if (m) { try { localStorage.setItem("unlockPending", m[1]); } catch {} }
+  if (paid) { try { localStorage.setItem("paidSession", paid); } catch {} q.delete("paid"); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash); }
+})();
 
 // ------------------------------------------------------------------ personalities
 const SAFETY = " Everything you say is spoken aloud, so never write stage directions, actions, or anything in asterisks or brackets (no *sighs*, no (laughs)). Instead voice sounds directly as spoken words, like Ughhh, Hmph, Bah, Harrumph, Mwahaha, or Hehehe. Your audience is mostly trick-or-treating kids and their parents, so tease the situation, never the person: no insults about looks, bodies, or anything hurtful, nothing scary or unsuitable for children. Keep every reply short, one or two sentences, then let them talk. Never ask for names, addresses, ages, or other personal details.";
@@ -298,6 +352,39 @@ const MODELS = ["models/gemini-3.8-live", "models/gemini-2.5-flash-native-audio-
 let modelIdx = 0;
 try { modelIdx = Math.max(0, MODELS.indexOf(localStorage.getItem("model") || MODELS[0])); } catch {}
 const GREETING = "(You just heard someone approach the porch. Greet them in character, briefly.)";
+
+// ------------------------------------------------------------------ lantern color (screen glow; a flashlight can only be white)
+const COLORS = [["#ff7a00","Orange"],["#e3121b","Red"],["#2fe04a","Green"],["#9b30ff","Purple"],["#1f6bff","Blue"],["#ff3fa4","Pink"],["#cfe3ff","Ghost white"]];
+const mix = (hex, to, t) => { const a = parseInt(hex.slice(1), 16), b = parseInt(to.slice(1), 16), c = k => Math.round(((a >> k) & 255) * (1 - t) + ((b >> k) & 255) * t);
+  return "#" + ((1 << 24) | (c(16) << 16) | (c(8) << 8) | c(0)).toString(16).slice(1); };
+const activeColor = () => unlocked() ? (store.get("color", "#ff7a00") || "#ff7a00") : "#ff7a00";
+function applyColor(hex) {
+  document.getElementById("glow").style.background = "radial-gradient(circle at 50% 50%, " + mix(hex,"#ffffff",.45) + " 0%, " + hex + " 60%, " + mix(hex,"#000000",.3) + " 100%)";
+  document.getElementById("white").style.background = "radial-gradient(circle at 50% 50%, #fffdf9 0%, " + mix(hex,"#ffffff",.8) + " 70%, " + mix(hex,"#ffffff",.55) + " 100%)";
+}
+let colorPreview = 0;
+function renderColors() {
+  const box = document.getElementById("colors"); box.innerHTML = ""; const cur = activeColor();
+  const pick = (hex, name) => {
+    if (!unlocked()) {
+      // Let them see it: the screen glows in that color for a moment, then goes back.
+      applyColor(hex); const g = document.getElementById("glow"); g.style.opacity = 1; clearTimeout(colorPreview);
+      colorPreview = setTimeout(() => { g.style.opacity = 0; applyColor(activeColor()); }, 1200);
+      return lockedNote("colormsg", name + " is part of the $1.99 unlock. Free: orange.");
+    }
+    store.set("color", hex); applyColor(hex); renderColors(); document.getElementById("colormsg").textContent = "";
+  };
+  for (const [hex, name] of COLORS) {
+    const b = document.createElement("button"); b.type = "button"; b.style.background = hex; b.title = name; b.setAttribute("aria-label", name);
+    if (hex === cur) b.classList.add("on");
+    if (!unlocked() && hex !== "#ff7a00") b.classList.add("locked");
+    b.onclick = () => pick(hex, name); box.appendChild(b);
+  }
+  const c = document.createElement("input"); c.type = "color"; c.value = cur; c.title = "Any color"; c.setAttribute("aria-label", "Any color");
+  if (!unlocked()) c.onclick = e => { e.preventDefault(); pick("#00e5d4", "Any color"); };
+  else c.oninput = () => pick(c.value, "Custom");
+  box.appendChild(c);
+}
 
 // ------------------------------------------------------------------ settings (saved on this phone only)
 const $ = id => document.getElementById(id);
@@ -350,11 +437,18 @@ $("boost").oninput = () => {
 // Google samples are pre-recorded files (instant, no key needed); OpenAI samples are made with the visitor's key, in character.
 function renderChips() {
   const box = $("voicechips"); box.innerHTML = "";
+  if (!unlocked()) $("voice").value = personaVoice();
   for (const o of $("voice").options) {
     const b = document.createElement("button"); b.type = "button"; b.textContent = o.text; b.dataset.v = o.value;
     b.setAttribute("role", "radio"); b.setAttribute("aria-checked", o.value === $("voice").value);
     if (o.value === $("voice").value) b.className = "on";
-    b.onclick = () => { $("voice").value = o.value; store.set(voiceKey(), o.value); renderChips(); sampleVoice(o.value); };
+    const isLocked = !unlocked() && o.value !== personaVoice();
+    if (isLocked) b.classList.add("locked");
+    b.onclick = () => {
+      sampleVoice(o.value);
+      if (isLocked) return lockedNote("voicemsg", "That voice is part of the $1.99 unlock. Free: this character's own voice.");
+      $("voice").value = o.value; store.set(voiceKey(), o.value); renderChips();
+    };
     box.appendChild(b);
   }
 }
@@ -413,7 +507,7 @@ async function sampleVoice(v) {
   src.onended = () => { if (SAMPLE.src === src) stopSample(); };
   src.start(); SAMPLE.src = src;
   for (const b of $("voicechips").children) b.classList.toggle("playing", b.dataset.v === v);
-  voiceMsg("Tap a voice to hear it. The one you tap is the one it uses.");
+  if (/^(Loading|Getting)/.test($("voicemsg").textContent)) voiceMsg("Tap a voice to hear it. The one you tap is the one it uses.");
 }
 
 // Notice the key however it arrives: typing, pasting, autofill, a scanned QR, or a saved key.
@@ -428,12 +522,24 @@ for (const ev of ["input","change","paste","keyup","blur"]) $("key").addEventLis
 setInterval(() => { if ($("setup").style.display !== "none") checkKey(); }, 700);
 const syncCustom = () => $("custom").style.display = $("persona").value === "custom" ? "block" : "none";
 syncCustom();
-$("persona").onchange = () => { $("voice").value = personaVoice(); store.set(voiceKey(), $("voice").value); syncCustom(); renderChips(); endVisitForNewSettings(); };
+let lastPersona = $("persona").value === "custom" && !unlocked() ? "jack" : $("persona").value;
+$("persona").value = lastPersona;
+$("persona").onchange = () => {
+  if ($("persona").value === "custom" && !unlocked()) {
+    $("persona").value = lastPersona; syncCustom();
+    return lockedNote("voicemsg", "Writing your own character is part of the $1.99 unlock.");
+  }
+  lastPersona = $("persona").value; $("voice").value = personaVoice(); store.set(voiceKey(), $("voice").value); syncCustom(); renderChips(); endVisitForNewSettings(); };
 $("interrupt").checked = store.get("interrupt", "1") === "1";
 $("lang").onchange = () => endVisitForNewSettings();
+// The voice a conversation uses: your pick if unlocked, otherwise the character's own voice.
+function activeVoice() { return unlocked() ? (store.get(voiceKey(), "") || personaVoice()) : personaVoice(); }
+function lockedNote(id, text) {
+  $(id).innerHTML = "🔒 " + text + ' <a href="#unlockbox">See the unlock</a>';
+}
 function personaText() {
   const id = $("persona").value;
-  const base = id === "custom" ? ($("custom").value.trim() || PERSONAS.jack.text) : PERSONAS[id].text;
+  const base = id === "custom" && unlocked() ? ($("custom").value.trim() || PERSONAS.jack.text) : PERSONAS[id].text;
   const code = $("lang").value, lang = (LANGS.find(l => l[0] === code) || LANGS[0])[1];
   const rule = code === "auto"
     ? " Reply in the language the visitor is speaking. If you cannot make out what they said, ask them to repeat it rather than guessing or switching languages."
@@ -452,6 +558,35 @@ const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, tor
 const TUNE = { ratio:3.5, min:0.015, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.3 };
 const status = t => $("status").textContent = t;
 const speaking = () => S.turn || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
+
+// ------------------------------------------------------------------ unlock UI
+function refreshUnlock(msg) {
+  const on = unlocked();
+  document.body.classList.toggle("paid", on);
+  $("locked").style.display = on ? "none" : "block"; $("unlocked").style.display = on ? "block" : "none";
+  if (on) $("mycode").value = localStorage.getItem("unlock");
+  $("persona").options[[...$("persona").options].findIndex(o => o.value === "custom")].text = on ? "Write your own…" : "Write your own… 🔒";
+  renderChips(); renderColors(); applyColor(activeColor());
+  if (msg) $("unlockmsg").textContent = msg;
+}
+if (PAY_URL) $("buy").href = PAY_URL; else $("buy").onclick = e => { e.preventDefault(); $("unlockmsg").textContent = "Payments open soon."; };
+$("useunlock").onclick = async () => {
+  const t = $("unlockcode").value.trim(); if (!t) return;
+  $("unlockmsg").textContent = "Checking…";
+  $("unlockmsg").textContent = (await claimUnlock("check", t)) ? "" : "That code didn't work. Check it and try again.";
+  refreshUnlock(unlocked() ? "Unlocked. Enjoy!" : undefined);
+};
+refreshUnlock();
+(async () => {   // finish a purchase or a shared unlock that arrived in the link
+  const paid = store.get("paidSession", ""), pend = store.get("unlockPending", "");
+  if (paid) {
+    $("unlockmsg").textContent = "Confirming your payment…"; $("unlockbox").scrollIntoView();
+    let ok = false;
+    for (let i = 0; i < 10 && !ok; i++) { ok = await claimUnlock("claim", paid); if (!ok) await new Promise(r => setTimeout(r, 2000)); }   // Stripe's notice can take a few seconds
+    if (ok) localStorage.removeItem("paidSession");
+    refreshUnlock(ok ? "Payment confirmed. Everything is unlocked. Thank you! 🎃" : "We couldn't confirm the payment yet. Reload in a minute. Still stuck? Message @davisdilanchian with your receipt."); if (ok) $("unlockbox").scrollIntoView(); }
+  if (pend) { const ok = await claimUnlock("check", pend); localStorage.removeItem("unlockPending"); if (ok) refreshUnlock("Unlocked from the other phone."); }
+})();
 
 // ------------------------------------------------------------------ start
 $("gear").onclick = e => { e.stopPropagation(); $("setup").style.display = "flex"; $("start").textContent = "Save and resume"; };
@@ -472,7 +607,7 @@ $("share").onclick = () => {
   const key = $("key").value.trim();
   if (!key) return showErr("Paste a key on this phone first.");
   if (typeof qrcode !== "function") return showErr("Couldn't make the code. Check your internet and try again.");
-  const q = qrcode(0, "M"); q.addData(location.origin + location.pathname + "#k=" + key); q.make();
+  const q = qrcode(0, "M"); q.addData(location.origin + location.pathname + "#k=" + key + (unlocked() ? "&u=" + localStorage.getItem("unlock") : "")); q.make();
   $("qr").innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
   $("qrbox").style.display = "block"; $("share").style.display = "none";
 };
@@ -506,7 +641,9 @@ $("scan").onclick = async () => {
       const w = 400, h = Math.round(400 * v.videoHeight / v.videoWidth);
       c.width = w; c.height = h; g.drawImage(v, 0, 0, w, h);
       const code = jsQR(g.getImageData(0, 0, w, h).data, w, h, { inversionAttempts:"dontInvert" });
-      const m = code && (code.data.match(/#k=([A-Za-z0-9._-]{20,300})$/) || code.data.match(/^([A-Za-z0-9._-]{20,300})$/));
+      const m = code && (code.data.match(/#k=([A-Za-z0-9._-]{20,300})(&|$)/) || code.data.match(/^([A-Za-z0-9._-]{20,300})$/));
+      const u = code && code.data.match(/[#&]u=([A-Za-z0-9_.-]{20,300})/);
+      if (u) claimUnlock("check", u[1]).then(ok => ok && refreshUnlock("Unlocked from the other phone."));
       if (m) { $("key").value = m[1]; checkKey(); save(); stopScan(); keyMsg("Key added from the other phone."); return; }
     }
     setTimeout(tick, 250);
@@ -666,7 +803,7 @@ function runVisit(isPreview) {
   ws.binaryType = "arraybuffer"; S.ws = ws;
   ws.onopen = () => ws.send(JSON.stringify({ setup:{
     model: MODELS[modelIdx],
-    generationConfig:{ responseModalities:["AUDIO"], speechConfig: Object.assign(store.get("lang","auto") === "auto" ? {} : { languageCode: store.get("lang","auto") }, { voiceConfig:{ prebuiltVoiceConfig:{ voiceName: store.get("voice","Puck") } } }) },
+    generationConfig:{ responseModalities:["AUDIO"], speechConfig: Object.assign(store.get("lang","auto") === "auto" ? {} : { languageCode: store.get("lang","auto") }, { voiceConfig:{ prebuiltVoiceConfig:{ voiceName: activeVoice() } } }) },
     systemInstruction:{ parts:[{ text: personaText() }] },
     realtimeInputConfig:{ activityHandling: store.get("interrupt","1") === "1" ? "START_OF_ACTIVITY_INTERRUPTS" : "NO_INTERRUPTION",
       automaticActivityDetection:{ endOfSpeechSensitivity:"END_SENSITIVITY_HIGH", silenceDurationMs:500 } },
@@ -689,7 +826,7 @@ async function openAIVisit(isPreview, key, id) {
     audio:{ input:{ format:{ type:"audio/pcm", rate:24000 },
                     transcription:{ model:"gpt-4o-mini-transcribe" },
                     turn_detection:{ type:"server_vad", threshold:0.55, silence_duration_ms:450, prefix_padding_ms:250, create_response:true, interrupt_response: store.get("interrupt","1") === "1" } },
-            output:{ format:{ type:"audio/pcm", rate:24000 }, voice: store.get("voiceOA", "ash") } } };
+            output:{ format:{ type:"audio/pcm", rate:24000 }, voice: activeVoice() } } };
   let r, j = {};
   try {
     r = await fetch("https://api.openai.com/v1/realtime/client_secrets", { method:"POST",
