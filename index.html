@@ -306,8 +306,16 @@ $("custom").value = store.get("custom","");
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 $("light").value = store.get("light", IOS ? "screen" : "both");
 $("lang").value = store.get("lang", "auto");
-fillVoices();
-$("key").addEventListener("input", fillVoices);
+// Notice the key however it arrives: typing, pasting, autofill, a scanned QR, or a saved key.
+// Also pull the key out if extra text came along with it (spaces, quotes, "OPENAI_API_KEY=").
+function checkKey() {
+  const raw = $("key").value, m = raw.match(/sk-[A-Za-z0-9_-]{20,}/) || raw.match(/AIza[A-Za-z0-9_-]{30,}/);
+  if (m && m[0] !== raw) $("key").value = m[0];
+  fillVoices();
+}
+checkKey();
+for (const ev of ["input","change","paste","keyup","blur"]) $("key").addEventListener(ev, () => setTimeout(checkKey, 0));
+setInterval(() => { if ($("setup").style.display !== "none") checkKey(); }, 700);
 const syncCustom = () => $("custom").style.display = $("persona").value === "custom" ? "block" : "none";
 syncCustom();
 $("persona").onchange = () => { $("voice").value = personaVoice(); syncCustom(); };
@@ -386,7 +394,7 @@ $("scan").onclick = async () => {
       c.width = w; c.height = h; g.drawImage(v, 0, 0, w, h);
       const code = jsQR(g.getImageData(0, 0, w, h).data, w, h, { inversionAttempts:"dontInvert" });
       const m = code && (code.data.match(/#k=([A-Za-z0-9._-]{20,300})$/) || code.data.match(/^([A-Za-z0-9._-]{20,300})$/));
-      if (m) { $("key").value = m[1]; save(); stopScan(); keyMsg("Key added from the other phone."); return; }
+      if (m) { $("key").value = m[1]; checkKey(); save(); stopScan(); keyMsg("Key added from the other phone."); return; }
     }
     setTimeout(tick, 250);
   };
