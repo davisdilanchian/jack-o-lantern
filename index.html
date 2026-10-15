@@ -42,6 +42,10 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   #question { font-size:clamp(16px,4.2vw,22px); font-weight:700; max-width:640px; mix-blend-mode:difference; color:#fff; opacity:.85; margin-bottom:6px; }
   #caption { font-size:clamp(18px,5vw,26px); font-weight:600; max-width:640px; mix-blend-mode:difference; color:#fff; min-height:3em; }
   #gear { position:fixed; top:max(12px,env(safe-area-inset-top)); right:12px; z-index:5; width:auto; padding:8px 14px; font-size:14px; background:rgba(14,12,11,.6); color:var(--fg); border:1px solid rgba(255,255,255,.18); border-radius:8px; }
+  #drained { position:fixed; inset:0; z-index:8; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px; color:#fff;
+    font:700 clamp(30px,9vw,60px)/1.15 system-ui,-apple-system,sans-serif; background:#d00000; animation:drainblink 2s step-end infinite; cursor:pointer; }
+  @keyframes drainblink { 0% { background:#d00000; } 50% { background:#000; } }      /* 1 s red, 1 s off */
+  #drained small { display:block; margin-top:18px; font-size:16px; font-weight:500; opacity:.85; }
   #muted { position:fixed; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; background:#050403; gap:12px; }
   #muted svg { width:42vw; max-width:240px; }
   #muted b { font-size:clamp(30px,9vw,52px); letter-spacing:.04em; }
@@ -159,6 +163,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
   <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M14 38h16l22-18v60L30 62H14z" fill="#fff"/><path d="M8 12l84 76" stroke="#ff3b3b" stroke-width="9" stroke-linecap="round"/></svg>
   <b>MUTED</b><span>tap, or say "Mute off"</span>
 </div>
+<div id="drained" role="alert">Social battery drained, refill required.<small>Refill from any phone at jack-o.io. It wakes up by itself.</small></div>
 <button id="gear" aria-label="Settings">Settings</button>
 
 <div class="overlay" id="setup">
@@ -215,6 +220,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <div id="nopass">
         <a id="buypass" class="tipbtn" target="_self">🎃 Get a Pumpkin Pass, $4.99</a>
         <p class="help">We handle everything: every character, voice, and color, plus about <b>400 replies</b> of talk time, enough for a whole Halloween night. Top up anytime. No account, no key, nothing to set up.</p>
+        <p class="help" id="elbonus" hidden><b>Pass bonus:</b> have an ElevenLabs account? Give your pumpkin <b>any ElevenLabs voice</b>, even one you designed or cloned yourself. Just paste your ElevenLabs key and a voice ID.</p>
         <p class="help">Rather not pay? <a href="#ownkey" id="gofree">Use your own free Google key</a> for the basic pumpkin.</p>
       </div>
       <div id="haspass" style="display:none">
@@ -223,6 +229,25 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <p id="batterytext" class="help"></p>
         <a id="refill" class="tipbtn" target="_self">🔋 Refill, $2.99 (about 250 replies)</a>
         <p class="help">Moving to another phone? Tap <b>Share my key</b> under "Your own key" below: the code carries your pass too.</p>
+        <details class="steps" id="elbox" hidden>
+          <summary>Pass bonus: use any ElevenLabs voice</summary>
+          <p class="help">Give your pumpkin any voice from your ElevenLabs account, including one you designed or cloned. Your pumpkin still thinks and talks the same way. ElevenLabs just speaks its words. Your ElevenLabs account pays for the voice, and your pass covers the rest.</p>
+          <label for="elkey">ElevenLabs API key</label>
+          <input id="elkey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your ElevenLabs key">
+          <label for="elvoice">Voice ID</label>
+          <input id="elvoice" type="text" autocomplete="off" spellcheck="false" placeholder="For example: 21m00Tcm4TlvDq8ikWAM">
+          <label class="check"><input type="checkbox" id="eluse" checked> Use this voice</label>
+          <button id="eltest" type="button" style="margin-top:10px">▶ Hear it</button>
+          <p id="elmsg" class="help" role="status"></p>
+          <details class="steps"><summary>Where do I find these?</summary>
+            <ol>
+              <li>Sign in at <a href="https://elevenlabs.io/app" target="_blank" rel="noopener">elevenlabs.io</a>.</li>
+              <li><b>Key:</b> open your profile menu, then <b>API Keys</b>, then <b>Create</b>. Allow "Text to Speech". Copy it.</li>
+              <li><b>Voice ID:</b> open <b>Voices</b>, pick a voice, open its menu, and tap <b>Copy voice ID</b>.</li>
+            </ol>
+          </details>
+          <p class="help">While this is on, the voice picker above isn't used. The character's personality still is. Your ElevenLabs key stays on this phone.</p>
+        </details>
       </div>
       <p id="passmsg" class="help" role="status"></p>
     </section>
@@ -339,6 +364,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <li>With a free Google key, Google may use what it hears to improve its products.</li>
         <li>If you buy the unlock, Stripe handles the payment. We keep only a scrambled fingerprint of your key with it, so your phones unlock automatically. We can't turn it back into your key.</li>
         <li>If you came here from a Google ad, Google's ad tag notes whether that visit led to a purchase, so we can tell which ads work. It doesn't see what the pumpkin hears.</li>
+        <li>If you add an ElevenLabs key, the words the pumpkin says go to ElevenLabs so it can speak them in your voice.</li>
         <li>Put a small "talking pumpkin" sign nearby so people know it's listening.</li>
       </ul>
     </section>
@@ -400,6 +426,7 @@ async function refreshPass() {
 }
 function setPassBalance(b) {
   PASS.balance = b; PASS.empty = b <= 0; try { localStorage.setItem("passBal", String(b)); } catch {}
+  if (b > 0) try { undrain(); } catch {}
   if (typeof showPass === "function") showPass();
 }
 (function returnFromPassCheckout() {
@@ -717,7 +744,8 @@ const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, tor
 const MIC_GAIN = 3;
 const TUNE = { ratio:2.2, min:0.006, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.6 };
 const status = t => $("status").textContent = t;
-const speaking = () => S.turn || PLAY.queued > 0 || (S.player && S.pbuf > 0.01) || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
+const EL = { ws:null, open:false, ended:false, got:false, gen:0, out:[], hold:[], busy:false };   // ElevenLabs reply stream (see "ElevenLabs voice")
+const speaking = () => S.turn || EL.busy || PLAY.queued > 0 || (S.player && S.pbuf > 0.01) || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
 
 // ------------------------------------------------------------------ stream mode (only at jack-o.io/streaming, which is password-protected)
 const STREAMING = location.pathname.replace(/\/$/, "") === "/streaming";
@@ -1031,6 +1059,37 @@ async function playCharSample(id) {
   } catch { sampleVoice(personaVoice()); }   // no recording yet: play the voice sample instead
 }
 showPass();
+$("elkey").value = store.get("elKey", ""); $("elvoice").value = store.get("elVoice", ""); $("eluse").checked = store.get("elUse", "1") === "1";
+const elFields = () => {
+  store.set("elKey", $("elkey").value.trim());
+  const v = $("elvoice").value.trim().replace(/^.*\/voices?\/([A-Za-z0-9]+).*$/, "$1"); $("elvoice").value = v; store.set("elVoice", v);
+  store.set("elUse", $("eluse").checked ? "1" : "0"); $("elmsg").textContent = ""; endVisitForNewSettings();
+};
+["elkey", "elvoice", "eluse"].forEach(id => $(id).addEventListener("change", elFields));
+$("eltest").onclick = () => {
+  elFields();
+  if (!elKey() || !elVoice()) return $("elmsg").textContent = "Paste your ElevenLabs key and a voice ID first.";
+  if (!/^[A-Za-z0-9]{10,40}$/.test(elVoice())) return $("elmsg").textContent = "That doesn't look like a voice ID. It's a short code of letters and numbers.";
+  stopSample(); const mine = ++SAMPLE.n;
+  const ctx = S.ctx || SAMPLE.ctx || (SAMPLE.ctx = new (window.AudioContext || window.webkitAudioContext)());
+  try { ctx.resume(); } catch {}
+  $("elmsg").textContent = "Asking ElevenLabs…";
+  const ws = new WebSocket(elURL()), parts = []; let done = false;
+  const finish = why => {
+    if (done) return; done = true; try { ws.close(); } catch {}
+    if (!parts.length) return $("elmsg").textContent = "ElevenLabs didn't answer (" + String(why || "no audio").slice(0, 80) + "). Check the key, its Text to Speech permission, and the voice ID.";
+    if (mine !== SAMPLE.n) return;
+    const bins = parts.map(atob), n = bins.reduce((a, b) => a + (b.length >> 1), 0);
+    const buf = ctx.createBuffer(1, n, 24000), out = buf.getChannelData(0); let i = 0;
+    for (const bin of bins) for (let j = 0; j + 1 < bin.length; j += 2) { let v = bin.charCodeAt(j) | (bin.charCodeAt(j + 1) << 8); if (v & 0x8000) v -= 0x10000; out[i++] = v / 32768; }
+    const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination); src.onended = () => { if (SAMPLE.src === src) stopSample(); }; src.start(); SAMPLE.src = src;
+    $("elmsg").textContent = "That's your pumpkin's new voice. It's used from the next Start.";
+  };
+  ws.onopen = () => { ws.send(elBOS()); ws.send(JSON.stringify({ text:"Boo! Happy Halloween. This is the voice your pumpkin will use tonight. " })); ws.send('{"text":""}'); };
+  ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; } if (m.audio) parts.push(m.audio); if (m.isFinal) finish(); else if (!m.audio && (m.error || m.message)) finish(m.error || m.message); };
+  ws.onclose = e => finish(e.reason || "code " + e.code);
+  setTimeout(() => finish("timed out"), 15000);
+};
 (async () => {                                              // just paid: wait for Stripe's notice, then show the battery
   if (!PASS.id) return;
   const paidAt = +(localStorage.getItem("passJustPaid") || 0), fresh = Date.now() - paidAt < 10 * 60000;
@@ -1068,7 +1127,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015133138";
+const BUILD = "20261015135342";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1308,13 +1367,14 @@ function runVisit(isPreview) {
   const now = Date.now();
   S.visits = S.visits.filter(t => now - t < 3600000);
   if (!isPreview && S.visits.length >= TUNE.perHour) return status("Taking a short break (lots of visitors this hour)");
+  if (passDrained()) return drained();
   S.visits.push(now);
   closeVisit();
   S.phase = "connecting"; S.start = now; S.lastAct = now; S.lastMsg = now; S.lastChunk = now; S.turn = false; S.greeting = false; S.said = "";
   status("Someone's here…"); $("caption").textContent = "";
   const key = store.get("geminiKey","");
   S.provider = usingPass() ? "gemini" : providerOf(key); S.inRate = S.provider === "openai" ? 24000 : 16000;
-  if (usingPass() && PASS.empty) { status("Pumpkin battery empty: refill in Settings"); S.phase = "idle"; return; }
+  S.el = S.provider === "gemini" && elWanted();
   const id = ++S.visitId;
   if (S.provider === "openai") return openAIVisit(isPreview, key, id);
   const ws = usingPass()
@@ -1427,7 +1487,23 @@ function handleOA(text) {
   }
 }
 
+// ------------------------------------------------------------------ battery drained: red screen until a refill shows up
+// A refill bought on any phone sharing this pass wakes it up: it checks the battery every minute while drained.
+function passDrained() { return !!PASS.id && PASS.balance <= 0 && localStorage.getItem("passBal") !== null && !store.get("geminiKey", "").trim(); }
+function drained() {
+  closeVisit(); try { setTorch(false); } catch {}
+  if (S.drained) return;
+  S.drained = true; $("drained").style.display = "flex"; status("Social battery drained, refill required.");
+}
+function undrain() {
+  if (!S.drained) return;
+  S.drained = false; $("drained").style.display = "none"; S.end = 0; status("Waiting for visitors");
+}
+setInterval(() => { if (S.drained) refreshPass(); }, 60000);
+$("drained").addEventListener("click", () => $("gear").click());
+
 function closeVisit() {
+  elStop();
   if (S.ws) { const w = S.ws; S.ws = null; try { w.close(); } catch {} }
   if (S.phase !== "idle") S.end = Date.now();
   S.phase = "idle"; S.turn = false; S.greeting = false;
@@ -1435,11 +1511,64 @@ function closeVisit() {
 }
 function send(o) { if (S.ws && S.ws.readyState === 1) S.ws.send(JSON.stringify(o)); }
 
+// ------------------------------------------------------------------ ElevenLabs voice (Pumpkin Pass bonus, the owner's own ElevenLabs key)
+// Google still listens and decides what to say. Its written transcript of each reply streams to ElevenLabs as it
+// arrives, and ElevenLabs' audio (24 kHz, same as Google's) plays through the same player, so the lantern still
+// follows the voice. Google's own audio is held back; if ElevenLabs fails before any audio arrives, it plays instead.
+const elKey = () => store.get("elKey", "").trim(), elVoice = () => store.get("elVoice", "").trim();
+const elWanted = () => usingPass() && store.get("elUse", "1") === "1" && !!elKey() && /^[A-Za-z0-9]{10,40}$/.test(elVoice());
+const elURL = () => "wss://api.elevenlabs.io/v1/text-to-speech/" + elVoice() + "/stream-input?model_id=eleven_flash_v2_5&output_format=pcm_24000&inactivity_timeout=60";
+const elBOS = () => JSON.stringify({ text:" ", xi_api_key:elKey(), voice_settings:{ stability:0.4, similarity_boost:0.8 }, generation_config:{ chunk_length_schedule:[50, 90, 120, 160] } });
+function elBegin() {
+  const old = EL.ws, gen = ++EL.gen, ws = new WebSocket(elURL());
+  if (old) try { old.close(); } catch {}
+  Object.assign(EL, { ws, open:false, ended:false, got:false, out:[], busy:true });
+  ws.onopen = () => {
+    if (gen !== EL.gen) return;
+    ws.send(elBOS()); EL.open = true;
+    for (const t of EL.out) ws.send(t); EL.out = [];
+    if (EL.ended) ws.send('{"text":""}');
+  };
+  ws.onmessage = e => {
+    if (gen !== EL.gen) return;
+    let m; try { m = JSON.parse(e.data); } catch { return; }
+    if (m.audio) { if (!EL.got) { EL.got = true; EL.hold = []; } if (!S.muted) play(m.audio); S.lastAct = Date.now(); }
+    if (m.isFinal) elFinish(gen);
+    else if (!m.audio && (m.error || m.message)) elFail(gen, m.error || m.message);
+  };
+  ws.onclose = e => { if (gen !== EL.gen) return; if (EL.got) elFinish(gen); else elFail(gen, e.reason || "code " + e.code); };
+}
+function elSay(t) {
+  if (!EL.ws) elBegin();
+  const msg = JSON.stringify({ text:t });
+  if (EL.open) EL.ws.send(msg); else EL.out.push(msg);
+}
+function elEnd() { if (!EL.ws) return; EL.ended = true; if (EL.open) EL.ws.send('{"text":""}'); }
+function elFinish(gen) {
+  if (gen !== EL.gen) return;
+  const w = EL.ws; EL.gen++; Object.assign(EL, { ws:null, open:false, busy:false, hold:[] });
+  if (w) try { w.close(); } catch {}
+  if (S.ctx) pumpAudio(true);
+}
+function elFail(gen, why) {
+  if (gen !== EL.gen) return;
+  const held = EL.hold; elStop(); S.el = false;               // the rest of this visit uses the regular voice
+  $("elmsg").textContent = "ElevenLabs didn't answer (" + String(why).slice(0, 80) + "). Check the key and voice ID. Using the regular voice until then.";
+  if (!S.ctx) return;
+  if (!S.muted) for (const b of held) play(b);
+  pumpAudio(true);
+}
+function elStop() {
+  EL.gen++; const w = EL.ws;
+  Object.assign(EL, { ws:null, open:false, ended:false, got:false, out:[], hold:[], busy:false });
+  if (w) try { w.close(); } catch {}
+}
+
 function handle(text) {
   let m; try { m = JSON.parse(text); } catch { return; }
   if (m.jacko) {
     if (typeof m.jacko.balance === "number") setPassBalance(m.jacko.balance);
-    if (m.jacko.empty) { setPassBalance(0); closeVisit(); status("Pumpkin battery empty: refill in Settings"); }
+    if (m.jacko.empty) { setPassBalance(0); if (passDrained()) drained(); else closeVisit(); }   // with its own key it carries on with that
     if (m.jacko.error) showErr(m.jacko.error);
     return;
   }
@@ -1448,15 +1577,20 @@ function handle(text) {
   if (m.setupComplete) { store.set("model", MODELS[modelIdx]); S.phase = "talking"; S.greeting = true; status("Talking"); send({ realtimeInput:{ text: GREETING } }); return; }
   if (m.goAway) return closeVisit();
   const c = m.serverContent; if (!c) return;
-  if (c.outputTranscription?.text) { S.said += c.outputTranscription.text; $("caption").textContent = S.said; }
+  if (c.outputTranscription?.text) { S.said += c.outputTranscription.text; $("caption").textContent = S.said; if (S.el && !S.muted) elSay(c.outputTranscription.text); }
   if (c.inputTranscription?.text) { S.lastAct = Date.now(); S.heard += c.inputTranscription.text; if (voiceCommand(S.heard)) return; }
   for (const p of c.modelTurn?.parts || []) if (p.inlineData?.data) {
     if (!S.turn) { S.turn = true; S.said = ""; }
-    if (!S.muted) play(p.inlineData.data);
+    if (!S.muted) { if (!S.el) play(p.inlineData.data); else if (!EL.got && EL.hold.length < 800) EL.hold.push(p.inlineData.data); }
     S.phase = "talking"; status("Talking"); S.lastAct = Date.now();
   }
-  if (c.interrupted) { S.dbg.interrupted++; stopPlayback(); S.turn = false; S.greeting = false; }
-  if (c.turnComplete) { logSaid(); DIR.quietSince = Date.now(); freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false; S.heard = ""; pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
+  if (c.interrupted) { S.dbg.interrupted++; elStop(); stopPlayback(); S.turn = false; S.greeting = false; }
+  if (c.turnComplete) {
+    if (!S.el) pumpAudio(true);
+    else if (EL.ws) elEnd();                                    // ElevenLabs finishes the reply; its last piece flushes the player
+    else { const held = EL.hold; EL.hold = []; if (!S.muted) for (const b of held) play(b); pumpAudio(true); }   // no transcript came: play Google's audio
+  }
+  if (c.turnComplete) { logSaid(); DIR.quietSince = Date.now(); freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false; S.heard = ""; PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
 }
 
 // Jack's voice arrives as 24 kHz chunks. Resample them to the output rate as one continuous
