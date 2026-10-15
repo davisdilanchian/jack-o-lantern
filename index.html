@@ -625,7 +625,7 @@ function personaText() {
   const rule = code === "auto"
     ? " Reply in the language the visitor is speaking. If you cannot make out what they said, ask them to repeat it rather than guessing or switching languages."
     : " Always speak " + lang + ", every reply, no matter what language you think you hear. If you cannot make out what someone said, ask them to repeat it rather than guessing.";
-  return base + rule + SAFETY + (streamOn() ? STREAM_RULES + (CHATLOG.length ? " You are continuing a stream already in progress." + chatRecap(20) : "") : "");
+  return base + rule + SAFETY + (streamOn() ? STREAM_RULES + (CHATLOG.length || SAIDLOG.length ? " You are continuing a stream already in progress." + chatRecap(20) + saidRecap() : "") : "");
 }
 function save() {
   store.set("geminiKey",$("key").value.trim()); store.set("persona",$("persona").value);
@@ -691,16 +691,27 @@ function spokenName(u) {
 }
 // Dead air: when chat has been quiet for a while, the pumpkin fills the silence on its own. The filler
 // kinds rotate (shuffled, never the same twice in a row) so it doesn't repeat itself.
+// Dead air: a prompt style plus a fresh topic from a large bank, never reusing a topic until the bank runs out.
+const TOPICS = ["breakfast cereal", "airport security", "group chats", "self-checkout machines", "socks with sandals", "pineapple on pizza", "the snooze button",
+  "reply-all emails", "gas station snacks", "Mondays", "people who clap when a plane lands", "standing desks", "voice messages", "tiny dogs", "big trucks",
+  "road trip snacks", "IKEA furniture", "smart fridges", "escalator etiquette", "movie theater popcorn", "sequels", "true crime podcasts", "reality TV",
+  "video game difficulty settings", "board game night", "karaoke", "camping", "beach vacations", "theme parks", "the gym", "running a marathon",
+  "houseplants", "naming a pet", "pigeons", "geese", "raccoons", "octopuses", "space travel", "the moon landing", "dinosaurs", "ancient Rome",
+  "pirates", "medieval food", "the invention of the sandwich", "time zones", "daylight saving time", "leap years", "the alphabet", "fonts",
+  "emoji", "passwords", "captchas", "phone cases", "chargers", "low battery anxiety", "autocorrect", "spam calls", "streaming subscriptions",
+  "remote controls", "dad jokes", "superheroes", "zombie movies", "haunted houses", "corn mazes", "scarecrows", "fall weather", "winter coats"];
 const FILLERS = [
-  "Call back to something a specific viewer actually said earlier in this stream and build on it: a new angle, a follow-up thought, or a question back to them. If nobody has said anything yet, start a fun debate instead and argue your side.",
-  "Start a fun, low-stakes debate (for example: is a hot dog a sandwich, best decade for music, cats or dogs) and argue your side with real reasons, then invite chat to fight you on it.",
-  "Name a hill you will die on about something ordinary, and defend it with two or three genuinely convincing, funny reasons.",
-  "Give your honest, funny review of something popular (a movie, a snack, an app, a trend): what's good, what's overrated, and your rating out of ten.",
-  "Share one genuinely interesting fact or idea (science, history, nature, or internet culture) and riff on it in your own voice.",
-  "Pick two things that compete (two snacks, two apps, two seasons, two holidays) and argue which one is better, with reasons.",
-  "Talk about what it's genuinely like to be an old phone living inside a pumpkin: what you notice, what you miss, what you'd change. Funny, but with a little real thought.",
-  "Pick a viewer who chatted earlier and ask them a genuine follow-up about what they said, with a thought of your own first. If nobody has chatted yet, give an honest review of something popular instead."
+  "Start a fun, low-stakes debate about TOPIC, argue your side with real reasons, then invite chat to fight you on it.",
+  "Name a hill you will die on about TOPIC, and defend it with two or three genuinely convincing, funny reasons.",
+  "Give your honest, funny review of TOPIC: what's good, what's overrated, and your rating out of ten.",
+  "Share something genuinely interesting about TOPIC and riff on it in your own voice.",
+  "Compare TOPIC with something it competes with, and argue which one is better, with reasons.",
+  "Tell chat your most controversial opinion about TOPIC and why you're right.",
+  "Call back to something a specific viewer actually said earlier in this stream and build on it: a new angle, a follow-up thought, or a question back to them. If nobody has said anything yet, talk about TOPIC instead.",
+  "Pick a viewer who chatted earlier and ask them a genuine follow-up about what they said, with a thought of your own first. If nobody has chatted yet, give your honest review of TOPIC instead."
 ];
+const TOPIC_BAG = [];
+function nextTopic() { if (!TOPIC_BAG.length) TOPIC_BAG.push(...TOPICS.slice().sort(() => Math.random() - 0.5)); return TOPIC_BAG.pop(); }
 // One viewer: casual one-on-one chat with that person, like hanging out.
 const CHITCHAT = [
   "Ask the viewer a casual, friendly question about their day, like you're hanging out.",
@@ -718,7 +729,7 @@ const IDLE = { last: Date.now(), next: 10000, order: [], prev: -1 };
 const idleWait = () => 8000 + Math.random() * 4000;   // about 10 s of quiet, only while someone is watching
 function nextFiller() {
   if (!IDLE.order.length) { IDLE.order = FILLERS.map((_, i) => i).sort(() => Math.random() - 0.5); if (IDLE.order[0] === IDLE.prev) IDLE.order.push(IDLE.order.shift()); }
-  IDLE.prev = IDLE.order.shift(); return FILLERS[IDLE.prev];
+  IDLE.prev = IDLE.order.shift(); return FILLERS[IDLE.prev].replace(/TOPIC/g, nextTopic());
 }
 const streamOn = () => STREAMING && store.get("streamon", "1") === "1";
 const CHAT = { q:[], ws:null, retry:0, waiting:false, level:"calm" };
@@ -745,6 +756,9 @@ function logChat(m) {
   CHATLOG.push(sayName(m) + (m.type === "gift" ? " sent a gift (" + (m.gift || "a gift") + ")" : ": " + m.text));
   if (CHATLOG.length > 20) CHATLOG.shift();
 }
+const SAIDLOG = [];
+function logSaid() { const t = (S.said || "").replace(/\s+/g, " ").trim(); if (t.length > 8) { SAIDLOG.push(t.slice(0, 140)); if (SAIDLOG.length > 12) SAIDLOG.shift(); } }
+const saidRecap = () => SAIDLOG.length ? " Things you already said this stream; don't repeat them or their topics, jokes, or phrasing: " + SAIDLOG.slice(-8).join(" | ") + "." : "";
 const chatRecap = n => CHATLOG.length ? " Recent chat in this stream, oldest first: " + CHATLOG.slice(-n).join(" | ") + "." : " Nobody has chatted yet this stream.";
 function onChat(m) {
   if (!["chat", "gift", "join"].includes(m.type)) return;     // only real comments, gifts, and joins reach the pumpkin
@@ -796,7 +810,7 @@ function pumpChat() {
     $("question").textContent = ""; $("caption").textContent = "";
     CHAT.waiting = true; S.lastAct = Date.now(); S.said = "";
     let text = m.text;
-    const line = "(" + text + (/^New viewers/.test(text) ? "" : (m.solo ? CHITCHAT_RULE : FILLER_RULE) + chatRecap(5)) + ")";
+    const line = "(" + text + (/^New viewers/.test(text) ? "" : (m.solo ? CHITCHAT_RULE : FILLER_RULE) + chatRecap(5) + saidRecap()) + ")";
     if (S.provider === "openai") { send({ type:"conversation.item.create", item:{ type:"message", role:"user", content:[{ type:"input_text", text: line }] } }); send({ type:"response.create" }); }
     else send({ realtimeInput:{ text: line } });
     setTimeout(() => { CHAT.waiting = false; }, 15000);
@@ -885,7 +899,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014235245";
+const BUILD = "20261014235325";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1140,7 +1154,7 @@ function runVisit(isPreview) {
     realtimeInputConfig:{ activityHandling: "NO_INTERRUPTION",
       automaticActivityDetection:{ startOfSpeechSensitivity:"START_SENSITIVITY_HIGH", endOfSpeechSensitivity:"END_SENSITIVITY_HIGH", silenceDurationMs:500 } },
     outputAudioTranscription:{}, inputAudioTranscription:{},
-    contextWindowCompression:{ slidingWindow:{}, triggerTokens:6000 }
+    contextWindowCompression:{ slidingWindow:{}, triggerTokens:16000 }
   }}));
   ws.onmessage = e => handle(typeof e.data === "string" ? e.data : new TextDecoder().decode(e.data));
   ws.onclose = e => {
@@ -1226,7 +1240,7 @@ function handleOA(text) {
       voiceCommand(m.transcript || ""); S.heard = "";
       return;
     case "response.done": {
-      IDLE.last = Date.now(); freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false;
+      logSaid(); IDLE.last = Date.now(); freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false;
       pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now();
       const er = m.response && m.response.status === "failed" && m.response.status_details && m.response.status_details.error;
       if (er) { showErr(oaError(0, er.code, er.message || "")); closeVisit(); }
@@ -1262,7 +1276,7 @@ function handle(text) {
     S.phase = "talking"; status("Talking"); S.lastAct = Date.now();
   }
   if (c.interrupted) { S.dbg.interrupted++; stopPlayback(); S.turn = false; S.greeting = false; }
-  if (c.turnComplete) { IDLE.last = Date.now(); freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false; S.heard = ""; pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
+  if (c.turnComplete) { logSaid(); IDLE.last = Date.now(); freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false; S.heard = ""; pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
 }
 
 // Jack's voice arrives as 24 kHz chunks. Resample them to the output rate as one continuous
