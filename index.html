@@ -124,6 +124,8 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
 .overlay .seg button + button { border-left:1.5px solid var(--ink); }
 .overlay .seg button.on { background:var(--accent); color:var(--accent-ink); }
 .overlay .seg small { font-family:system-ui,sans-serif; font-size:12px; opacity:.75; }
+#tapstart { position:fixed; inset:0; z-index:60; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; background:#000; color:#fff; font:600 22px system-ui,sans-serif; text-align:center; padding:24px; }
+#tapstart b { font-size:64px; }
 </style>
 </head>
 <body>
@@ -133,6 +135,7 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
 </video>
 <div id="glow"></div><div id="white"></div>
 <div id="stage"><div id="status">Tap to start</div><div id="question"></div><div id="caption"></div></div>
+<div id="tapstart" style="display:none"><b>🎃</b><span>Tap anywhere to restart the pumpkin</span></div>
 <div id="muted">
   <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M14 38h16l22-18v60L30 62H14z" fill="#fff"/><path d="M8 12l84 76" stroke="#ff3b3b" stroke-width="9" stroke-linecap="round"/></svg>
   <b>MUTED</b><span>tap, or say "Mute off"</span>
@@ -756,7 +759,37 @@ $("start").onclick = async () => {
   document.documentElement.requestFullscreen?.().catch(()=>{});
   keepAwake();
   status(streamOn() ? "Live: waiting for chat" : lightMode() === "screen" || S.torchOK ? "Waiting for visitors" : "Waiting for visitors (using the screen to glow)");
+  store.set("running", "1");
 };
+
+// ------------------------------------------------------------------ self-update
+// Once a minute, check whether a newer version of the site is out. When there is one, reload while the
+// pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
+const BUILD = "20261014210331";
+let updateReady = false;
+setInterval(async () => {
+  if (BUILD === "dev" || updateReady) return;
+  try {
+    const r = await fetch("/version.txt?" + Date.now(), { cache:"no-store" }), v = r.ok ? (await r.text()).trim() : "";
+    if (/^\d{14}$/.test(v) && v > BUILD) updateReady = true;      // only a real, newer build number counts
+  } catch {}
+}, 60000);
+setInterval(() => {
+  const running = S.ctx && $("setup").style.display === "none";
+  const idle = !running || (S.phase === "idle" || S.phase === "listening") && !S.turn && !speaking() && !CHAT.q.length && !CHAT.waiting;
+  if (updateReady && idle) { store.set("resume", running ? "1" : "0"); location.reload(); }
+}, 2000);
+(function resumeAfterUpdate() {
+  if (store.get("resume", "") !== "1") return;
+  store.set("resume", "0");
+  setTimeout(async () => {
+    await $("start").onclick();
+    if (!S.ctx || S.ctx.state !== "running") {
+      $("tapstart").style.display = "flex";
+      $("tapstart").onclick = async () => { $("tapstart").style.display = "none"; if (S.ctx) { try { await S.ctx.resume(); } catch {} keepAwake(); } else $("start").onclick(); };
+    }
+  }, 300);
+})();
 function lightMode() { const m = store.get("light","both"); return (m === "torch" && S && S.ctx && !S.torchOK) ? "both" : m; }
 $("share").onclick = () => {
   const key = $("key").value.trim();
