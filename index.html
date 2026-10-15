@@ -682,6 +682,7 @@ function connectChat() {
 }
 setInterval(() => { if (CHAT.ws && CHAT.ws.readyState === 1) CHAT.ws.send("ping"); }, 25000);
 setInterval(() => { try { pumpChat(); } catch {} }, 400);   // also runs when the screen-refresh loop is paused
+setInterval(() => { try { if (S.ctx) micDuty(); } catch {} }, 250);
 // Busy handling: answer everything while calm; when chat outpaces speech, only messages that mention
 // the pumpkin (and gifts); when swamped, gifts only. Messages older than 30 s are dropped.
 function onChat(m) {
@@ -784,7 +785,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014214745";
+const BUILD = "20261014215318";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -925,6 +926,29 @@ async function ensureAudio() {
   requestAnimationFrame(frame);
 }
 
+// iPhone only: close the mic while talking, reopen to listen. With the mic open iOS uses call audio
+// (phone icon on the volume, its own gain, peaks); with it closed, normal media playback.
+function setSession(type) { try { if (navigator.audioSession) navigator.audioSession.type = type; } catch {} }
+function releaseMic() {
+  if (!S.mic) return;
+  try { S.mic.getTracks().forEach(t => t.stop()); } catch {}
+  attachMic(null); S.mic = null; setSession("playback");
+}
+async function reopenMic() {
+  if (S.mic || S.micOpening || !S.ctx || streamOn()) return;
+  S.micOpening = true; setSession("play-and-record");
+  try {
+    const m = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
+    if (micBusy()) { m.getTracks().forEach(t => t.stop()); setSession("playback"); } else { S.mic = m; attachMic(m); }
+  } catch {}
+  S.micOpening = false;
+}
+const micBusy = () => S.turn || PLAY.queue.length > 0 || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + 0.4);
+function micDuty() {
+  freshOutput.pending && !micBusy() && freshOutput() && (freshOutput.pending = false);
+  if (!IOS || !S.capNode) return;
+  if (micBusy()) releaseMic(); else if (!S.mic) reopenMic();
+}
 function attachMic(stream) {
   try { S.micSrc && S.micSrc.disconnect(); } catch {}
   S.micSrc = null;
@@ -1100,7 +1124,7 @@ function handleOA(text) {
       voiceCommand(m.transcript || ""); S.heard = "";
       return;
     case "response.done": {
-      setTimeout(telReport, 4000); CHAT.waiting = false;
+      freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false;
       pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now();
       const er = m.response && m.response.status === "failed" && m.response.status_details && m.response.status_details.error;
       if (er) { showErr(oaError(0, er.code, er.message || "")); closeVisit(); }
@@ -1136,7 +1160,7 @@ function handle(text) {
     S.phase = "talking"; status("Talking"); S.lastAct = Date.now();
   }
   if (c.interrupted) { S.dbg.interrupted++; stopPlayback(); S.turn = false; S.greeting = false; }
-  if (c.turnComplete) { setTimeout(telReport, 4000); CHAT.waiting = false; S.heard = ""; pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
+  if (c.turnComplete) { freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false; S.heard = ""; pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
 }
 
 // Jack's voice arrives as 24 kHz chunks. Resample them to the output rate as one continuous
@@ -1162,13 +1186,13 @@ function telReport() {
   TEL.on = false;
   const r = { ua:navigator.userAgent.slice(0, 120), provider:S.provider, rate:S.ctx && S.ctx.sampleRate, baseLatency:S.ctx && S.ctx.baseLatency, outputLatency:S.ctx && S.ctx.outputLatency,
     mic:!!S.mic, audioSec:+(TEL.samples / 24000).toFixed(2), arrivedOverSec:+((TEL.lastAt - TEL.t0) / 1000).toFixed(2), chunks:TEL.chunks,
-    maxChunkGapMs:Math.round(TEL.maxGap), underruns:S.dbg.underrun - TEL.under, minBufferAheadSec:+TEL.minAhead.toFixed(3), maxFreezeMs:Math.round(TEL.stall), cushion:PLAY.cushion, capture:S.capture || "none", light:lightMode(), boost:boostLevel(), torchToggles:S.dbg.torch, watchdogs:S.dbg.watchdog, stream:streamOn(), build:BUILD };
+    maxChunkGapMs:Math.round(TEL.maxGap), underruns:S.dbg.underrun - TEL.under, minBufferAheadSec:+TEL.minAhead.toFixed(3), maxFreezeMs:Math.round(TEL.stall), cushion:PLAY.cushion, capture:S.capture || "none", light:lightMode(), boost:boostLevel(), attachedPieces:S.liveSrc || 0, torchToggles:S.dbg.torch, watchdogs:S.dbg.watchdog, stream:streamOn(), build:BUILD };
   fetch("/api/stream/report", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(r) }).catch(() => {});
 }
 function play(b64data) {
   const bin = atob(b64data), n = bin.length >> 1;
   if (!n) return;
-  telChunk(n); S.lastChunk = Date.now();
+  telChunk(n); S.lastChunk = Date.now(); if (IOS) releaseMic();
   const g = S.provider === "openai" ? 1.5 : 1;            // OpenAI's voices are about 1.5x quieter than Google's
   const inp = new Float32Array(n);
   for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if (v & 0x8000) v -= 0x10000; inp[i] = Math.max(-1, Math.min(1, v / 32768 * g)); }
@@ -1200,14 +1224,24 @@ function pumpAudio(flush) {
   while (PLAY.queue.length) {
     const buf = PLAY.queue.shift(); PLAY.queued -= buf.duration;
     const src = S.ctx.createBufferSource(); src.buffer = buf; src.connect(S.out);
+    src.onended = () => { try { src.disconnect(); } catch {} };   // older browsers keep finished pieces attached; they pile up and choke the audio
+    S.liveSrc = (S.liveSrc || 0) + 1;
     const at = Math.max(S.playEnd, now + 0.02);
     src.start(at); S.playEnd = at + buf.duration;
   }
+  PLAY.queued = 0;                                          // queue is empty: clear rounding leftovers (they made it look like it was still talking)
 }
 // Cut the voice off now, including audio already scheduled to play.
 function stopPlayback() {
   resetPlayback(); S.playEnd = 0;
   if (S.out && S.ctx) { try { S.out.disconnect(); } catch {} S.out = S.ctx.createGain(); S.out.connect(S.boost); }
+}
+// Replace the voice connector once an answer has fully played (what mute does), dropping anything an
+// older browser still has attached to it.
+function freshOutput() {
+  if (!S.ctx || !S.out || PLAY.queue.length || S.turn || S.ctx.currentTime < S.playEnd + 0.1) return false;
+  try { S.out.disconnect(); } catch {}
+  S.out = S.ctx.createGain(); S.out.connect(S.boost); S.liveSrc = 0; return true;
 }
 function resetPlayback() { PLAY.queue = []; PLAY.queued = 0; PLAY.started = false; }
 
