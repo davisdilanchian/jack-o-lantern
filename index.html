@@ -234,11 +234,18 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
           <li><b>Lantern colors.</b> Red, green, purple, ghostly white, or any color you pick.</li>
         </ul>
         <a id="buy" class="tipbtn" target="_self" rel="noopener">🎃 Unlock for $1.99</a>
-        <p class="help">The unlock is tied to your AI key. Any phone using the same key unlocks by itself, including phones you set up with <b>Share my key</b>.</p>
+        <details class="steps"><summary>How the unlock works</summary>
+          <ul class="help plain">
+            <li><b>It follows your AI key, not the phone.</b> Paste your key in step 1 before you buy. Any phone using that key unlocks by itself, including phones you set up with <b>Share my key</b>.</li>
+            <li><b>Changing keys is fine.</b> If an unlocked phone switches to a new key (or from Google to OpenAI), the new key unlocks too. One purchase covers up to 6 keys.</li>
+            <li><b>No account, no sign-in.</b> We never see your key. Only a scrambled fingerprint of it, which can't be turned back into the key, is saved with your payment.</li>
+            <li><b>Payment is handled by Stripe.</b> Your card details never touch this site.</li>
+          </ul>
+        </details>
       </div>
       <div id="unlocked" style="display:none">
         <p class="help" style="margin-top:0"><b>Unlocked. Thank you!</b> Every voice, your own characters, and lantern colors are yours.</p>
-        <p class="help">It's tied to your AI key, so every phone using this key is unlocked too.</p>
+        <p class="help">It's tied to your AI key, so every phone using this key is unlocked too. If you switch this phone to a new key, that key unlocks as well (up to 6 keys in total).</p>
       </div>
       <p id="unlockmsg" class="help" role="status"></p>
     </section>
@@ -249,6 +256,7 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
         <li>When someone talks to the pumpkin, what they say goes to Google (or OpenAI, if you use an OpenAI key) so it can answer.</li>
         <li>This website doesn't record or keep anything. Your key and settings stay on this phone.</li>
         <li>With a free Google key, Google may use what it hears to improve its AI.</li>
+        <li>If you buy the unlock, Stripe handles the payment. We keep only a scrambled fingerprint of your AI key with it, so your phones unlock automatically. We can't turn it back into your key.</li>
         <li>Put a small "talking pumpkin" sign nearby so people know it's listening.</li>
       </ul>
     </section>
