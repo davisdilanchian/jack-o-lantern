@@ -159,7 +159,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
     <p class="lede">Put an old phone inside a pumpkin and it talks to trick-or-treaters. It hears them, answers out loud in character, and glows as it speaks.</p>
     <ol class="how" id="how">
       <li><b>Pick a pumpkin</b> and hear its voice.</li>
-      <li><b>Tap Start.</b> We run the AI for you.</li>
+      <li><b>Tap Start.</b> We handle the rest.</li>
       <li><b>Put the phone in your pumpkin.</b> That's it.</li>
     </ol>
 
@@ -204,15 +204,15 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <h2>2. Start your pumpkin</h2>
       <div id="nopass">
         <a id="buypass" class="tipbtn" target="_self">🎃 Get a Pumpkin Pass, $4.99</a>
-        <p class="help">We run the AI for you: every character, voice, and color, plus about <b>400 replies</b> of talk time, enough for a whole Halloween night. Top up anytime. No account, no key, nothing to set up.</p>
-        <p class="help">Rather not pay? <a href="#ownkey" id="gofree">Use your own free AI key</a> for the basic pumpkin.</p>
+        <p class="help">We handle everything: every character, voice, and color, plus about <b>400 replies</b> of talk time, enough for a whole Halloween night. Top up anytime. No account, no key, nothing to set up.</p>
+        <p class="help">Rather not pay? <a href="#ownkey" id="gofree">Use your own free Google key</a> for the basic pumpkin.</p>
       </div>
       <div id="haspass" style="display:none">
-        <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked and we run the AI.</p>
+        <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked and we handle the rest.</p>
         <div class="battery"><div id="batteryfill"></div></div>
         <p id="batterytext" class="help"></p>
         <a id="refill" class="tipbtn" target="_self">🔋 Refill, $2.99 (about 250 replies)</a>
-        <p class="help">Moving to another phone? Tap <b>Share my key</b> under "Your own AI key" below: the code carries your pass too.</p>
+        <p class="help">Moving to another phone? Tap <b>Share my key</b> under "Your own key" below: the code carries your pass too.</p>
       </div>
       <p id="passmsg" class="help" role="status"></p>
     </section>
@@ -243,12 +243,12 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
     <div id="err" role="alert"></div>
 
     <details id="ownkey" class="ownkey">
-      <summary>Free option: use your own AI key</summary>
+      <summary>Free option: use your own Google key</summary>
       <p class="help">Bring a free Google key (or an OpenAI key) and the basic pumpkin is free forever. The $1.99 unlock below adds every character, voice, and color.</p>
     <section id="key-section">
-      <h2>Your own AI key</h2>
-      <p class="help" style="margin-top:0">The pumpkin's brain is an AI from Google or OpenAI. A "key" is a long code, like a password, that lets your pumpkin use it. Google's is free.</p>
-      <div class="seg" role="radiogroup" aria-label="Which AI">
+      <h2>Your own key</h2>
+      <p class="help" style="margin-top:0">The pumpkin's voice and wit come from Google (or OpenAI). A "key" is a long code, like a password, that lets your pumpkin use them. Google's is free.</p>
+      <div class="seg" role="radiogroup" aria-label="Which service">
         <button type="button" id="provgemini" role="radio">Google <small>free</small></button>
         <button type="button" id="provopenai" role="radio">OpenAI <small>paid</small></button>
       </div>
@@ -257,7 +257,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <details class="steps" id="howgemini">
         <summary>How do I get a key?</summary>
         <ol>
-          <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> and sign in with any Google or Gmail account. Agree to the terms if it asks.</li>
+          <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google's free key page</a> and sign in with any Google or Gmail account. Agree to the terms if it asks.</li>
           <li>Tap <b>Create API key</b>.</li>
           <li>Tap the copy button next to the long code.</li>
           <li>Come back here and paste it in the box above.</li>
@@ -304,7 +304,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <a id="buy" class="tipbtn" target="_self" rel="noopener">🎃 Unlock for $1.99</a>
         <details class="steps"><summary>How the unlock works</summary>
           <ul class="help plain">
-            <li><b>It follows your AI key, not the phone.</b> Paste your key in step 1 before you buy. Any phone using that key unlocks by itself, including phones you set up with <b>Share my key</b>.</li>
+            <li><b>It follows your key, not the phone.</b> Paste your key in step 1 before you buy. Any phone using that key unlocks by itself, including phones you set up with <b>Share my key</b>.</li>
             <li><b>Changing keys is fine.</b> If an unlocked phone switches to a new key (or from Google to OpenAI), the new key unlocks too. One purchase covers up to 6 keys.</li>
             <li><b>No account, no sign-in.</b> We never see your key. Only a scrambled fingerprint of it, which can't be turned back into the key, is saved with your payment.</li>
             <li><b>Payment is handled by Stripe.</b> Your card details never touch this site.</li>
@@ -315,7 +315,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <div id="unlocked" style="display:none">
         <p class="help" style="margin-top:0"><b>Unlocked. Thank you!</b> Every voice, your own characters, and lantern colors are yours.</p>
         <p class="help">Need a refund? Email <a href="mailto:ddilanchian@gmail.com">ddilanchian@gmail.com</a> with your order number from the Stripe receipt.</p>
-        <p class="help">It's tied to your AI key, so every phone using this key is unlocked too. If you switch this phone to a new key, that key unlocks as well (up to 6 keys in total).</p>
+        <p class="help">It's tied to your key, so every phone using this key is unlocked too. If you switch this phone to a new key, that key unlocks as well (up to 6 keys in total).</p>
       </div>
       <p id="unlockmsg" class="help" role="status"></p>
     </section>
@@ -326,8 +326,8 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <ul class="help plain">
         <li>When someone talks to the pumpkin, what they say goes to Google (or OpenAI, if you use an OpenAI key) so it can answer.</li>
         <li>This website doesn't record or keep anything. Your key and settings stay on this phone.</li>
-        <li>With a free Google key, Google may use what it hears to improve its AI.</li>
-        <li>If you buy the unlock, Stripe handles the payment. We keep only a scrambled fingerprint of your AI key with it, so your phones unlock automatically. We can't turn it back into your key.</li>
+        <li>With a free Google key, Google may use what it hears to improve its products.</li>
+        <li>If you buy the unlock, Stripe handles the payment. We keep only a scrambled fingerprint of your key with it, so your phones unlock automatically. We can't turn it back into your key.</li>
         <li>Put a small "talking pumpkin" sign nearby so people know it's listening.</li>
       </ul>
     </section>
@@ -960,7 +960,7 @@ $("buy").href = PAY_URL;
 $("buy").onclick = async e => {
   e.preventDefault();
   const h = await keyHash($("key").value.trim());
-  if (!h) { $("unlockmsg").textContent = "Paste your AI key in step 1 first. The unlock is tied to it."; return $("key").focus(); }
+  if (!h) { $("unlockmsg").textContent = "Paste your key first. The unlock is tied to it."; return $("key").focus(); }
   save(); location.href = PAY_URL + "?client_reference_id=" + h;
 };
 // Check (and re-check whenever the key changes) whether this key is unlocked.
@@ -1042,7 +1042,7 @@ $("start").onclick = async () => {
   save(); stopSample(); endVisitForNewSettings();
   if (!usingPass() && !$("key").value.trim()) {
     $("passbox").scrollIntoView({ behavior:"smooth", block:"center" });
-    return showErr(PASS.id && PASS.balance <= 0 && localStorage.getItem("passBal") !== null ? "Your pumpkin's battery is empty. Refill it above, or use your own free key." : "Get a Pumpkin Pass above to start, or use your own free AI key at the bottom.");
+    return showErr(PASS.id && PASS.balance <= 0 && localStorage.getItem("passBal") !== null ? "Your pumpkin's battery is empty. Refill it above, or use your own free key." : "Get a Pumpkin Pass above to start, or use your own free Google key at the bottom.");
   }
   showErr("");
   try { await ensureAudio(); } catch (e) { return showErr(micHelp(e)); }
@@ -1056,7 +1056,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015100529";
+const BUILD = "20261015101146";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
