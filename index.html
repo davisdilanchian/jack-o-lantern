@@ -736,8 +736,9 @@ function nextChat() {
 function pumpChat() {
   if (streamOn() && S.ctx && !S.muted && !CHAT.q.length && $("setup").style.display === "none" && !CHAT.waiting && !S.turn && !speaking()
       && JOINS.names.length && Date.now() - JOINS.lastGreet > 15000) {
-    const names = JOINS.names.slice(-3); JOINS.names = []; JOINS.lastGreet = Date.now(); IDLE.last = Date.now();
-    CHAT.q.push({ type:"idle", user:"", text:"Viewers just joined the stream: " + names.map(spokenName).join(", ") + ". Greet them by name in one dry, funny sentence, the way you'd greet people walking into your room uninvited.", got:Date.now() });
+    // one newcomer at a time, newest first; keep only the 5 most recent waiting
+    const name = JOINS.names.pop(); JOINS.names = JOINS.names.slice(-5); JOINS.lastGreet = Date.now(); IDLE.last = Date.now();
+    CHAT.q.push({ type:"idle", user:"", text:"Viewers just joined the stream: " + spokenName(name) + ". Greet them by name in one dry, funny line, then ask them one or two nosy, specific questions about themselves (where they're watching from, what they're doing tonight, an oddly specific detail about their life). When they answer in chat later, remember it and use it.", got:Date.now() });
   }
   if (streamOn() && S.ctx && !S.muted && !CHAT.q.length && $("setup").style.display === "none" && !CHAT.waiting && !S.turn && !speaking()
       && Date.now() - IDLE.last > IDLE.next) {
@@ -838,7 +839,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014231025";
+const BUILD = "20261014231232";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
