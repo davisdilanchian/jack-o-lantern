@@ -625,7 +625,7 @@ function personaText() {
   const rule = code === "auto"
     ? " Reply in the language the visitor is speaking. If you cannot make out what they said, ask them to repeat it rather than guessing or switching languages."
     : " Always speak " + lang + ", every reply, no matter what language you think you hear. If you cannot make out what someone said, ask them to repeat it rather than guessing.";
-  return base + rule + SAFETY + (streamOn() ? STREAM_RULES + (CHATLOG.length || SAIDLOG.length ? " You are continuing a stream already in progress." + chatRecap(20) + saidRecap() : "") : "");
+  return base + rule + SAFETY + (streamOn() ? STREAM_RULES + (CHATLOG.length || SAIDLOG.length ? " You are continuing a stream already in progress." + chatRecap(20) + saidRecap() + whoRecap() : "") : "");
 }
 function save() {
   store.set("geminiKey",$("key").value.trim()); store.set("persona",$("persona").value);
@@ -752,6 +752,15 @@ const JOINS = { names: [], lastGreet: 0 };
 // The page's own memory of the stream: the last 20 chat messages. Google ends long conversations after
 // roughly 10-15 minutes, which wipes the AI's memory, so recent chat is handed back to it from here.
 const CHATLOG = [];
+const WATCHERS = new Map();   // user -> { name, seen, notes[], greeted }
+function seenWatcher(m, note) {
+  const w = WATCHERS.get(m.user) || { name: sayName(m), seen: 0, notes: [], greeted: false };
+  w.name = sayName(m); w.seen = Date.now();
+  if (note) { w.notes.push(note.slice(0, 80)); if (w.notes.length > 3) w.notes.shift(); }
+  WATCHERS.set(m.user, w); return w;
+}
+const hereNow = () => [...WATCHERS.values()].filter(w => Date.now() - w.seen < 10 * 60000).sort((a, b) => b.seen - a.seen);
+const whoRecap = () => { const h = hereNow().slice(0, 6); return h.length ? " Viewers you know are here: " + h.map(w => w.name + (w.notes.length ? " (said: " + w.notes.join("; ") + ")" : "")).join(" | ") + ". Talk to them by name." : ""; };
 function logChat(m) {
   CHATLOG.push(sayName(m) + (m.type === "gift" ? " sent a gift (" + (m.gift || "a gift") + ")" : ": " + m.text));
   if (CHATLOG.length > 20) CHATLOG.shift();
@@ -761,9 +770,16 @@ function logSaid() { const t = (S.said || "").replace(/\s+/g, " ").trim(); if (t
 const saidRecap = () => SAIDLOG.length ? " Things you already said this stream; don't repeat them or their topics, jokes, or phrasing: " + SAIDLOG.slice(-8).join(" | ") + "." : "";
 const chatRecap = n => CHATLOG.length ? " Recent chat in this stream, oldest first: " + CHATLOG.slice(-n).join(" | ") + "." : " Nobody has chatted yet this stream.";
 function onChat(m) {
-  if (!["chat", "gift", "join"].includes(m.type)) return;     // only real comments, gifts, and joins reach the pumpkin
+  if (!["chat", "gift", "join", "like", "social"].includes(m.type)) return;   // only real viewer events reach the pumpkin
+  if (m.type === "like") {                                    // a named viewer: welcome them by name if we haven't yet
+    const w = seenWatcher(m);
+    if (!w.greeted) { w.greeted = true; if (!JOINS.names.includes(w.name)) JOINS.names.push(w.name); DIR.streak = 0; }
+    return;
+  }
+  if (m.type === "social") { seenWatcher(m).greeted = true; m.text = ""; m.got = Date.now(); CHAT.q.unshift(m); DIR.streak = 0; return; }   // follows/shares: thank right away
   if (m.type === "join") { if (m.user) { const n = sayName(m); if (!JOINS.names.includes(n)) JOINS.names.push(n); JOINS.names = JOINS.names.slice(-10); DIR.streak = 0; } return; }   // nameless joins: the viewer count covers them
   m.got = Date.now(); DIR.quietSince = Date.now(); DIR.streak = 0;
+  seenWatcher(m, m.type === "chat" ? m.text : "sent a gift").greeted = true;
   CHAT.q.push(m);
   CHAT.q = CHAT.q.filter(x => Date.now() - x.got < 60000);
   const n = CHAT.q.length;
@@ -799,7 +815,7 @@ function pumpChat() {
 
   // 1. gifts, then comments: up to 4 at once so it never falls behind; flooded chat favors messages to the pumpkin
   if (CHAT.q.length) {
-    const gift = CHAT.q.find(m => m.type === "gift");
+    const gift = CHAT.q.find(m => m.type === "gift" || m.type === "social");
     let batch;
     if (gift) batch = [gift];
     else {
@@ -810,14 +826,16 @@ function pumpChat() {
     CHAT.q = CHAT.q.filter(m => !batch.includes(m));
     batch.forEach(logChat);
     const fmt = m => sayName(m) + (m.room === "cohost" ? " (from your co-host " + spokenName(m.host) + "'s stream)" : "") +
-      (m.type === "gift" ? " sent you a gift: " + (m.gift || "a gift") + (m.text ? ", and said: " + m.text : "") : ": " + m.text);
+      (m.type === "gift" ? " sent you a gift: " + (m.gift || "a gift") + (m.text ? ", and said: " + m.text : "")
+       : m.type === "social" ? (m.kind === "follow" ? " just followed you. Thank them by name, dry but genuinely pleased." : " just shared the stream. Thank them by name, dry but genuinely pleased.")
+       : ": " + m.text);
     let line = batch.length === 1
       ? "Live chat from " + fmt(batch[0]) + " (Start your reply by saying " + sayName(batch[0]) + ".)"
       : "Several live chat messages, oldest first: " + batch.map(fmt).join(" | ") + " (Answer each one briefly, saying each person's name.)";
     chatsAnswered += batch.length;
     if (batch.some(m => PLUG_ASK.test(m.text || "")) || chatsAnswered % PLUG_EVERY < batch.length) line += " (Work in a dry, quick plug: tell them to check out the bio and follow.)";
-    const q = "@" + batch[0].user + (batch[0].room === "cohost" ? " (co-host chat)" : "") + ": " + (batch[0].text || "sent " + (batch[0].gift || "a gift")) + (batch.length > 1 ? "  (+" + (batch.length - 1) + " more)" : "");
-    say(line, batch[0].type === "gift" ? "gift" : "chat x" + batch.length, q);
+    const q = "@" + batch[0].user + (batch[0].room === "cohost" ? " (co-host chat)" : "") + ": " + (batch[0].text || (batch[0].type === "social" ? (batch[0].kind === "follow" ? "followed" : "shared the stream") : "sent " + (batch[0].gift || "a gift"))) + (batch.length > 1 ? "  (+" + (batch.length - 1) + " more)" : "");
+    say(line + whoRecap(), batch[0].type === "chat" ? "chat x" + batch.length : batch[0].type === "social" ? batch[0].kind : "gift", q);
     chatStatus("Answering @" + batch[0].user + (CHAT.q.length ? " · " + CHAT.q.length + " waiting" : ""));
     return;
   }
@@ -827,7 +845,7 @@ function pumpChat() {
     if (now - DIR.welcomeAt < 8000) return;
     const names = JOINS.names.slice(-3); JOINS.names = []; DIR.welcomes = 0; DIR.welcomeAt = now;
     const text = names.length
-      ? "New viewers just joined: " + names.join(", ") + ". Welcome " + (names.length > 1 ? "each of them" : "them") + " by name right away, then ask one genuine, friendly question about themselves, like where they're watching from or what they're up to tonight."
+      ? "These viewers just showed up (they tapped like): " + names.join(", ") + ". Welcome " + (names.length > 1 ? "each of them" : "them") + " by name right away, then ask one genuine, friendly question about themselves, like where they're watching from or what they're up to tonight."
       : "Someone new just came into the stream; you don't know their name yet, so don't invent one. Welcome them right away, then ask one genuine, friendly question that invites them to type in chat, like where they're watching from or what they're up to tonight.";
     say("(" + text + " Dry delivery but warm: no insults, no assumptions, no accusations. Two short sentences. When they answer in chat, remember it.)", "welcome");
     return;
@@ -840,8 +858,16 @@ function pumpChat() {
   let text, rule = solo ? CHITCHAT_RULE : FILLER_RULE;
   if (co.length && fillerCount % 3 === 0) {
     text = "Talk directly to " + spokenName(co[Math.floor(Math.random() * co.length)]) + ", a fellow streamer you're co-hosting with right now. You can't hear them, only read chat, so don't pretend to answer anything they said out loud. Tease them, ask them something, or react to what their viewers said, dry and friendly.";
-  } else text = solo ? CHITCHAT[Math.floor(Math.random() * CHITCHAT.length)] : nextFiller();
-  say("(" + text + rule + chatRecap(5) + saidRecap() + ")", "dead air #" + DIR.streak);
+  } else {
+    const known = hereNow();
+    const others = known.filter(w => w.name !== DIR.lastTarget);   // never the same person twice in a row
+    if (others.length && Math.random() < 0.6) {               // talk to someone we know is here, by name
+      const w = others[Math.floor(Math.random() * Math.min(3, others.length))];
+      DIR.lastTarget = w.name;
+      text = "Talk directly to " + w.name + ", who is watching right now" + (w.notes.length ? " and earlier said: " + w.notes.join("; ") : "") + ". Start with their name. Follow up on what they said, or ask them something genuine about themselves, like a friend catching up.";
+    } else { DIR.lastTarget = ""; text = solo ? CHITCHAT[Math.floor(Math.random() * CHITCHAT.length)] : nextFiller(); }
+  }
+  say("(" + text + rule + chatRecap(5) + saidRecap() + whoRecap() + ")", "dead air #" + DIR.streak);
 }
 if (STREAMING) {
   $("streamon").checked = streamOn();
@@ -913,7 +939,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015000701";
+const BUILD = "20261015001501";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
