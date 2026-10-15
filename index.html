@@ -224,12 +224,7 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
 
     </section>
 
-    <section>
-      <h2>Sound</h2>
-      <label for="boost">Volume boost: <span id="boostval">100%</span></label>
-      <input id="boost" type="range" min="100" max="300" step="10" value="100">
-      <p class="help">Turn the phone's own volume all the way up first. If it's still too quiet (older phones often are), slide this up. Higher settings make the voice louder but a bit flatter. Tap a voice above to hear the difference.</p>
-    </section>
+    
 
     <section>
       <h2>Light</h2>
@@ -462,7 +457,7 @@ const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform 
 $("light").value = store.get("light", IOS ? "screen" : "both");
 $("lang").value = store.get("lang", "auto");
 // Volume boost (1x-3x) for quiet phones, followed by a limiter so loud peaks are squashed instead of crackling.
-const boostLevel = () => Math.min(300, Math.max(100, +store.get("boost", "100") || 100)) / 100;
+const boostLevel = () => 1;   // volume boost removed
 // Boost = compressor (evens out loud and quiet parts) -> make-up gain -> soft clipper (rounds off peaks
 // instead of crackling). The slider sets how hard it compresses and how much it lifts; measured on real
 // speech, 100% -> about -16 dB and 300% -> about -8.5 dB, so roughly 1.75 times as loud.
@@ -479,11 +474,6 @@ function boostSample(x, g) {
   x *= g; const a = Math.abs(x);
   return a <= 0.8 ? x : Math.sign(x) * (0.8 + 0.2 * Math.tanh((a - 0.8) / 0.2));
 }
-$("boost").value = store.get("boost", "100"); $("boostval").textContent = $("boost").value + "%";
-$("boost").oninput = () => {
-  store.set("boost", $("boost").value); $("boostval").textContent = $("boost").value + "%";
-  if (S.boostChain) S.boostChain.set(boostLevel());
-};
 
 // Voice picker: one button per voice. Tapping selects it and plays a short sample, cutting off any sample still playing.
 // Google samples are pre-recorded files (instant, no key needed); OpenAI samples are made with the visitor's key, in character.
@@ -552,7 +542,7 @@ async function sampleVoice(v) {
   if (mine !== SAMPLE.n) return;
   // Sample files are already loudness-matched when they're recorded; play them as they are.
   const g = ctx.createGain();
-  g.gain.value = Math.min(2, boostLevel()); g.connect(ctx.destination);
+  g.connect(ctx.destination);
   const src = ctx.createBufferSource(); src.buffer = buf; src.connect(g);
   src.onended = () => { if (SAMPLE.src === src) stopSample(); };
   src.start(); SAMPLE.src = src;
@@ -771,7 +761,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014220347";
+const BUILD = "20261014220632";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -867,7 +857,7 @@ async function ensureAudio() {
   // Ask for the microphone first, so its prompt appears before anything else can fail.
   let mic = null;
   if (!streamOn()) {
-    try { mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); }
+    try { mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } }); }
     catch (e) { try { ctx.close(); } catch {} throw e; }
   }
   try { await ctx.resume(); } catch {}
@@ -924,7 +914,7 @@ async function reopenMic() {
   if (S.mic || S.micOpening || !S.ctx || streamOn()) return;
   S.micOpening = true; setSession("play-and-record");
   try {
-    const m = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
+    const m = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
     if (micBusy()) { m.getTracks().forEach(t => t.stop()); setSession("playback"); } else { S.mic = m; attachMic(m); }
   } catch {}
   S.micOpening = false;
@@ -1179,7 +1169,7 @@ function play(b64data) {
   const bin = atob(b64data), n = bin.length >> 1;
   if (!n) return;
   telChunk(n); S.lastChunk = Date.now(); if (IOS) releaseMic();
-  const g = (S.provider === "openai" ? 1.5 : 1) * boostLevel();   // OpenAI's voices are about 1.5x quieter than Google's; plus the volume boost
+  const g = S.provider === "openai" ? 1.5 : 1;            // OpenAI's voices are about 1.5x quieter than Google's
   const inp = new Float32Array(n);
   for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if (v & 0x8000) v -= 0x10000; inp[i] = g === 1 ? v / 32768 : boostSample(v / 32768, g); }
   const rate = S.ctx.sampleRate, step = 24000 / rate;
