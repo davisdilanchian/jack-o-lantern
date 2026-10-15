@@ -14,7 +14,7 @@ if (location.pathname.replace(/\/$/, "") !== "/streaming") {
 function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD_PURCHASE, value, currency: "USD", transaction_id: id }); } catch {} }
 </script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#f6efe2">
+<meta name="theme-color" content="#faf7ee">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
 <link rel="canonical" href="https://jack-o.io/">
@@ -99,12 +99,9 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   #err { color:#ff9a8a; font-size:14px; margin-top:12px; min-height:1.3em; }
 
   /* Setup screen: watercolor-paper look matching the jack-o.io illustration */
-  .overlay { --bg:#f6efe2; --surface:#fffaf1; --line:rgba(58,40,26,.28); --ink:#3a281a; --fg:#2b1d12; --muted:#6e5a48; --accent:#e5782a; --accent-ink:#2b1d12;
+  .overlay { --bg:#faf7ee; --surface:#fffdf8; --line:rgba(58,40,26,.28); --ink:#3a281a; --fg:#2b1d12; --muted:#6e5a48; --accent:#e5782a; --accent-ink:#2b1d12;
     color:var(--fg);
-    background:
-      radial-gradient(900px 500px at 105% -10%, rgba(255,170,80,.16), transparent 60%),
-      radial-gradient(700px 420px at -10% 110%, rgba(230,120,40,.10), transparent 60%),
-      var(--bg); }
+    background:var(--bg); }                                  /* same paper color as the artwork */
   .hero { display:block; width:100%; height:auto; border-radius:12px; margin:0 0 18px; }
   .overlay h1, .overlay h2, .overlay button, .overlay .tipbtn { font-family:"Patrick Hand", "Comic Neue", system-ui, sans-serif; }
   .overlay h1 { font-size:34px; font-weight:400; letter-spacing:0; color:var(--ink); }
@@ -1152,7 +1149,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015142504";
+const BUILD = "20261015142534";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
