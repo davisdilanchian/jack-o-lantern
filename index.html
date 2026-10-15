@@ -53,7 +53,7 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   #muted b { font-size:clamp(30px,9vw,52px); letter-spacing:.04em; }
   #muted span { color:var(--muted); }
 
-  .overlay { position:fixed; inset:0; z-index:10; background:var(--bg); overflow:auto; padding:max(28px,env(safe-area-inset-top)) 20px max(32px,env(safe-area-inset-bottom)); }
+  .overlay { position:fixed; inset:0; z-index:10; background:var(--bg); overflow:auto; padding:max(16px,env(safe-area-inset-top)) 20px max(32px,env(safe-area-inset-bottom)); }
   .wrap { max-width:440px; margin:0 auto; }
   h1 { margin:0; font-size:24px; line-height:1.2; font-weight:650; letter-spacing:-.01em; }
   .lede { margin:8px 0 0; color:var(--muted); max-width:38ch; }
@@ -89,14 +89,17 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   .overlay .help.small { font-size:14px; }
   .overlay details#privacy ul { margin-top:10px; }
   .overlay #characters #start { margin-top:14px; }
-  .overlay .intro { display:grid; grid-template-columns:minmax(0,1fr) minmax(104px,32%); gap:14px; align-items:center; margin-top:6px; }
+  .overlay .intro { display:grid; grid-template-columns:minmax(0,1fr) minmax(104px,32%); gap:10px 14px; align-items:center; margin-top:6px; }
   .overlay .intro ol.steps3 { margin-top:8px; }
   .overlay .introvid .help { font-size:13px; text-align:center; }
   @media (max-width:340px) { .overlay .intro { grid-template-columns:1fr; } .overlay .introvid { width:min(210px,70vw); margin:0 auto; } }
   .overlay .demo { width:100%; aspect-ratio:9/16; margin:0; border-radius:16px; overflow:hidden; background:#000;
     border:1.5px solid var(--ink); box-shadow:2px 3px 0 rgba(58,40,26,.85); }
   .overlay .demo iframe { display:block; width:100%; height:100%; border:0; }
-  .overlay button.demosound { display:block; width:100%; margin:8px 0 0; padding:6px 4px; font-size:17px; white-space:nowrap; }
+  .overlay button.demosound, .overlay button.hearbtn { display:flex; align-items:center; justify-content:center; width:100%; height:46px; margin:0; padding:0 4px; font-size:19px; line-height:1; white-space:nowrap; }
+  .overlay button.hearbtn { background:var(--accent); color:var(--accent-ink); box-shadow:2px 3px 0 rgba(58,40,26,.85); }
+  .overlay #pickbox { margin-top:14px; }
+  .overlay #pickbox .field + .field { margin-top:10px; }
   /* Type scale: Patrick Hand for headings, buttons and every fold-out title; the system font for reading text. */
   .overlay h1 { font-size:34px; } .overlay h2 { font-size:24px; }
   .overlay summary, .overlay .steps summary, .overlay details.ownkey > summary, .overlay details.freeopt > summary {
@@ -121,7 +124,7 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   .overlay { --bg:#faf7ee; --surface:#fffdf8; --line:rgba(58,40,26,.28); --ink:#3a281a; --fg:#2b1d12; --muted:#6e5a48; --accent:#e5782a; --accent-ink:#2b1d12;
     color:var(--fg);
     background:var(--bg); }                                  /* same paper color as the artwork */
-  .hero { display:block; width:100%; height:auto; border-radius:12px; margin:0 0 18px; }
+  .hero { display:block; width:min(100%, 300px); height:auto; border-radius:12px; margin:0 auto 6px; }
   .overlay h1, .overlay h2, .overlay button, .overlay .tipbtn { font-family:"Patrick Hand", "Comic Neue", system-ui, sans-serif; }
   .overlay h1 { font-size:34px; font-weight:400; letter-spacing:0; color:var(--ink); }
   .overlay h2 { font-size:22px; font-weight:400; margin-bottom:10px; color:var(--ink); }
@@ -168,7 +171,7 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
 .overlay .seg small { font-family:system-ui,sans-serif; font-size:12px; opacity:.75; }
 #tapstart { position:fixed; inset:0; z-index:60; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; background:#000; color:#fff; font:600 22px system-ui,sans-serif; text-align:center; padding:24px; }
 #tapstart b { font-size:64px; }
-.version { margin:0 0 8px; font:12px ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--muted); text-align:right; }
+.version { position:absolute; top:max(8px, env(safe-area-inset-top)); right:14px; margin:0; font:11px ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--muted); opacity:.8; }
 .battery { height:18px; border:1.5px solid var(--ink); border-radius:9px; overflow:hidden; background:var(--surface); margin:8px 0 4px; }
 #batteryfill { height:100%; width:0; background:var(--accent); transition:width .4s; }
 details.ownkey { margin:22px 0 0; border-top:1.5px dashed var(--line); padding-top:14px; }
@@ -211,17 +214,27 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       </div>
       <div class="introvid">
       <div class="demo"><iframe id="demovid" title="Jack-o talking to trick-or-treaters" src="https://www.youtube-nocookie.com/embed/xMnbPGyVYps?autoplay=1&amp;mute=1&amp;loop=1&amp;playlist=xMnbPGyVYps&amp;playsinline=1&amp;rel=0&amp;modestbranding=1&amp;enablejsapi=1&amp;origin=https://jack-o.io" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+      </div>
+      <button id="hearchar" type="button" class="hearbtn">▶ Hear</button>
       <button id="demosound" type="button" class="demosound">🔊 Sound on</button>
+    </div>
+    <div id="pickbox">
+      <div class="field">
+        <label for="persona">Pick your pumpkin</label>
+        <select id="persona"></select>
+        <textarea id="custom" placeholder="Describe your pumpkin: who it is, how it talks, what it likes. For example: a sleepy grandpa pumpkin who loves bad jokes." style="display:none"></textarea>
+      </div>
+      <div class="field">
+        <details class="steps" id="morevoices"><summary>Try other voices</summary>
+        <select id="voice" hidden></select>
+        <div id="voicechips" class="chips" role="radiogroup" aria-label="Voice"></div>
+        <p id="voicemsg" class="help" role="status">Tap a voice to hear it. The one you tap is the one it uses.</p>
+        </details>
       </div>
     </div>
 
     <section id="characters">
       <h2>Set it up</h2>
-      <div class="field">
-        <label for="persona">Personality</label>
-        <div class="row"><select id="persona"></select><button id="hearchar" type="button">▶ Hear</button></div>
-        <textarea id="custom" placeholder="Describe your pumpkin: who it is, how it talks, what it likes. For example: a sleepy grandpa pumpkin who loves bad jokes." style="display:none"></textarea>
-      </div>
       <details id="ownkey" class="ownkey freeopt">
       <summary>Free option: use your own Google key</summary>
       <p class="help">Bring a free Google key (or an OpenAI key) and the pumpkin is free, in each character's own voice. Want every voice and color too? A Pumpkin Pass adds them, and your key still does the talking.</p>
@@ -304,13 +317,6 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       </div>
       <details class="ownkey" id="moreopts">
       <summary>More options: voices, language, lantern color</summary>
-      <div class="field">
-        <details class="steps" id="morevoices"><summary>Try other voices</summary>
-        <select id="voice" hidden></select>
-        <div id="voicechips" class="chips" role="radiogroup" aria-label="Voice"></div>
-        <p id="voicemsg" class="help" role="status">Tap a voice to hear it. The one you tap is the one it uses.</p>
-        </details>
-      </div>
       <div class="field">
       <details class="steps" id="elbox">
         <summary>ElevenLabs voice <span id="ellockbadge" class="lockbadge">🔒</span></summary>
@@ -767,6 +773,9 @@ const syncCustom = () => $("custom").style.display = $("persona").value === "cus
 syncCustom();
 let lastPersona = $("persona").value === "custom" && !unlocked() ? "jack" : $("persona").value;
 $("persona").value = lastPersona;
+// The Hear button names the chosen pumpkin ("▶ Hear Jack").
+const hearLabel = () => { const id = $("persona").value; $("hearchar").textContent = "▶ Hear " + (id === "custom" ? "it" : ((PERSONAS[id] || PERSONAS.jack).name.split(",")[0].replace(/^The /, ""))); };
+$("persona").addEventListener("change", hearLabel); setTimeout(hearLabel, 0);
 $("persona").onchange = () => {
   if ($("persona").value === "custom" && !unlocked()) {
     $("persona").value = lastPersona; syncCustom();
@@ -1211,7 +1220,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015152355";
+const BUILD = "20261015152627";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
