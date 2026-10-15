@@ -242,6 +242,14 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
       <p class="help">The screen glows in the lantern color and gets brighter as it talks. The flashlight can flicker too (always white), but only on Android phones in Chrome. iPhones use the screen.</p>
     </section>
 
+    <section id="streambox" style="display:none">
+      <h2>Stream mode</h2>
+      <p class="help" style="margin-top:0">The pumpkin answers your TikTok LIVE chat out loud instead of people in the room. Only this phone is affected.</p>
+      <label for="tiktok">Your TikTok LIVE link or @name</label>
+      <input id="tiktok" type="text" autocomplete="off" spellcheck="false" placeholder="tiktok.com/@you/live">
+      <p class="help">Chat connection: coming next.</p>
+    </section>
+
     <section id="unlockbox">
       <h2>Unlock everything</h2>
       <div id="locked">
@@ -625,6 +633,14 @@ const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, tor
 const TUNE = { ratio:3.5, min:0.015, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.3 };
 const status = t => $("status").textContent = t;
 const speaking = () => S.turn || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
+
+// ------------------------------------------------------------------ stream mode (only at jack-o.io/streaming, which is password-protected)
+const STREAMING = location.pathname.replace(/\/$/, "") === "/streaming";
+if (STREAMING) {
+  $("streambox").style.display = "block";
+  $("tiktok").value = store.get("tiktok", "");
+  $("tiktok").oninput = () => store.set("tiktok", $("tiktok").value.trim());
+}
 
 // ------------------------------------------------------------------ unlock UI
 function refreshUnlock(msg) {
