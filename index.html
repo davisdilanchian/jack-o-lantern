@@ -670,8 +670,8 @@ const FILLERS = [
   "Nobody is chatting right now. Tell a very short, dry story about the strangest trick-or-treater you've ever seen, three sentences at most.",
   "Nobody is chatting right now. Grudgingly suggest people check out the bio and follow, in one dry sentence, as if it pains you to ask."
 ];
-const IDLE = { last: Date.now(), next: 45000, order: [], prev: -1 };
-const idleWait = () => 35000 + Math.random() * 20000;
+const IDLE = { last: Date.now(), next: 8000, order: [], prev: -1 };
+const idleWait = () => 5000 + Math.random() * 5000;   // 5-10 s of quiet
 function nextFiller() {
   if (!IDLE.order.length) { IDLE.order = FILLERS.map((_, i) => i).sort(() => Math.random() - 0.5); if (IDLE.order[0] === IDLE.prev) IDLE.order.push(IDLE.order.shift()); }
   IDLE.prev = IDLE.order.shift(); return FILLERS[IDLE.prev];
@@ -809,7 +809,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014225327";
+const BUILD = "20261014225343";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
