@@ -746,11 +746,14 @@ function nextChat() {
 }
 // Called every frame: when the pumpkin is free, hand it the next message.
 function pumpChat() {
-  if (streamOn() && S.ctx && !S.muted && !CHAT.q.length && $("setup").style.display === "none" && !CHAT.waiting && !S.turn && !speaking()
-      && JOINS.names.length && Date.now() - JOINS.lastGreet > 45000) {
-    // one newcomer at a time, newest first; keep only the 5 most recent waiting
-    const name = JOINS.names.pop(); JOINS.names = JOINS.names.slice(-5); JOINS.lastGreet = Date.now(); IDLE.last = Date.now();
-    CHAT.q.push({ type:"idle", user:"", text:"Viewers just joined the stream: " + spokenName(name) + ". Greet them by name in one dry, funny line, then ask them one or two nosy, specific questions about themselves (where they're watching from, what they're doing tonight, an oddly specific detail about their life). When they answer in chat later, remember it and use it.", got:Date.now() });
+  // New viewers: greet fast to hook them. The welcome jumps ahead of regular chat (gifts stay first); several
+  // newcomers at once share one welcome. At most one welcome every 8 s.
+  if (streamOn() && S.ctx && !S.muted && $("setup").style.display === "none" && JOINS.names.length && Date.now() - JOINS.lastGreet > 8000
+      && !CHAT.q.some(m => m.type === "idle" && /^New viewers/.test(m.text))) {
+    const names = JOINS.names.slice(-3).map(spokenName); JOINS.names = []; JOINS.lastGreet = Date.now(); IDLE.last = Date.now();
+    const welcome = { type:"idle", user:"", got:Date.now(), text:"New viewers just joined: " + names.join(", ") + ". Welcome " + (names.length > 1 ? "each of them" : "them") + " by name right away, then ask " + (names.length > 1 ? "one of them" : "them") + " one genuine, friendly question about themselves, like where they're watching from, what they're up to tonight, or what made them stop scrolling. Dry delivery but warm: no insults, no assumptions about them, no accusations. Two short sentences total. When they answer in chat, remember it." };
+    const firstNonGift = CHAT.q.findIndex(m => m.type !== "gift");
+    CHAT.q.splice(firstNonGift < 0 ? CHAT.q.length : firstNonGift, 0, welcome);
   }
   if (streamOn() && S.ctx && !S.muted && !CHAT.q.length && $("setup").style.display === "none" && !CHAT.waiting && !S.turn && !speaking()
       && CHAT.viewers > 0                                        // nobody watching (or count unknown): stay quiet, don't spend AI time
@@ -767,7 +770,7 @@ function pumpChat() {
     CHAT.waiting = true; S.lastAct = Date.now(); S.said = "";
     let text = m.text;
     if (text.startsWith("VIEWERS: ")) text = CHAT.viewers ? text.slice(9) + " Right now " + CHAT.viewers + " people are watching." : FILLERS[3];
-    const line = "(" + text + (/^Viewers just joined/.test(text) ? "" : FILLER_RULE + chatRecap(5)) + ")";
+    const line = "(" + text + (/^New viewers/.test(text) ? "" : FILLER_RULE + chatRecap(5)) + ")";
     if (S.provider === "openai") { send({ type:"conversation.item.create", item:{ type:"message", role:"user", content:[{ type:"input_text", text: line }] } }); send({ type:"response.create" }); }
     else send({ realtimeInput:{ text: line } });
     setTimeout(() => { CHAT.waiting = false; }, 15000);
@@ -855,7 +858,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014232319";
+const BUILD = "20261014233624";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
