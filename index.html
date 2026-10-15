@@ -739,7 +739,7 @@ function connectChat() {
   const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/api/stream/connect?tiktok=" + encodeURIComponent(store.get("tiktok", "")) + "&cohost=" + encodeURIComponent(store.get("cohost", "")));
   CHAT.ws = ws;
   ws.onopen = () => { CHAT.retry = 0; chatStatus("Connected. Waiting for chat."); };
-  ws.onmessage = e => { if (e.data === "pong") return; try { const m = JSON.parse(e.data); if (m.type === "status") chatStatus(m.text); else if (m.type === "viewers") CHAT.viewers = m.count; else onChat(m); } catch {} };
+  ws.onmessage = e => { if (e.data === "pong") return; try { const m = JSON.parse(e.data); if (m.type === "status") chatStatus(m.text); else if (m.type === "viewers") onViewers(m.count); else onChat(m); } catch {} };
   ws.onclose = () => { if (CHAT.ws !== ws) return; CHAT.ws = null; chatStatus("Reconnecting…"); if (streamOn()) setTimeout(connectChat, Math.min(15000, 1000 * 2 ** CHAT.retry++)); };
   ws.onerror = () => {};
 }
@@ -762,72 +762,86 @@ const saidRecap = () => SAIDLOG.length ? " Things you already said this stream; 
 const chatRecap = n => CHATLOG.length ? " Recent chat in this stream, oldest first: " + CHATLOG.slice(-n).join(" | ") + "." : " Nobody has chatted yet this stream.";
 function onChat(m) {
   if (!["chat", "gift", "join"].includes(m.type)) return;     // only real comments, gifts, and joins reach the pumpkin
-  if (m.type === "join") { if (m.user) { const n = sayName(m); if (!JOINS.names.includes(n)) JOINS.names.push(n); JOINS.names = JOINS.names.slice(-10); } else JOINS.anon = Math.min(5, (JOINS.anon || 0) + (m.n || 1)); return; }
-  m.got = Date.now(); IDLE.last = Date.now();
+  if (m.type === "join") { if (m.user) { const n = sayName(m); if (!JOINS.names.includes(n)) JOINS.names.push(n); JOINS.names = JOINS.names.slice(-10); DIR.streak = 0; } return; }   // nameless joins: the viewer count covers them
+  m.got = Date.now(); DIR.quietSince = Date.now(); DIR.streak = 0;
   CHAT.q.push(m);
   CHAT.q = CHAT.q.filter(x => Date.now() - x.got < 60000);
   const n = CHAT.q.length;
   CHAT.level = n > 20 ? "swamped" : n > 10 ? "busy" : CHAT.level === "swamped" && n > 14 ? "swamped" : CHAT.level === "busy" && n > 6 ? "busy" : "calm";   // answer everything unless truly flooded
   chatStatus("Chat: " + n + " waiting" + (CHAT.level === "calm" ? "" : " (" + CHAT.level + ": " + (CHAT.level === "busy" ? "only messages that say pumpkin, and gifts" : "gifts only") + ")"));
 }
-function nextChat() {
-  CHAT.q = CHAT.q.filter(x => Date.now() - x.got < 60000);
-  const ok = m => m.type === "gift" || m.type === "idle" || CHAT.level === "calm" || (CHAT.level === "busy" && /pumpkin|jack/i.test(m.text));
-  const gift = CHAT.q.findIndex(m => m.type === "gift");
-  const i = gift >= 0 ? gift : CHAT.q.findIndex(ok);
-  if (i < 0) { CHAT.q = []; return null; }
-  return CHAT.q.splice(i, 1)[0];
+// ---------- the director: decides what the pumpkin says next, one thing at a time, in this order:
+// 1. gifts and comments (several waiting are answered together, by name), 2. welcomes for newcomers,
+// 3. dead air, only while someone is watching, backing off (10 s, 20 s, 40 s, 80 s, then silence)
+// until someone comments, gifts, or arrives.
+const DIR = { quietSince: Date.now(), streak: 0, welcomeAt: 0, welcomes: 0, lastViewers: null, trigger: "" };
+const BACKOFF = [10000, 20000, 40000, 80000];
+function onViewers(n) {
+  const prev = DIR.lastViewers; CHAT.viewers = n; DIR.lastViewers = n;
+  if (prev != null && n > prev) { DIR.welcomes = Math.min(3, DIR.welcomes + (n - prev)); DIR.streak = 0; }   // someone new arrived
 }
-// Called every frame: when the pumpkin is free, hand it the next message.
-function pumpChat() {
-  // New viewers: greet fast to hook them. The welcome jumps ahead of regular chat (gifts stay first); several
-  // newcomers at once share one welcome. At most one welcome every 8 s.
-  if (streamOn() && S.ctx && !S.muted && $("setup").style.display === "none" && (JOINS.names.length || JOINS.anon) && Date.now() - JOINS.lastGreet > 8000
-      && !CHAT.q.some(m => m.type === "idle" && /^New viewers/.test(m.text))) {
-    const names = JOINS.names.slice(-3), anon = JOINS.anon || 0; JOINS.names = []; JOINS.anon = 0; JOINS.lastGreet = Date.now(); IDLE.last = Date.now();
-    const who = names.length ? names.join(", ") : (anon > 1 ? anon + " people (names unknown)" : "someone (name unknown)");
-    const welcome = { type:"idle", user:"", got:Date.now(), text:"New viewers just joined: " + who + ". Welcome " + (names.length ? (names.length > 1 ? "each of them by name" : "them by name") : "whoever just walked in, without inventing a name") + " right away, then ask " + (names.length > 1 || anon > 1 ? "them" : "them") + " one genuine, friendly question about themselves, like where they're watching from, what they're up to tonight, or what made them stop scrolling. Dry delivery but warm: no insults, no assumptions about them, no accusations. Two short sentences total. When they answer in chat, remember it." };
-    const firstNonGift = CHAT.q.findIndex(m => m.type !== "gift");
-    CHAT.q.splice(firstNonGift < 0 ? CHAT.q.length : firstNonGift, 0, welcome);
-  }
-  if (streamOn() && S.ctx && !S.muted && !CHAT.q.length && $("setup").style.display === "none" && !CHAT.waiting && !S.turn && !speaking()
-      && CHAT.viewers > 0                                        // nobody watching (or count unknown): stay quiet, don't spend AI time
-      && Date.now() - IDLE.last > IDLE.next) {
-    IDLE.last = Date.now(); IDLE.next = idleWait();
-    const solo = CHAT.viewers === 1, co = cohosts();
-    fillerCount++;
-    if (co.length && fillerCount % 3 === 0) {               // co-hosting: every third filler talks to a co-host
-      const name = spokenName(co[Math.floor(Math.random() * co.length)]);
-      CHAT.q.push({ type:"idle", user:"", text:"Talk directly to " + name + ", a fellow streamer you're co-hosting with right now. You can't hear them, only read chat, so don't pretend to answer anything they said out loud. Tease them, ask them something, or react to what their viewers said, dry and friendly, in one or two sentences.", got:Date.now() });
-    } else
-    CHAT.q.push({ type:"idle", user:"", solo, text: solo ? CHITCHAT[Math.floor(Math.random() * CHITCHAT.length)] : nextFiller(), got:Date.now() });
-  }
-  if (!streamOn() || !S.ctx || S.muted || !CHAT.q.length || $("setup").style.display !== "none") return;
-  if (S.phase === "idle") return runVisit(true);
-  if (S.phase === "connecting" || CHAT.waiting || S.turn || S.greeting || speaking()) return;
-  const m = nextChat(); if (!m) return;
-  if (m.type === "idle") {
-    $("question").textContent = ""; $("caption").textContent = "";
-    CHAT.waiting = true; S.lastAct = Date.now(); S.said = "";
-    let text = m.text;
-    const line = "(" + text + (/^New viewers/.test(text) ? "" : (m.solo ? CHITCHAT_RULE : FILLER_RULE) + chatRecap(5) + saidRecap()) + ")";
-    if (S.provider === "openai") { send({ type:"conversation.item.create", item:{ type:"message", role:"user", content:[{ type:"input_text", text: line }] } }); send({ type:"response.create" }); }
-    else send({ realtimeInput:{ text: line } });
-    setTimeout(() => { CHAT.waiting = false; }, 15000);
-    return;
-  }
-  logChat(m);
-  const who = sayName(m) + (m.room === "cohost" ? " (watching from your co-host " + spokenName(m.host) + "'s stream)" : "");
-  let line = m.type === "gift" ? "Live chat from " + who + ": (sent you a gift: " + (m.gift || "a gift") + ") " + m.text : "Live chat from " + who + ": " + m.text;
-  chatsAnswered++;
-  line += " (Start your reply by saying " + sayName(m) + ".)";
-  if (chatsAnswered % PLUG_EVERY === 0 || PLUG_ASK.test(m.text || "")) line += " (Work in a dry, quick plug: tell them to check out the bio and follow.)";
-  $("question").textContent = "@" + m.user + (m.room === "cohost" ? " (co-host chat)" : "") + ": " + (m.text || "sent " + (m.gift || "a gift")); $("caption").textContent = "";
-  CHAT.waiting = true; S.lastAct = Date.now(); S.said = "";
+function say(line, trigger, question) {
+  $("question").textContent = question || ""; $("caption").textContent = "";
+  CHAT.waiting = true; S.lastAct = Date.now(); S.said = ""; DIR.trigger = trigger + ", " + (CHAT.viewers || 0) + " watching";
   if (S.provider === "openai") { send({ type:"conversation.item.create", item:{ type:"message", role:"user", content:[{ type:"input_text", text: line }] } }); send({ type:"response.create" }); }
   else send({ realtimeInput:{ text: line } });
-  setTimeout(() => { CHAT.waiting = false; }, 15000);   // never get stuck if a reply goes missing
-  chatStatus("Answering @" + m.user + (CHAT.q.length ? " · " + CHAT.q.length + " waiting" : ""));
+  setTimeout(() => { CHAT.waiting = false; }, 15000);    // never get stuck if a reply goes missing
+}
+function pumpChat() {
+  if (!streamOn() || !S.ctx || S.muted || $("setup").style.display !== "none") return;
+  const now = Date.now();
+  CHAT.q = CHAT.q.filter(x => now - x.got < 60000);
+  const pending = CHAT.q.length || JOINS.names.length || DIR.welcomes;
+  const wantFiller = !pending && (CHAT.viewers || 0) > 0 && DIR.streak < BACKOFF.length && now - DIR.quietSince > BACKOFF[DIR.streak];
+  if (!pending && !wantFiller) return;
+  if (S.phase === "idle") return runVisit(true);
+  if (S.phase === "connecting" || CHAT.waiting || S.turn || S.greeting || speaking()) return;
+
+  // 1. gifts, then comments: up to 4 at once so it never falls behind; flooded chat favors messages to the pumpkin
+  if (CHAT.q.length) {
+    const gift = CHAT.q.find(m => m.type === "gift");
+    let batch;
+    if (gift) batch = [gift];
+    else {
+      let pool = CHAT.q;
+      if (pool.length > 10) { const toMe = pool.filter(m => /pumpkin|jack/i.test(m.text || "")); if (toMe.length) pool = toMe; CHAT.q = pool; }
+      batch = pool.slice(0, 4);
+    }
+    CHAT.q = CHAT.q.filter(m => !batch.includes(m));
+    batch.forEach(logChat);
+    const fmt = m => sayName(m) + (m.room === "cohost" ? " (from your co-host " + spokenName(m.host) + "'s stream)" : "") +
+      (m.type === "gift" ? " sent you a gift: " + (m.gift || "a gift") + (m.text ? ", and said: " + m.text : "") : ": " + m.text);
+    let line = batch.length === 1
+      ? "Live chat from " + fmt(batch[0]) + " (Start your reply by saying " + sayName(batch[0]) + ".)"
+      : "Several live chat messages, oldest first: " + batch.map(fmt).join(" | ") + " (Answer each one briefly, saying each person's name.)";
+    chatsAnswered += batch.length;
+    if (batch.some(m => PLUG_ASK.test(m.text || "")) || chatsAnswered % PLUG_EVERY < batch.length) line += " (Work in a dry, quick plug: tell them to check out the bio and follow.)";
+    const q = "@" + batch[0].user + (batch[0].room === "cohost" ? " (co-host chat)" : "") + ": " + (batch[0].text || "sent " + (batch[0].gift || "a gift")) + (batch.length > 1 ? "  (+" + (batch.length - 1) + " more)" : "");
+    say(line, batch[0].type === "gift" ? "gift" : "chat x" + batch.length, q);
+    chatStatus("Answering @" + batch[0].user + (CHAT.q.length ? " · " + CHAT.q.length + " waiting" : ""));
+    return;
+  }
+
+  // 2. welcomes: by name when TikTok gives one, otherwise "whoever just came in", with one real question so they type
+  if (JOINS.names.length || DIR.welcomes) {
+    if (now - DIR.welcomeAt < 8000) return;
+    const names = JOINS.names.slice(-3); JOINS.names = []; DIR.welcomes = 0; DIR.welcomeAt = now;
+    const text = names.length
+      ? "New viewers just joined: " + names.join(", ") + ". Welcome " + (names.length > 1 ? "each of them" : "them") + " by name right away, then ask one genuine, friendly question about themselves, like where they're watching from or what they're up to tonight."
+      : "Someone new just came into the stream; you don't know their name yet, so don't invent one. Welcome them right away, then ask one genuine, friendly question that invites them to type in chat, like where they're watching from or what they're up to tonight.";
+    say("(" + text + " Dry delivery but warm: no insults, no assumptions, no accusations. Two short sentences. When they answer in chat, remember it.)", "welcome");
+    return;
+  }
+
+  // 3. dead air
+  DIR.streak++;
+  const solo = CHAT.viewers === 1, co = cohosts();
+  fillerCount++;
+  let text, rule = solo ? CHITCHAT_RULE : FILLER_RULE;
+  if (co.length && fillerCount % 3 === 0) {
+    text = "Talk directly to " + spokenName(co[Math.floor(Math.random() * co.length)]) + ", a fellow streamer you're co-hosting with right now. You can't hear them, only read chat, so don't pretend to answer anything they said out loud. Tease them, ask them something, or react to what their viewers said, dry and friendly.";
+  } else text = solo ? CHITCHAT[Math.floor(Math.random() * CHITCHAT.length)] : nextFiller();
+  say("(" + text + rule + chatRecap(5) + saidRecap() + ")", "dead air #" + DIR.streak);
 }
 if (STREAMING) {
   $("streamon").checked = streamOn();
@@ -899,7 +913,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014235325";
+const BUILD = "20261014235826";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1240,7 +1254,7 @@ function handleOA(text) {
       voiceCommand(m.transcript || ""); S.heard = "";
       return;
     case "response.done": {
-      logSaid(); IDLE.last = Date.now(); freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false;
+      logSaid(); DIR.quietSince = Date.now(); freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false;
       pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now();
       const er = m.response && m.response.status === "failed" && m.response.status_details && m.response.status_details.error;
       if (er) { showErr(oaError(0, er.code, er.message || "")); closeVisit(); }
@@ -1276,7 +1290,7 @@ function handle(text) {
     S.phase = "talking"; status("Talking"); S.lastAct = Date.now();
   }
   if (c.interrupted) { S.dbg.interrupted++; stopPlayback(); S.turn = false; S.greeting = false; }
-  if (c.turnComplete) { logSaid(); IDLE.last = Date.now(); freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false; S.heard = ""; pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
+  if (c.turnComplete) { logSaid(); DIR.quietSince = Date.now(); freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false; S.heard = ""; pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
 }
 
 // Jack's voice arrives as 24 kHz chunks. Resample them to the output rate as one continuous
@@ -1302,7 +1316,7 @@ function telReport() {
   TEL.on = false;
   const r = { ua:navigator.userAgent.slice(0, 120), provider:S.provider, rate:S.ctx && S.ctx.sampleRate, baseLatency:S.ctx && S.ctx.baseLatency, outputLatency:S.ctx && S.ctx.outputLatency,
     mic:!!S.mic, audioSec:+(TEL.samples / 24000).toFixed(2), arrivedOverSec:+((TEL.lastAt - TEL.t0) / 1000).toFixed(2), chunks:TEL.chunks,
-    maxChunkGapMs:Math.round(TEL.maxGap), underruns:S.dbg.underrun - TEL.under, minBufferAheadSec:+TEL.minAhead.toFixed(3), maxFreezeMs:Math.round(TEL.stall), cushion:PLAY.cushion, capture:S.capture || "none", light:lightMode(), player:S.player ? "continuous" : "clips", attachedPieces:S.liveSrc || 0, torchToggles:S.dbg.torch, watchdogs:S.dbg.watchdog, stream:streamOn(), build:BUILD };
+    maxChunkGapMs:Math.round(TEL.maxGap), underruns:S.dbg.underrun - TEL.under, minBufferAheadSec:+TEL.minAhead.toFixed(3), maxFreezeMs:Math.round(TEL.stall), trigger:DIR.trigger, cushion:PLAY.cushion, capture:S.capture || "none", light:lightMode(), player:S.player ? "continuous" : "clips", attachedPieces:S.liveSrc || 0, torchToggles:S.dbg.torch, watchdogs:S.dbg.watchdog, stream:streamOn(), build:BUILD };
   fetch("/api/stream/report", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(r) }).catch(() => {});
 }
 function play(b64data) {
