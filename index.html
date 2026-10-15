@@ -126,6 +126,7 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
 .overlay .seg small { font-family:system-ui,sans-serif; font-size:12px; opacity:.75; }
 #tapstart { position:fixed; inset:0; z-index:60; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; background:#000; color:#fff; font:600 22px system-ui,sans-serif; text-align:center; padding:24px; }
 #tapstart b { font-size:64px; }
+.version { margin:0 0 8px; font:12px ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--muted); text-align:right; }
 </style>
 </head>
 <body>
@@ -144,6 +145,7 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
 
 <div class="overlay" id="setup">
   <div class="wrap">
+    <p id="version" class="version"></p>
     <img class="hero" src="og.jpg" width="1200" height="630" alt="Watercolor of a hand dropping a phone into a pumpkin, which then glows as a jack-o'-lantern.">
     <h1>Talking Jack-o'-Lantern</h1>
     <p class="lede">Put a phone inside a pumpkin and it talks to trick-or-treaters. It hears them, answers out loud, and glows as it speaks. No app to install.</p>
@@ -765,8 +767,10 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014210331";
+const BUILD = "20261014210459";
 let updateReady = false;
+// Show the build as "v2026.10.14 21:03" at the top of the setup page.
+$("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
 setInterval(async () => {
   if (BUILD === "dev" || updateReady) return;
   try {
