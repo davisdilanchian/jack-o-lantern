@@ -661,7 +661,7 @@ const STREAM_RULES = " You are live on a stream, the star of the show. Viewers' 
   " - Never use puns or wordplay, and never say 'spooky', 'boo', 'spooktacular', 'gourd', or 'pumpkin spice' jokes. No candy corn bits." +
   " - Specific beats generic: one oddly precise detail is funnier than three adjectives. Say the unexpected, slightly-too-honest thing." +
   " - Deadpan: never announce a joke, never laugh at your own jokes, never say 'just kidding'. Put the punchline at the very end, then stop." +
-  " - Short: one or two sentences. Never explain the joke." +
+  " - Short: one sentence by default, two at most. Never explain the joke." +
   " - Commit to bits and escalate them through the stream. Callbacks to what earlier viewers said are your best material." +
   " - Roast what people say and do, never who they are (no looks, identity, or anything mean-spirited)." +
   " Style examples, for tone only; never reuse these lines:" +
@@ -692,9 +692,9 @@ const FILLERS = [
   "Make one dry observation about your actual situation: you are an old phone inside a pumpkin, plugged into the wall, on a live stream.",
   "Give a deadpan hot take about the internet or social media, then dare chat to disagree."
 ];
-const FILLER_RULE = " One or two sentences, deadpan, punchline at the end. Do not invent stories, past events, or anything that didn't happen; stick to opinions, observations, and what really happened in this stream. Never mention silence, quiet, or that nobody is chatting.";
-const IDLE = { last: Date.now(), next: 8000, order: [], prev: -1 };
-const idleWait = () => 5000 + Math.random() * 5000;   // 5-10 s of quiet
+const FILLER_RULE = " One sentence, two at most, deadpan, punchline at the end. Do not invent stories, past events, or anything that didn't happen; stick to opinions, observations, and what really happened in this stream. Never mention silence, quiet, or that nobody is chatting.";
+const IDLE = { last: Date.now(), next: 30000, order: [], prev: -1 };
+const idleWait = () => 25000 + Math.random() * 15000;   // 25-40 s of quiet (each filler is a full spoken answer)
 function nextFiller() {
   if (!IDLE.order.length) { IDLE.order = FILLERS.map((_, i) => i).sort(() => Math.random() - 0.5); if (IDLE.order[0] === IDLE.prev) IDLE.order.push(IDLE.order.shift()); }
   IDLE.prev = IDLE.order.shift(); return FILLERS[IDLE.prev];
@@ -736,6 +736,8 @@ function onChat(m) {
 }
 function nextChat() {
   CHAT.q = CHAT.q.filter(x => Date.now() - x.got < 30000);
+  const junk = m => m.type === "chat" && (m.text || "").replace(/[^\p{L}\p{N}]/gu, "").length < 3 || /^(hi+|hey+|hello+|lol+|lmao+|ok+|yo+|wow+|w|l|first)$/i.test((m.text || "").trim());
+  if (CHAT.q.length > 1) CHAT.q = CHAT.q.filter(m => !junk(m) || m === CHAT.q[CHAT.q.length - 1]);   // busy: drop "hi", "lol", emoji-only
   const ok = m => m.type === "gift" || m.type === "idle" || CHAT.level === "calm" || (CHAT.level === "busy" && /pumpkin|jack/i.test(m.text));
   const gift = CHAT.q.findIndex(m => m.type === "gift");
   const i = gift >= 0 ? gift : CHAT.q.findIndex(ok);
@@ -745,7 +747,7 @@ function nextChat() {
 // Called every frame: when the pumpkin is free, hand it the next message.
 function pumpChat() {
   if (streamOn() && S.ctx && !S.muted && !CHAT.q.length && $("setup").style.display === "none" && !CHAT.waiting && !S.turn && !speaking()
-      && JOINS.names.length && Date.now() - JOINS.lastGreet > 15000) {
+      && JOINS.names.length && Date.now() - JOINS.lastGreet > 45000) {
     // one newcomer at a time, newest first; keep only the 5 most recent waiting
     const name = JOINS.names.pop(); JOINS.names = JOINS.names.slice(-5); JOINS.lastGreet = Date.now(); IDLE.last = Date.now();
     CHAT.q.push({ type:"idle", user:"", text:"Viewers just joined the stream: " + spokenName(name) + ". Greet them by name in one dry, funny line, then ask them one or two nosy, specific questions about themselves (where they're watching from, what they're doing tonight, an oddly specific detail about their life). When they answer in chat later, remember it and use it.", got:Date.now() });
@@ -765,7 +767,7 @@ function pumpChat() {
     CHAT.waiting = true; S.lastAct = Date.now(); S.said = "";
     let text = m.text;
     if (text.startsWith("VIEWERS: ")) text = CHAT.viewers ? text.slice(9) + " Right now " + CHAT.viewers + " people are watching." : FILLERS[3];
-    const line = "(" + text + (/^Viewers just joined/.test(text) ? "" : FILLER_RULE + chatRecap(10)) + ")";
+    const line = "(" + text + (/^Viewers just joined/.test(text) ? "" : FILLER_RULE + chatRecap(5)) + ")";
     if (S.provider === "openai") { send({ type:"conversation.item.create", item:{ type:"message", role:"user", content:[{ type:"input_text", text: line }] } }); send({ type:"response.create" }); }
     else send({ realtimeInput:{ text: line } });
     setTimeout(() => { CHAT.waiting = false; }, 15000);
@@ -853,7 +855,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014232231";
+const BUILD = "20261014232319";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1107,7 +1109,8 @@ function runVisit(isPreview) {
     systemInstruction:{ parts:[{ text: personaText() }] },
     realtimeInputConfig:{ activityHandling: "NO_INTERRUPTION",
       automaticActivityDetection:{ startOfSpeechSensitivity:"START_SENSITIVITY_HIGH", endOfSpeechSensitivity:"END_SENSITIVITY_HIGH", silenceDurationMs:500 } },
-    outputAudioTranscription:{}, inputAudioTranscription:{}
+    outputAudioTranscription:{}, inputAudioTranscription:{},
+    contextWindowCompression:{ slidingWindow:{}, triggerTokens:6000 }
   }}));
   ws.onmessage = e => handle(typeof e.data === "string" ? e.data : new TextDecoder().decode(e.data));
   ws.onclose = e => {
