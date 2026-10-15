@@ -365,6 +365,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <li>If you buy the unlock, Stripe handles the payment. We keep only a scrambled fingerprint of your key with it, so your phones unlock automatically. We can't turn it back into your key.</li>
         <li>If you came here from a Google ad, Google's ad tag notes whether that visit led to a purchase, so we can tell which ads work. It doesn't see what the pumpkin hears.</li>
         <li>If you add an ElevenLabs key, the words the pumpkin says go to ElevenLabs so it can speak them in your voice.</li>
+        <li>The site counts anonymous usage, like page views and which options are used, with a random number stored on your phone. No names, no accounts, nothing it hears.</li>
         <li>Put a small "talking pumpkin" sign nearby so people know it's listening.</li>
       </ul>
     </section>
@@ -398,6 +399,34 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js" integrity="sha384-lQXOAyZwHXE55JFyrOMB7nY2Wv+m5ZWNtJcHrd1rceRQXAYNLak8ukN5TjBTcIwz" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" integrity="sha384-b5Ya4Bq3qCyz39m2ISh+4DxjAIljdeFwK/BsXLuj9gugaNwAcj/ia15fxNZL9Nlx" crossorigin="anonymous"></script>
 <script>
+// ------------------------------------------------------------------ anonymous usage counts (shown on /stats)
+// A random id kept on this phone (no name, no account) so we count phones, not page reloads. Nothing about
+// conversations is sent. The owner's /streaming page and local testing are never counted.
+const AID = (() => { try { let a = localStorage.getItem("aid"); if (!/^[0-9a-f]{16}$/.test(a || "")) { a = [...crypto.getRandomValues(new Uint8Array(8))].map(x => x.toString(16).padStart(2, "0")).join(""); localStorage.setItem("aid", a); } return a; } catch { return ""; } })();
+const DEV = /iPad/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) ? "ipad" : /iPhone|iPod/.test(navigator.userAgent) ? "iphone" : /Android/i.test(navigator.userAgent) ? "android" : /Mobi/i.test(navigator.userAgent) ? "otherphone" : "computer";
+function visitSource() {
+  const q = new URLSearchParams(location.search);
+  if (q.has("gclid") || q.has("gbraid") || q.has("wbraid")) return "google ads";
+  if (q.get("utm_source")) return "utm:" + q.get("utm_source");
+  let h = ""; try { h = new URL(document.referrer).hostname.replace(/^www\./, ""); } catch {}
+  if (!h || /jack-o\.io$/.test(h)) return "direct";
+  if (/ycombinator|hckrnews|hackerweb|hcker\.news|hackernews/.test(h)) return "hacker news";
+  if (/tiktok/.test(h)) return "tiktok"; if (/instagram/.test(h)) return "instagram"; if (/^t\.co$|twitter|(^|\.)x\.com$/.test(h)) return "x";
+  if (/youtube/.test(h)) return "youtube"; if (/reddit/.test(h)) return "reddit"; if (/google\./.test(h)) return "google search";
+  if (/bing|duckduckgo|brave|yahoo/.test(h)) return "other search";
+  return h;
+}
+function track(e, k) {
+  if (location.pathname.replace(/\/$/, "") === "/streaming" || /^(localhost|127\.)/.test(location.hostname)) return;
+  const body = JSON.stringify({ e, k: k || "", aid: AID, dev: DEV, src: e === "load" ? visitSource() : undefined });
+  const url = (/(^|\.)jack-o\.io$/.test(location.hostname) ? "" : "https://jack-o.io") + "/api/ev";
+  try { if (!navigator.sendBeacon || !navigator.sendBeacon(url, body)) fetch(url, { method:"POST", body, keepalive:true }).catch(() => {}); } catch {}
+}
+(function trackLoad() {             // the reload after a site update isn't a new visit
+  let again = false; try { again = sessionStorage.getItem("selfReload") === "1"; sessionStorage.removeItem("selfReload"); } catch {}
+  if (!again) track("load");
+})();
+
 // ------------------------------------------------------------------ key handoff: a QR link with the key after "#".
 // The part after "#" is never sent to the server; we save it on this phone and wipe it from the address bar.
 (function importKeyFromLink() {
@@ -432,6 +461,7 @@ function setPassBalance(b) {
 (function returnFromPassCheckout() {
   const q = new URLSearchParams(location.search);
   if (q.get("pass") !== "paid") return;
+  track("paid_back", "pass");
   q.delete("pass"); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash);
   try { localStorage.setItem("passJustPaid", String(Date.now())); } catch {}
 })();
@@ -469,7 +499,7 @@ async function keyPaid(h) {
 }
 (function importPaidReturn() {
   const q = new URLSearchParams(location.search);
-  if (q.has("paid")) { try { localStorage.setItem("justPaid", "1"); localStorage.setItem("paidSession", q.get("paid")); } catch {} q.delete("paid"); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash); }
+  if (q.has("paid")) { track("paid_back", "unlock"); try { localStorage.setItem("justPaid", "1"); localStorage.setItem("paidSession", q.get("paid")); } catch {} q.delete("paid"); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash); }
 })();
 
 // ------------------------------------------------------------------ personalities
@@ -997,6 +1027,7 @@ function refreshUnlock(msg) {
 }
 $("buy").href = PAY_URL;
 $("buy").onclick = async e => {
+  track("buy", "unlock");
   e.preventDefault();
   const h = await keyHash($("key").value.trim());
   if (!h) { $("unlockmsg").textContent = "Paste your key first. The unlock is tied to it."; return $("key").focus(); }
@@ -1042,10 +1073,10 @@ function showPass() {
   $("unlockbox").style.display = has ? "none" : "";
   if (typeof refreshUnlock === "function") try { refreshUnlock(); } catch {}
 }
-$("buypass").onclick = e => { e.preventDefault(); save(); location.href = ($("buypass").dataset.refill ? REFILL_URL : PASS_URL) + "?client_reference_id=" + ensurePassId(); };
-$("refill").onclick = e => { e.preventDefault(); save(); location.href = REFILL_URL + "?client_reference_id=" + ensurePassId(); };
+$("buypass").onclick = e => { e.preventDefault(); save(); track("buy", $("buypass").dataset.refill ? "refill" : "pass"); location.href = ($("buypass").dataset.refill ? REFILL_URL : PASS_URL) + "?client_reference_id=" + ensurePassId(); };
+$("refill").onclick = e => { e.preventDefault(); save(); track("buy", "refill"); location.href = REFILL_URL + "?client_reference_id=" + ensurePassId(); };
 $("gofree").onclick = () => { $("ownkey").open = true; };
-$("hearchar").onclick = () => playCharSample($("persona").value);
+$("hearchar").onclick = () => { track("hear", $("persona").value); playCharSample($("persona").value); };
 async function playCharSample(id) {
   stopSample(); const mine = ++SAMPLE.n;
   const ctx = S.ctx || SAMPLE.ctx || (SAMPLE.ctx = new (window.AudioContext || window.webkitAudioContext)());
@@ -1067,7 +1098,7 @@ const elFields = () => {
 };
 ["elkey", "elvoice", "eluse"].forEach(id => $(id).addEventListener("change", elFields));
 $("eltest").onclick = () => {
-  elFields();
+  elFields(); track("el_test");
   if (!elKey() || !elVoice()) return $("elmsg").textContent = "Paste your ElevenLabs key and a voice ID first.";
   if (!/^[A-Za-z0-9]{10,40}$/.test(elVoice())) return $("elmsg").textContent = "That doesn't look like a voice ID. It's a short code of letters and numbers.";
   stopSample(); const mine = ++SAMPLE.n;
@@ -1117,6 +1148,7 @@ $("start").onclick = async () => {
   }
   showErr("");
   try { await ensureAudio(); } catch (e) { return showErr(micHelp(e)); }
+  track("start", modeName());
   $("setup").style.display = "none";
   document.documentElement.requestFullscreen?.().catch(()=>{});
   keepAwake();
@@ -1127,7 +1159,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015135342";
+const BUILD = "20261015140116";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1141,7 +1173,7 @@ setInterval(async () => {
 setInterval(() => {
   const running = S.ctx && $("setup").style.display === "none";
   const idle = !running || (S.phase === "idle" || S.phase === "listening") && !S.turn && !speaking() && !CHAT.q.length && !CHAT.waiting;
-  if (updateReady && idle) { store.set("resume", running ? "1" : "0"); location.reload(); }
+  if (updateReady && idle) { store.set("resume", running ? "1" : "0"); try { sessionStorage.setItem("selfReload", "1"); } catch {} location.reload(); }
 }, 2000);
 (function resumeAfterUpdate() {
   if (store.get("resume", "") !== "1") return;
@@ -1156,6 +1188,7 @@ setInterval(() => {
 })();
 function lightMode() { const m = store.get("light","both"); return (m === "torch" && S && S.ctx && !S.torchOK) ? "both" : m; }
 $("share").onclick = () => {
+  track("code_show");
   const key = $("key").value.trim();
   if (!key && !PASS.id) return showErr("Paste a key on this phone first.");
   if (typeof qrcode !== "function") return showErr("Couldn't make the code. Check your internet and try again.");
@@ -1194,8 +1227,9 @@ $("scan").onclick = async () => {
       c.width = w; c.height = h; g.drawImage(v, 0, 0, w, h);
       const code = jsQR(g.getImageData(0, 0, w, h).data, w, h, { inversionAttempts:"dontInvert" });
       const pp = code && code.data.match(/[#&]p=(p[0-9a-f]{32})/);
-      if (pp) { PASS.id = pp[1]; try { localStorage.setItem("passId", PASS.id); } catch {} refreshPass(); if (!/#k=/.test(code.data)) { stopScan(); keyMsg("Pumpkin Pass added from the other phone."); return; } }
+      if (pp) { PASS.id = pp[1]; try { localStorage.setItem("passId", PASS.id); } catch {} refreshPass(); if (!/#k=/.test(code.data)) { track("code_scan"); stopScan(); keyMsg("Pumpkin Pass added from the other phone."); return; } }
       const m = code && (code.data.match(/#k=([A-Za-z0-9._-]{20,300})(&|$)/) || code.data.match(/^([A-Za-z0-9._-]{20,300})$/));
+      if (m) track("code_scan");
       if (m) { $("key").value = m[1]; checkKey(); save(); stopScan(); keyMsg("Key added from the other phone."); return; }
     }
     setTimeout(tick, 250);
@@ -1376,6 +1410,7 @@ function runVisit(isPreview) {
   S.provider = usingPass() ? "gemini" : providerOf(key); S.inRate = S.provider === "openai" ? 24000 : 16000;
   S.el = S.provider === "gemini" && elWanted();
   const id = ++S.visitId;
+  track("visit", modeName());
   if (S.provider === "openai") return openAIVisit(isPreview, key, id);
   const ws = usingPass()
     ? new WebSocket((API_BASE ? "wss://jack-o.io" : (location.protocol === "https:" ? "wss://" : "ws://") + location.host) + "/api/live?pass=" + PASS.id)
@@ -1489,11 +1524,13 @@ function handleOA(text) {
 
 // ------------------------------------------------------------------ battery drained: red screen until a refill shows up
 // A refill bought on any phone sharing this pass wakes it up: it checks the battery every minute while drained.
+// How this pumpkin runs, for /stats: on a pass (and with an ElevenLabs voice), or on its own Google/OpenAI key (free or unlocked).
+function modeName() { if (usingPass()) return elWanted() ? "pass+eleven" : "pass"; return (providerOf($("key").value) === "openai" ? "openai" : "google") + (unlocked() ? "-unlocked" : "-free"); }
 function passDrained() { return !!PASS.id && PASS.balance <= 0 && localStorage.getItem("passBal") !== null && !store.get("geminiKey", "").trim(); }
 function drained() {
   closeVisit(); try { setTorch(false); } catch {}
   if (S.drained) return;
-  S.drained = true; $("drained").style.display = "flex"; status("Social battery drained, refill required.");
+  S.drained = true; track("drained"); $("drained").style.display = "flex"; status("Social battery drained, refill required.");
 }
 function undrain() {
   if (!S.drained) return;
