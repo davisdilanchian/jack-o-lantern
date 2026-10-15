@@ -210,7 +210,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       </ol>
       </div>
       <div class="introvid">
-      <div class="demo"><iframe id="demovid" title="Jack-o talking to trick-or-treaters" src="https://www.youtube-nocookie.com/embed/3MoDAMpuUsY?autoplay=1&amp;mute=1&amp;loop=1&amp;playlist=3MoDAMpuUsY&amp;playsinline=1&amp;rel=0&amp;modestbranding=1&amp;enablejsapi=1&amp;origin=https://jack-o.io" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+      <div class="demo"><iframe id="demovid" title="Jack-o talking to trick-or-treaters" src="https://www.youtube-nocookie.com/embed/xMnbPGyVYps?autoplay=1&amp;mute=1&amp;loop=1&amp;playlist=xMnbPGyVYps&amp;playsinline=1&amp;rel=0&amp;modestbranding=1&amp;enablejsapi=1&amp;origin=https://jack-o.io" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
       <button id="demosound" type="button" class="demosound">🔊 Sound on</button>
       </div>
     </div>
@@ -1165,7 +1165,7 @@ setInterval(() => { if ($("setup").style.display !== "none") refreshPass(); }, 6
 // ------------------------------------------------------------------ start
 // The how-it-works video (muted, looping) plays only while the setup page shows.
 let demoLoud = false;
-const DEMO = "https://www.youtube-nocookie.com/embed/3MoDAMpuUsY?autoplay=1&mute=1&loop=1&playlist=3MoDAMpuUsY&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=https://jack-o.io";
+const DEMO = "https://www.youtube-nocookie.com/embed/xMnbPGyVYps?autoplay=1&mute=1&loop=1&playlist=xMnbPGyVYps&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=https://jack-o.io";
 function demo(on) {
   const f = $("demovid"); if (OWNER_PAGE) { f.parentNode.style.display = "none"; return; }
   const want = on ? DEMO : "about:blank"; if ((f.getAttribute("src") || "about:blank") !== want) f.setAttribute("src", want);
@@ -1206,7 +1206,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015144955";
+const BUILD = "20261015145308";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
