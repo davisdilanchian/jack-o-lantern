@@ -366,7 +366,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <p class="help center">About 400 replies, plus every character, voice, and color, and any ElevenLabs voice with your own ElevenLabs key.</p>
       </div>
       <div id="haspass" style="display:none">
-        <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked.</p>
+        <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked. If you also enter your own key, the pumpkin talks on your key and the battery is saved.</p>
         <div class="battery"><div id="batteryfill"></div></div>
         <p id="batterytext" class="help"></p>
         <a id="refill" class="tipbtn" target="_self">🔋 Refill, $2.99 (about 250 replies)</a>
@@ -468,6 +468,9 @@ function ensurePassId() {
   return PASS.id;
 }
 const usingPass = () => !!PASS.id && PASS.balance > 0;
+const passPaid = () => !!PASS.id && (PASS.balance > 0 || PASS.granted > 0);   // a bought pass keeps its extras even while the owner's own key does the talking
+const ownKey = () => !!store.get("geminiKey", "").trim();
+const viaPass = () => usingPass() && !ownKey();                              // talk on the pass only when the phone has no key of its own
 const API_BASE = /(^|\.)jack-o\.io$|^localhost$/.test(location.hostname) ? "" : "https://jack-o.io";
 async function refreshPass() {
   if (!PASS.id) return;
@@ -501,7 +504,7 @@ let KEYHASH = "";
 const paidKeys = () => { try { return JSON.parse(localStorage.getItem("paidKeys") || "[]"); } catch { return []; } };
 const setPaid = (h, on) => { const l = paidKeys().filter(x => x !== h); if (on) l.push(h); try { localStorage.setItem("paidKeys", JSON.stringify(l.slice(-20))); } catch {} };
 const OWNER_PAGE = location.pathname.replace(/\/$/, "") === "/streaming";   // password-protected: it's the owner
-const unlocked = () => OWNER_PAGE || usingPass() || (!!KEYHASH && paidKeys().includes(KEYHASH));
+const unlocked = () => OWNER_PAGE || passPaid() || (!!KEYHASH && paidKeys().includes(KEYHASH));
 // A phone unlocked with a paid key switched to a new key: ask the server to unlock the new key too.
 async function linkKey(to) {
   for (const from of paidKeys().slice().reverse()) {
@@ -545,7 +548,7 @@ const LANGS = [
 ];
 const VOICES = ["Puck","Zephyr","Charon","Kore","Fenrir","Leda","Orus","Aoede","Callirrhoe","Autonoe","Enceladus","Iapetus","Umbriel","Algieba","Despina","Erinome","Algenib","Rasalgethi","Laomedeia","Achernar","Alnilam","Schedar","Gacrux","Pulcherrima","Achird","Zubenelgenubi","Vindemiatrix","Sadachbia","Sadaltager","Sulafat"];
 // OpenAI keys start with "sk-"; anything else is treated as a Google Gemini key.
-const effProvider = () => (typeof usingPass === "function" && usingPass()) ? "gemini" : providerOf($("key").value);
+const effProvider = () => providerOf($("key").value);       // no key: the pass, which is Google
 const providerOf = k => /^sk-/.test((k || "").trim()) ? "openai" : "gemini";
 const OA_VOICES = { alloy:"neutral", ash:"confident", ballad:"expressive", coral:"warm", echo:"smooth", sage:"calm", shimmer:"bright", verse:"dynamic", marin:"natural", cedar:"deep" };
 const OA_PERSONA_VOICE = { jack:"ash", witch:"shimmer", count:"verse", grump:"echo", ghost:"coral", denial:"alloy", prof:"ballad", cabbie:"cedar", custom:"ash" };
@@ -1088,8 +1091,9 @@ setInterval(syncUnlock, 1500);   // cheap: only asks the server when the key act
 function showPass() {
   const has = !!PASS.id && PASS.balance > 0;
   $("nopass").style.display = has ? "none" : "block";
-  for (const id of ["elkey", "elvoice", "eluse", "eltest"]) $(id).disabled = !has;
-  $("ellock").style.display = has ? "none" : "block"; $("ellockbadge").style.display = has ? "none" : ""; $("ownkey").style.display = has ? "none" : ""; $("haspass").style.display = has ? "block" : "none";
+  const paid = passPaid();
+  for (const id of ["elkey", "elvoice", "eluse", "eltest"]) $(id).disabled = !paid;
+  $("ellock").style.display = paid ? "none" : "block"; $("ellockbadge").style.display = paid ? "none" : ""; $("haspass").style.display = has ? "block" : "none";
   const pct = Math.max(0, Math.min(100, Math.round(PASS.balance / PASS_MICROS * 100)));
   $("batteryfill").style.width = pct + "%";
   $("batterytext").textContent = "Pumpkin battery: " + pct + "% (about " + Math.floor(PASS.balance / AVG_REPLY_MICROS) + " replies left)";
@@ -1206,7 +1210,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015145308";
+const BUILD = "20261015150953";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1448,12 +1452,12 @@ function runVisit(isPreview) {
   S.phase = "connecting"; S.start = now; S.lastAct = now; S.lastMsg = now; S.lastChunk = now; S.turn = false; S.greeting = false; S.said = "";
   status("Someone's here…"); $("caption").textContent = "";
   const key = store.get("geminiKey","");
-  S.provider = usingPass() ? "gemini" : providerOf(key); S.inRate = S.provider === "openai" ? 24000 : 16000;
+  S.provider = viaPass() ? "gemini" : providerOf(key); S.inRate = S.provider === "openai" ? 24000 : 16000;
   S.el = S.provider === "gemini" && elWanted();
   const id = ++S.visitId;
   track("visit", modeName());
   if (S.provider === "openai") return openAIVisit(isPreview, key, id);
-  const ws = usingPass()
+  const ws = viaPass()
     ? new WebSocket((API_BASE ? "wss://jack-o.io" : (location.protocol === "https:" ? "wss://" : "ws://") + location.host) + "/api/live?pass=" + PASS.id)
     : new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + encodeURIComponent(key));
   ws.binaryType = "arraybuffer"; S.ws = ws;
@@ -1566,7 +1570,7 @@ function handleOA(text) {
 // ------------------------------------------------------------------ battery drained: red screen until a refill shows up
 // A refill bought on any phone sharing this pass wakes it up: it checks the battery every minute while drained.
 // How this pumpkin runs, for /stats: on a pass (and with an ElevenLabs voice), or on its own Google/OpenAI key (free or unlocked).
-function modeName() { if (usingPass()) return elWanted() ? "pass+eleven" : "pass"; return (providerOf($("key").value) === "openai" ? "openai" : "google") + (unlocked() ? "-unlocked" : "-free"); }
+function modeName() { if (viaPass()) return elWanted() ? "pass+eleven" : "pass"; if (passPaid()) return (providerOf($("key").value) === "openai" ? "openai" : "google") + "-key+pass"; return (providerOf($("key").value) === "openai" ? "openai" : "google") + (unlocked() ? "-unlocked" : "-free"); }
 function passDrained() { return !!PASS.id && PASS.balance <= 0 && PASS.granted > 0 && !store.get("geminiKey", "").trim(); }
 function drained() {
   closeVisit(); try { setTorch(false); } catch {}
@@ -1594,7 +1598,7 @@ function send(o) { if (S.ws && S.ws.readyState === 1) S.ws.send(JSON.stringify(o
 // arrives, and ElevenLabs' audio (24 kHz, same as Google's) plays through the same player, so the lantern still
 // follows the voice. Google's own audio is held back; if ElevenLabs fails before any audio arrives, it plays instead.
 const elKey = () => store.get("elKey", "").trim(), elVoice = () => store.get("elVoice", "").trim();
-const elWanted = () => usingPass() && store.get("elUse", "1") === "1" && !!elKey() && /^[A-Za-z0-9]{10,40}$/.test(elVoice());
+const elWanted = () => passPaid() && store.get("elUse", "1") === "1" && !!elKey() && /^[A-Za-z0-9]{10,40}$/.test(elVoice());
 const elURL = () => "wss://api.elevenlabs.io/v1/text-to-speech/" + elVoice() + "/stream-input?model_id=eleven_flash_v2_5&output_format=pcm_24000&inactivity_timeout=60";
 const elBOS = () => JSON.stringify({ text:" ", xi_api_key:elKey(), voice_settings:{ stability:0.4, similarity_boost:0.8 }, generation_config:{ chunk_length_schedule:[50, 90, 120, 160] } });
 function elBegin() {

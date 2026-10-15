@@ -53,7 +53,8 @@
 const $ = id => document.getElementById(id);
 const DAY = t => new Date(t - 7 * 3600000).toISOString().slice(0, 10);       // same day boundary as the server
 const MODE = { "pass":"Pumpkin Pass", "pass+eleven":"Pass + own ElevenLabs voice", "google-free":"Own Google key (free)", "google-unlocked":"Own Google key + $1.99 unlock",
-  "openai-free":"Own OpenAI key (free)", "openai-unlocked":"Own OpenAI key + $1.99 unlock" };
+  "openai-free":"Own OpenAI key (free)", "openai-unlocked":"Own OpenAI key + $1.99 unlock",
+  "google-key+pass":"Own Google key, has a pass", "openai-key+pass":"Own OpenAI key, has a pass" };
 let DATA = null, PERIOD = "today";
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 const pct = (a, b) => b ? (100 * a / b).toFixed(a / b < 0.1 ? 1 : 0) + "%" : "–";
