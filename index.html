@@ -944,7 +944,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015092506";
+const BUILD = "20261015094935";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1199,7 +1199,7 @@ function runVisit(isPreview) {
     realtimeInputConfig:{ activityHandling: "NO_INTERRUPTION",
       automaticActivityDetection:{ startOfSpeechSensitivity:"START_SENSITIVITY_HIGH", endOfSpeechSensitivity:"END_SENSITIVITY_HIGH", silenceDurationMs:500 } },
     outputAudioTranscription:{}, inputAudioTranscription:{},
-    contextWindowCompression:{ slidingWindow:{}, triggerTokens:16000 }
+    contextWindowCompression:{ slidingWindow:{}, triggerTokens:6000 }
   }}));
   ws.onmessage = e => handle(typeof e.data === "string" ? e.data : new TextDecoder().decode(e.data));
   ws.onclose = e => {
