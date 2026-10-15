@@ -245,9 +245,9 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
       <p class="help" style="margin-top:0">The pumpkin answers your TikTok LIVE chat out loud instead of people in the room. Only this phone is affected.</p>
       <label for="tiktok">Your TikTok LIVE link or @name</label>
       <input id="tiktok" type="text" autocomplete="off" spellcheck="false" placeholder="tiktok.com/@you/live">
-      <label for="cohost">Co-host's TikTok (optional, while you're paired)</label>
-      <input id="cohost" type="text" autocomplete="off" spellcheck="false" placeholder="@their_name">
-      <p class="help">The pumpkin answers their viewers too. Clear this when the pairing ends.</p>
+      <label for="cohost">Co-hosts' TikToks (optional, while you're paired)</label>
+      <input id="cohost" type="text" autocomplete="off" spellcheck="false" placeholder="@anna, @bob">
+      <p class="help">Up to 3, separated by commas. The pumpkin answers their viewers and talks to them by name. Clear this when the pairing ends.</p>
       <label class="check"><input type="checkbox" id="streamon"> Stream mode on (answer chat only, ignore the room)</label>
       <p id="streamstatus" class="help" role="status">Not connected.</p>
     </section>
@@ -669,6 +669,7 @@ const STREAM_RULES = " You are live on a stream, the star of the show. Viewers' 
   " Viewer: 'you smell like old soup' Good: 'Bold of you to assume I'm the only thing in this room that's been sitting out since Tuesday.'" +
   " Viewer: 'hi' Good: 'Hi. Wow. Easy there, Shakespeare, save some words for the rest of chat.'" +
   " Viewer: 'are you real' Good: 'I'm a 2014 Samsung in a squash. I'm the most real thing you'll see on this app today.'" +
+  " CO-HOSTS: sometimes you're paired with other streamers. You can't hear them, only read chat. Treat them as fellow guests on the show: tease them and their viewers in a friendly way." +
   " CHAT: address each viewer by the short name given, or an even shorter nickname; never read out numbers, underscores, or symbols in names. Sometimes end with a dry question or backhanded challenge so people want to type." +
   " When someone sends a gift, thank them by name, grudgingly impressed, never gushing. Never ask for gifts or money." +
   " When a message asks what you are, how this works, or how to get one, or when told to plug, tell them to check out the bio and follow, in one dry sentence. Never say a website address." +
@@ -705,6 +706,8 @@ const CHITCHAT = [
   "Ask the viewer about something they're into lately (a show, a game, music), casually.",
   "React to the last thing the viewer said like a friend would, then keep the conversation going with one question. If they haven't said anything yet, ask where they're watching from."
 ];
+const cohosts = () => store.get("cohost", "").split(/[\s,]+/).map(x => x.replace(/^.*tiktok\.com\//, "").replace(/^@/, "").replace(/[/?#].*$/, "")).filter(Boolean).slice(0, 3);
+let fillerCount = 0;
 const CHITCHAT_RULE = " Talk straight to that one person, casual and warm under the dry delivery, one or two short sentences. Never mention that they're the only viewer, the audience, or the stream being quiet.";
 const FILLER_RULE = " One sentence, two at most, deadpan, punchline at the end. Don't comment on the audience, the crowd, how many people are watching, or lurkers. Do not invent stories, past events, or anything that didn't happen; stick to opinions, observations, and what really happened in this stream. Never mention silence, quiet, or that nobody is chatting.";
 const IDLE = { last: Date.now(), next: 10000, order: [], prev: -1 };
@@ -773,7 +776,12 @@ function pumpChat() {
       && CHAT.viewers > 0                                        // nobody watching (or count unknown): stay quiet, don't spend AI time
       && Date.now() - IDLE.last > IDLE.next) {
     IDLE.last = Date.now(); IDLE.next = idleWait();
-    const solo = CHAT.viewers === 1;
+    const solo = CHAT.viewers === 1, co = cohosts();
+    fillerCount++;
+    if (co.length && fillerCount % 3 === 0) {               // co-hosting: every third filler talks to a co-host
+      const name = spokenName(co[Math.floor(Math.random() * co.length)]);
+      CHAT.q.push({ type:"idle", user:"", text:"Talk directly to " + name + ", a fellow streamer you're co-hosting with right now. You can't hear them, only read chat, so don't pretend to answer anything they said out loud. Tease them, ask them something, or react to what their viewers said, dry and friendly, in one or two sentences.", got:Date.now() });
+    } else
     CHAT.q.push({ type:"idle", user:"", solo, text: solo ? CHITCHAT[Math.floor(Math.random() * CHITCHAT.length)] : nextFiller(), got:Date.now() });
   }
   if (!streamOn() || !S.ctx || S.muted || !CHAT.q.length || $("setup").style.display !== "none") return;
@@ -791,7 +799,7 @@ function pumpChat() {
     return;
   }
   logChat(m);
-  const who = spokenName(m.user) + (m.room === "cohost" ? " (watching from your co-host @" + m.host + "'s stream)" : "");
+  const who = spokenName(m.user) + (m.room === "cohost" ? " (watching from your co-host " + spokenName(m.host) + "'s stream)" : "");
   let line = m.type === "gift" ? "Live chat from " + who + ": (sent you a gift: " + (m.gift || "a gift") + ") " + m.text : "Live chat from " + who + ": " + m.text;
   chatsAnswered++;
   if (chatsAnswered % PLUG_EVERY === 0 || PLUG_ASK.test(m.text || "")) line += " (Work in a dry, quick plug: tell them to check out the bio and follow.)";
@@ -872,7 +880,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014234433";
+const BUILD = "20261014234608";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
