@@ -227,25 +227,18 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
     <section id="unlockbox">
       <h2>Unlock everything</h2>
       <div id="locked">
-        <p class="help" style="margin-top:0">One payment of <b>$1.99</b>, yours to keep on this phone:</p>
+        <p class="help" style="margin-top:0">One payment of <b>$1.99</b>, yours to keep:</p>
         <ul class="help plain">
           <li><b>Any voice for any character.</b> Free characters use their own voice.</li>
           <li><b>Write your own character.</b> Make it anyone you like.</li>
           <li><b>Lantern colors.</b> Red, green, purple, ghostly white, or any color you pick.</li>
         </ul>
         <a id="buy" class="tipbtn" target="_self" rel="noopener">🎃 Unlock for $1.99</a>
-        <details class="steps"><summary>Already paid on another phone?</summary>
-          <p class="help">On the phone you paid on, open Settings and tap <b>Share my key</b>. Scan that code with this phone and it unlocks here too.</p>
-          <label for="unlockcode">Or paste your unlock code</label>
-          <div class="row"><input id="unlockcode" type="text" autocomplete="off" spellcheck="false" placeholder="Unlock code"><button id="useunlock" type="button">Unlock</button></div>
-        </details>
+        <p class="help">The unlock is tied to your AI key. Any phone using the same key unlocks by itself, including phones you set up with <b>Share my key</b>.</p>
       </div>
       <div id="unlocked" style="display:none">
-        <p class="help" style="margin-top:0"><b>Unlocked. Thank you!</b> Every voice, your own characters, and lantern colors are yours on this phone.</p>
-        <details class="steps"><summary>Your unlock code</summary>
-          <p class="help">Keep this to unlock another phone. <b>Share my key</b> also passes it along.</p>
-          <input id="mycode" type="text" readonly>
-        </details>
+        <p class="help" style="margin-top:0"><b>Unlocked. Thank you!</b> Every voice, your own characters, and lantern colors are yours.</p>
+        <p class="help">It's tied to your AI key, so every phone using this key is unlocked too.</p>
       </div>
       <p id="unlockmsg" class="help" role="status"></p>
     </section>
@@ -301,24 +294,27 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
 })();
 
 
-// ------------------------------------------------------------------ $1.99 unlock (Stripe Payment Link)
-// After paying, Stripe sends the buyer back with ?paid=<checkout session>. Our Cloudflare worker asks Stripe
-// whether that session was really paid and answers with a signed unlock code, which this phone keeps.
+// ------------------------------------------------------------------ $1.99 unlock, tied to the AI key
+// The page sends Stripe a fingerprint of the key (SHA-256, can't be turned back into the key) as the
+// checkout's reference. When Stripe reports the payment, our Cloudflare worker marks that fingerprint
+// as paid, so every phone using the same key unlocks by itself. The key itself never leaves for our server.
 const PAY_URL = "https://buy.stripe.com/3cIeVe4v4ddv1Lz7Wc8Zq01";
-const API = /(^|\.)jack-o\.io$/.test(location.hostname) ? "/api" : "https://jack-o.io/api";
-const unlocked = () => { try { return !!localStorage.getItem("unlock"); } catch { return false; } };
-async function claimUnlock(param, value) {
-  try {
-    const r = await fetch(API + "/" + param + "?" + (param === "claim" ? "session_id=" : "t=") + encodeURIComponent(value));
-    const j = await r.json();
-    if (j.token) { localStorage.setItem("unlock", j.token); return true; }
-  } catch {}
-  return false;
+const API = /(^|\.)jack-o\.io$|^localhost$/.test(location.hostname) ? "/api" : "https://jack-o.io/api";
+let KEYHASH = "";
+const unlocked = () => { try { return !!KEYHASH && localStorage.getItem("unlockFor") === KEYHASH; } catch { return false; } };
+async function keyHash(key) {
+  if (!key || !(window.crypto && crypto.subtle)) return "";
+  const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("jack-o:" + key)));
+  return [...d].map(b => b.toString(16).padStart(2, "0")).join("");
 }
-(function importUnlock() {
-  const q = new URLSearchParams(location.search), paid = q.get("paid"), m = location.hash.match(/[#&]u=([A-Za-z0-9_.-]{20,300})/);
-  if (m) { try { localStorage.setItem("unlockPending", m[1]); } catch {} }
-  if (paid) { try { localStorage.setItem("paidSession", paid); } catch {} q.delete("paid"); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash); }
+// Ask the worker whether this key's fingerprint is paid. Returns true/false, or null if we couldn't ask.
+async function keyPaid(h) {
+  try { const r = await fetch(API + "/key?h=" + h); if (r.status === 200) return true; if (r.status === 404) return false; } catch {}
+  return null;
+}
+(function importPaidReturn() {
+  const q = new URLSearchParams(location.search);
+  if (q.has("paid")) { try { localStorage.setItem("justPaid", "1"); } catch {} q.delete("paid"); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash); }
 })();
 
 // ------------------------------------------------------------------ personalities
@@ -564,29 +560,37 @@ function refreshUnlock(msg) {
   const on = unlocked();
   document.body.classList.toggle("paid", on);
   $("locked").style.display = on ? "none" : "block"; $("unlocked").style.display = on ? "block" : "none";
-  if (on) $("mycode").value = localStorage.getItem("unlock");
   $("persona").options[[...$("persona").options].findIndex(o => o.value === "custom")].text = on ? "Write your own…" : "Write your own… 🔒";
   renderChips(); renderColors(); applyColor(activeColor());
-  if (msg) $("unlockmsg").textContent = msg;
+  if (msg !== undefined) $("unlockmsg").textContent = msg;
 }
-if (PAY_URL) $("buy").href = PAY_URL; else $("buy").onclick = e => { e.preventDefault(); $("unlockmsg").textContent = "Payments open soon."; };
-$("useunlock").onclick = async () => {
-  const t = $("unlockcode").value.trim(); if (!t) return;
-  $("unlockmsg").textContent = "Checking…";
-  $("unlockmsg").textContent = (await claimUnlock("check", t)) ? "" : "That code didn't work. Check it and try again.";
-  refreshUnlock(unlocked() ? "Unlocked. Enjoy!" : undefined);
+$("buy").href = PAY_URL;
+$("buy").onclick = async e => {
+  e.preventDefault();
+  const h = await keyHash($("key").value.trim());
+  if (!h) { $("unlockmsg").textContent = "Paste your AI key in step 1 first. The unlock is tied to it."; return $("key").focus(); }
+  save(); location.href = PAY_URL + "?client_reference_id=" + h;
 };
-refreshUnlock();
-(async () => {   // finish a purchase or a shared unlock that arrived in the link
-  const paid = store.get("paidSession", ""), pend = store.get("unlockPending", "");
-  if (paid) {
-    $("unlockmsg").textContent = "Confirming your payment…"; $("unlockbox").scrollIntoView();
-    let ok = false;
-    for (let i = 0; i < 10 && !ok; i++) { ok = await claimUnlock("claim", paid); if (!ok) await new Promise(r => setTimeout(r, 2000)); }   // Stripe's notice can take a few seconds
-    if (ok) localStorage.removeItem("paidSession");
-    refreshUnlock(ok ? "Payment confirmed. Everything is unlocked. Thank you! 🎃" : "We couldn't confirm the payment yet. Reload in a minute. Still stuck? Message @davisdilanchian with your receipt."); if (ok) $("unlockbox").scrollIntoView(); }
-  if (pend) { const ok = await claimUnlock("check", pend); localStorage.removeItem("unlockPending"); if (ok) refreshUnlock("Unlocked from the other phone."); }
-})();
+// Check (and re-check whenever the key changes) whether this key is unlocked.
+let checkingFor = "";
+async function syncUnlock() {
+  const h = await keyHash($("key").value.trim());
+  if (h === checkingFor) return;
+  checkingFor = h; KEYHASH = h; refreshUnlock();
+  if (!h) return;
+  const justPaid = store.get("justPaid", "") === "1";
+  if (justPaid) { $("unlockmsg").textContent = "Confirming your payment…"; $("unlockbox").scrollIntoView(); }
+  for (let i = 0; i < (justPaid ? 12 : 1); i++) {               // Stripe's notice can take a few seconds to arrive
+    const paid = await keyPaid(h);
+    if (h !== checkingFor) return;                            // key changed meanwhile
+    if (paid) { localStorage.setItem("unlockFor", h); localStorage.removeItem("justPaid"); return refreshUnlock(justPaid ? "Payment confirmed. Everything is unlocked. Thank you! 🎃" : ""); }
+    if (paid === false && !justPaid && localStorage.getItem("unlockFor") === h) { localStorage.removeItem("unlockFor"); refreshUnlock(); }
+    if (justPaid) await new Promise(r => setTimeout(r, 2000));
+  }
+  if (justPaid) refreshUnlock("We couldn't confirm the payment yet. Reload in a minute. Still stuck? Message @davisdilanchian with your receipt.");
+}
+refreshUnlock(); syncUnlock();
+setInterval(syncUnlock, 1500);   // cheap: only asks the server when the key actually changed
 
 // ------------------------------------------------------------------ start
 $("gear").onclick = e => { e.stopPropagation(); $("setup").style.display = "flex"; $("start").textContent = "Save and resume"; };
@@ -607,7 +611,7 @@ $("share").onclick = () => {
   const key = $("key").value.trim();
   if (!key) return showErr("Paste a key on this phone first.");
   if (typeof qrcode !== "function") return showErr("Couldn't make the code. Check your internet and try again.");
-  const q = qrcode(0, "M"); q.addData(location.origin + location.pathname + "#k=" + key + (unlocked() ? "&u=" + localStorage.getItem("unlock") : "")); q.make();
+  const q = qrcode(0, "M"); q.addData(location.origin + location.pathname + "#k=" + key); q.make();
   $("qr").innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
   $("qrbox").style.display = "block"; $("share").style.display = "none";
 };
@@ -642,8 +646,6 @@ $("scan").onclick = async () => {
       c.width = w; c.height = h; g.drawImage(v, 0, 0, w, h);
       const code = jsQR(g.getImageData(0, 0, w, h).data, w, h, { inversionAttempts:"dontInvert" });
       const m = code && (code.data.match(/#k=([A-Za-z0-9._-]{20,300})(&|$)/) || code.data.match(/^([A-Za-z0-9._-]{20,300})$/));
-      const u = code && code.data.match(/[#&]u=([A-Za-z0-9_.-]{20,300})/);
-      if (u) claimUnlock("check", u[1]).then(ok => ok && refreshUnlock("Unlocked from the other phone."));
       if (m) { $("key").value = m[1]; checkKey(); save(); stopScan(); keyMsg("Key added from the other phone."); return; }
     }
     setTimeout(tick, 250);
