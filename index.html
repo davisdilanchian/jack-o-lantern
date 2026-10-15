@@ -221,10 +221,7 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
         <select id="lang"></select>
         <p class="help"><b>Match the visitor</b> answers in the language people speak to it. If it switches languages by mistake, pick one language.</p>
       </div>
-      <div class="field">
-        <label class="check"><input type="checkbox" id="interrupt"> Let people interrupt it</label>
-        <p class="help">People can talk over the pumpkin and it stops to listen. If it keeps cutting itself off, turn this off.</p>
-      </div>
+
     </section>
 
     <section>
@@ -623,7 +620,6 @@ $("persona").onchange = () => {
     return lockedNote("voicemsg", "Writing your own character is part of the $1.99 unlock.");
   }
   lastPersona = $("persona").value; $("voice").value = personaVoice(); store.set(voiceKey(), $("voice").value); syncCustom(); renderChips(); endVisitForNewSettings(); };
-$("interrupt").checked = store.get("interrupt", "1") === "1";
 $("lang").onchange = () => endVisitForNewSettings();
 // The voice a conversation uses: your pick if unlocked, otherwise the character's own voice.
 function activeVoice() { return unlocked() ? (store.get(voiceKey(), "") || personaVoice()) : personaVoice(); }
@@ -641,7 +637,7 @@ function personaText() {
 }
 function save() {
   store.set("geminiKey",$("key").value.trim()); store.set("persona",$("persona").value);
-  store.set("custom",$("custom").value); store.set(voiceKey(),$("voice").value); store.set("interrupt", $("interrupt").checked ? "1" : "0"); S.inRate = providerOf($("key").value) === "openai" ? 24000 : 16000; store.set("lang",$("lang").value); store.set("light",$("light").value);
+  store.set("custom",$("custom").value); store.set(voiceKey(),$("voice").value); S.inRate = providerOf($("key").value) === "openai" ? 24000 : 16000; store.set("lang",$("lang").value); store.set("light",$("light").value);
 }
 
 // ------------------------------------------------------------------ state
@@ -675,7 +671,8 @@ function connectChat() {
   ws.onerror = () => {};
 }
 setInterval(() => { if (CHAT.ws && CHAT.ws.readyState === 1) CHAT.ws.send("ping"); }, 25000);
-setInterval(() => { try { pumpChat(); } catch {} }, 400);   // also runs when the screen-refresh loop is paused
+setInterval(() => { try { pumpChat(); } catch {} }, 400);
+setInterval(() => { try { if (S.ctx) micDuty(); } catch {} }, 250);   // also when the screen-refresh loop is paused   // also runs when the screen-refresh loop is paused
 // Busy handling: answer everything while calm; when chat outpaces speech, only messages that mention
 // the pumpkin (and gifts); when swamped, gifts only. Messages older than 30 s are dropped.
 function onChat(m) {
@@ -778,7 +775,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014212441";
+const BUILD = "20261014212831";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -874,23 +871,10 @@ async function ensureAudio() {
   // Ask for the microphone first, so its prompt appears before anything else can fail.
   let mic = null;
   if (!streamOn()) {
-  // echoCancellation "all" (Chrome 141+) removes everything this phone plays, including the pumpkin's own
-  // voice, so it can listen while talking without hearing itself. Older browsers only accept true.
-  // iPhones already cancel all of the phone's own sound.
-  try {
-    // Android: echo cancellation switches the phone into call-audio mode, which makes playback stutter on
-    // many phones. Use a plain mic there; the pumpkin simply stops listening while it talks.
-    if (ANDROID) mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
-    else try { mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:"all", noiseSuppression:true, autoGainControl:true } }); }
-    catch (e) {
-      if (e.name === "NotAllowedError" || e.name === "SecurityError") throw e;
-      mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
-    }
+    try { mic = await navigator.mediaDevices.getUserMedia(MIC_PLAIN); }
+    catch (e) { try { ctx.close(); } catch {} throw e; }
+    S.fullEcho = false;
   }
-  catch (e) { try { ctx.close(); } catch {} throw e; }
-  let ec; try { ec = mic.getAudioTracks()[0].getSettings().echoCancellation; } catch {}
-  S.fullEcho = IOS || ec === "all";
-  }   // stream mode skips the mic: on Android an open mic switches the phone into call-audio mode, which plays sound worse
   try { await ctx.resume(); } catch {}
   S.ctx = ctx; S.mic = mic;
   // Output chain: voice -> analyser (for the light) -> speakers
@@ -908,8 +892,6 @@ async function ensureAudio() {
     S.camTrack = cam.getVideoTracks()[0];
     S.torchOK = !!(S.camTrack.getCapabilities && S.camTrack.getCapabilities().torch);
   } catch { S.torchOK = false; }
-  if (!S.mic) { requestAnimationFrame(frame); return; }      // no mic (stream mode): nothing to capture
-  const src = S.ctx.createMediaStreamSource(S.mic);
   let acc = [], pos = 0;
   const feed = data => {
     if (streamOn()) return;                                  // stream mode never uses the mic
@@ -924,7 +906,7 @@ async function ensureAudio() {
     const worklet = `class Cap extends AudioWorkletProcessor{constructor(){super();this.b=new Float32Array(2048);this.n=0}process(i){const x=i[0]&&i[0][0];if(x){for(let k=0;k<x.length;k++){this.b[this.n++]=x[k];if(this.n===2048){this.port.postMessage(this.b.slice(0));this.n=0}}}return true}}registerProcessor('cap',Cap)`;
     await S.ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([worklet],{type:"application/javascript"})));
     const node = new AudioWorkletNode(S.ctx, "cap");
-    src.connect(node);
+    S.capNode = node;
     node.port.onmessage = ({ data }) => feed(data);
     captured = true; S.capture = "worklet";
   } catch {}
@@ -933,9 +915,39 @@ async function ensureAudio() {
     const sp = S.ctx.createScriptProcessor(8192, 1, 1);
     const sink = S.ctx.createGain(); sink.gain.value = 0;   // keeps the processor running without echoing the mic
     sp.onaudioprocess = ev => feed(ev.inputBuffer.getChannelData(0).slice(0));
-    src.connect(sp); sp.connect(sink); sink.connect(S.ctx.destination);
+    sp.connect(sink); sink.connect(S.ctx.destination); S.capNode = sp;
   }
+  attachMic(S.mic);
   requestAnimationFrame(frame);
+}
+
+// ------------------------------------------------------------------ mic only while listening
+// While a phone holds the microphone, it plays sound through its "phone call" audio path, which clips
+// word endings on many Androids and adds gain and peaks on iPhones. So the pumpkin closes the mic
+// completely while it talks and reopens it (no prompt; permission is already granted) when it's done.
+const MIC_PLAIN = { audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } };
+function attachMic(stream) {
+  try { S.micSrc && S.micSrc.disconnect(); } catch {}
+  S.micSrc = null;
+  if (stream && S.capNode) { S.micSrc = S.ctx.createMediaStreamSource(stream); S.micSrc.connect(S.capNode); }
+}
+function releaseMic() {
+  if (!S.mic) return;
+  try { S.mic.getTracks().forEach(t => t.stop()); } catch {}
+  attachMic(null); S.mic = null; S.micClosedAt = Date.now();
+}
+async function reopenMic() {
+  if (S.mic || S.micOpening || !S.ctx || streamOn()) return;
+  S.micOpening = true;
+  try { const m = await navigator.mediaDevices.getUserMedia(MIC_PLAIN); if (wantMicClosed()) m.getTracks().forEach(t => t.stop()); else { S.mic = m; attachMic(m); } }
+  catch {}
+  S.micOpening = false;
+}
+const wantMicClosed = () => S.turn || PLAY.queued > 0 || PLAY.pendLen > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + 0.35);
+function micDuty() {
+  if (streamOn()) return releaseMic();
+  if (wantMicClosed()) releaseMic();
+  else if (!S.mic && S.capNode) reopenMic();
 }
 
 // Keep the screen on and undimmed. Newer browsers: the Screen Wake Lock API (re-requested if the
@@ -971,7 +983,7 @@ function onMic(samples) {
     // With them on, compare the mic with what the speaker is playing right now (loud syllables make
     // loud echo), learn how much of the speaker leaks into the mic, and only pass on sound that is
     // clearly more than that leak for at least 120 ms. Everything else is sent as silence.
-    if (store.get("interrupt", "1") !== "1" || ANDROID) return;   // no talking over it on Android (no echo cancellation there)
+    return;   // the mic is closed while it talks; nothing to pass on
     if (!S.barge) {
       const now = performance.now();
       let outMax = 0.005; for (const h of S.outHist) if (now - h.t < 400 && h.v > outMax) outMax = h.v;
@@ -1019,7 +1031,7 @@ function runVisit(isPreview) {
     model: MODELS[modelIdx],
     generationConfig:{ responseModalities:["AUDIO"], speechConfig: Object.assign(store.get("lang","auto") === "auto" ? {} : { languageCode: store.get("lang","auto") }, { voiceConfig:{ prebuiltVoiceConfig:{ voiceName: activeVoice() } } }) },
     systemInstruction:{ parts:[{ text: personaText() }] },
-    realtimeInputConfig:{ activityHandling: store.get("interrupt","1") === "1" && !ANDROID ? "START_OF_ACTIVITY_INTERRUPTS" : "NO_INTERRUPTION",
+    realtimeInputConfig:{ activityHandling: "NO_INTERRUPTION",
       automaticActivityDetection:{ endOfSpeechSensitivity:"END_SENSITIVITY_HIGH", silenceDurationMs:500 } },
     outputAudioTranscription:{}, inputAudioTranscription:{}
   }}));
@@ -1039,7 +1051,7 @@ async function openAIVisit(isPreview, key, id) {
   const session = { type:"realtime", model: OA_MODELS[oaIdx], instructions: personaText(),
     audio:{ input:{ format:{ type:"audio/pcm", rate:24000 },
                     transcription:{ model:"gpt-4o-mini-transcribe" },
-                    turn_detection:{ type:"server_vad", threshold:0.55, silence_duration_ms:450, prefix_padding_ms:250, create_response:true, interrupt_response: store.get("interrupt","1") === "1" && !ANDROID } },
+                    turn_detection:{ type:"server_vad", threshold:0.55, silence_duration_ms:450, prefix_padding_ms:250, create_response:true, interrupt_response: false } },
             output:{ format:{ type:"audio/pcm", rate:24000 }, voice: activeVoice() } } };
   let r, j = {};
   try {
@@ -1092,7 +1104,7 @@ function handleOA(text) {
     case "input_audio_buffer.speech_started":
       S.lastAct = Date.now();
       // Someone talked over it: stop its voice right away and tell OpenAI how much was actually heard.
-      if (store.get("interrupt","1") === "1" && (S.turn || speaking())) {
+      if (false) {   // talking over it is off: the mic is closed while it speaks
         if (S.oaItem && S.ctx) send({ type:"conversation.item.truncate", item_id:S.oaItem, content_index:0, audio_end_ms: Math.max(0, Math.round((S.ctx.currentTime - S.oaItemStart) * 1000)) });
         S.dbg.interrupted++; stopPlayback(); S.turn = false; S.greeting = false;
       }
@@ -1172,7 +1184,7 @@ function telReport() {
 function play(b64data) {
   const bin = atob(b64data), n = bin.length >> 1;
   if (!n) return;
-  telChunk(n); S.lastChunk = Date.now();
+  telChunk(n); S.lastChunk = Date.now(); releaseMic();
   // Keep the voice as it arrives (24 kHz). The only change is a fixed level match: OpenAI's voices are
   // about 1.5x quieter than Google's. The browser converts to the speaker's rate itself.
   const g = S.provider === "openai" ? 1.5 : 1, out = new Float32Array(n);
@@ -1226,6 +1238,7 @@ function frame() {
   $("white").style.opacity = screenOn ? Math.max(0, (S.level - 0.6) / 0.4).toFixed(3) : 0; // orange -> white at his loudest
   setTorch(mode !== "screen" && S.level > 0.3);
   if (PLAY.pendLen) pumpAudio(false);
+  micDuty();
   // timeouts
   const now = Date.now();
   if (S.phase === "talking" && !speaking() && !S.greeting) { S.phase = "listening"; status("Listening"); }
