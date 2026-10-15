@@ -46,6 +46,8 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
     font:700 clamp(30px,9vw,60px)/1.15 system-ui,-apple-system,sans-serif; background:#d00000; animation:drainblink 2s step-end infinite; cursor:pointer; }
   @keyframes drainblink { 0% { background:#d00000; } 50% { background:#000; } }      /* 1 s red, 1 s off */
   #drained small { display:block; margin-top:18px; font-size:16px; font-weight:500; opacity:.85; }
+  #putin { position:fixed; inset:0; z-index:7; display:none; align-items:center; justify-content:center; text-align:center; padding:24px; background:#000; color:#fff;
+    font:400 clamp(34px,10vw,64px)/1.15 "Patrick Hand", system-ui, sans-serif; transition:opacity .6s; }
   #muted { position:fixed; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; background:#050403; gap:12px; }
   #muted svg { width:42vw; max-width:240px; }
   #muted b { font-size:clamp(30px,9vw,52px); letter-spacing:.04em; }
@@ -87,8 +89,17 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   .overlay .help.small { font-size:14px; }
   .overlay details#privacy ul { margin-top:10px; }
   .overlay #characters #start { margin-top:14px; }
+  /* Type scale: Patrick Hand for headings, buttons and every fold-out title; the system font for reading text. */
+  .overlay h1 { font-size:34px; } .overlay h2 { font-size:24px; }
+  .overlay summary, .overlay .steps summary, .overlay details.ownkey > summary, .overlay details.freeopt > summary {
+    font-family:"Patrick Hand", system-ui, sans-serif; font-weight:400; font-size:21px; color:var(--ink); }
+  .overlay button, .overlay .seg button, .overlay .btnrow.three button { font-size:20px; }
+  .overlay button.primary, .overlay .tipbtn { font-size:24px; }
+  .overlay .lede, .overlay ol.steps3 li { font-size:17px; }
+  .overlay .help, .overlay .help.small, .overlay .help.center, .overlay label, .overlay ul.plain, .overlay .steps li, .overlay #qrbox p, .overlay #err { font-size:15px; }
+  .overlay label.check { font-size:16px; }
+  .overlay input:disabled, .overlay button:disabled { opacity:.5; cursor:not-allowed; }
   .overlay details.freeopt { margin:10px 0 4px; border:1.5px solid var(--ink); border-top:1.5px solid var(--ink); border-radius:10px; padding:10px 14px; background:var(--surface); }
-  .overlay details.freeopt > summary { font-size:17px; }
   .overlay #moreopts { margin:12px 0 0; padding-top:10px; }
   .by { margin-top:28px; padding-top:20px; border-top:1px solid var(--line); font-size:14px; color:var(--muted); }
   .by p { margin:0 0 10px; } .by b { color:var(--fg); font-weight:600; }
@@ -172,6 +183,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
   <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M14 38h16l22-18v60L30 62H14z" fill="#fff"/><path d="M8 12l84 76" stroke="#ff3b3b" stroke-width="9" stroke-linecap="round"/></svg>
   <b>MUTED</b><span>tap, or say "Mute off"</span>
 </div>
+<div id="putin" role="status">Put me inside a pumpkin now.</div>
 <div id="drained" role="alert">Social battery drained, refill required.<small>Refill from any phone at jack-o.io. It wakes up by itself.</small></div>
 <button id="gear" aria-label="Settings">Settings</button>
 
@@ -183,15 +195,16 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
     <p class="lede">Put an old phone in a pumpkin. It hears trick-or-treaters and talks back in character.</p>
     <ol class="steps3" id="how">
       <li><span class="num">1</span><span><b>Open jack-o.io on an old phone.</b></span></li>
-      <li><span class="num">2</span><span><b>Power it up:</b> get a Pumpkin Pass, scan a code from your other phone, or enter a key.</span></li>
+      <li><span class="num">2</span><span><b>Power it up:</b> enter a free key, scan a code from your other phone, or get a Pumpkin Pass.</span></li>
       <li><span class="num">3</span><span><b>Press Start</b> and put it in the pumpkin, screen facing out.</span></li>
     </ol>
 
-    <section id="passbox">
-      <h2>2. Power it up</h2>
-      <div id="nopass">
-        <a id="buypass" class="tipbtn" target="_self">🎃 Get a Pumpkin Pass, $4.99</a>
-        <p class="help center">About 400 replies, plus every character, voice, and color.</p>
+    <section id="characters">
+      <h2>Set it up</h2>
+      <div class="field">
+        <label for="persona">Personality</label>
+        <div class="row"><select id="persona"></select><button id="hearchar" type="button">▶ Hear</button></div>
+        <textarea id="custom" placeholder="Describe your pumpkin: who it is, how it talks, what it likes. For example: a sleepy grandpa pumpkin who loves bad jokes." style="display:none"></textarea>
       </div>
       <details id="ownkey" class="ownkey freeopt">
       <summary>Free option: use your own Google key</summary>
@@ -256,40 +269,12 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
     </section>
     </details>
 
-      <div>
-        <p class="help" id="elbonus" hidden><b>Pass bonus:</b> have an ElevenLabs account? Give your pumpkin <b>any ElevenLabs voice</b>, even one you designed or cloned yourself. Just paste your ElevenLabs key and a voice ID.</p>
-      </div>
-      <div id="haspass" style="display:none">
-        <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked.</p>
-        <div class="battery"><div id="batteryfill"></div></div>
-        <p id="batterytext" class="help"></p>
-        <a id="refill" class="tipbtn" target="_self">🔋 Refill, $2.99 (about 250 replies)</a>
-        <details class="steps" id="elbox" hidden>
-          <summary>Pass bonus: use any ElevenLabs voice</summary>
-          <p class="help">Give your pumpkin any voice from your ElevenLabs account, including one you designed or cloned. Your pumpkin still thinks and talks the same way. ElevenLabs just speaks its words. Your ElevenLabs account pays for the voice, and your pass covers the rest.</p>
-          <label for="elkey">ElevenLabs API key</label>
-          <input id="elkey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your ElevenLabs key">
-          <label for="elvoice">Voice ID</label>
-          <input id="elvoice" type="text" autocomplete="off" spellcheck="false" placeholder="For example: 21m00Tcm4TlvDq8ikWAM">
-          <label class="check"><input type="checkbox" id="eluse" checked> Use this voice</label>
-          <button id="eltest" type="button" style="margin-top:10px">▶ Hear it</button>
-          <p id="elmsg" class="help" role="status"></p>
-          <details class="steps"><summary>Where do I find these?</summary>
-            <ol>
-              <li>Sign in at <a href="https://elevenlabs.io/app" target="_blank" rel="noopener">elevenlabs.io</a>.</li>
-              <li><b>Key:</b> open your profile menu, then <b>API Keys</b>, then <b>Create</b>. Allow "Text to Speech". Copy it.</li>
-              <li><b>Voice ID:</b> open <b>Voices</b>, pick a voice, open its menu, and tap <b>Copy voice ID</b>.</li>
-            </ol>
-          </details>
-          <p class="help">While this is on, the voice picker above isn't used. The character's personality still is. Your ElevenLabs key stays on this phone.</p>
-        </details>
-      </div>
       <div class="btnrow three">
         <button id="scan" type="button">Scan code</button>
         <button id="share" type="button">Show code</button>
         <button id="gofree" type="button">Enter key</button>
       </div>
-      <p class="help center small">Pass or key on another phone? Tap <b>Show code</b> there and <b>Scan code</b> here.</p>
+      <p class="help center">Pass or key on another phone? Tap <b>Show code</b> there and <b>Scan code</b> here.</p>
       <p id="keymsg" class="help" role="status" style="color:var(--fg)"></p>
       <div id="scanbox">
         <video id="scanvid" playsinline muted></video>
@@ -301,16 +286,6 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <p>On the old phone, open jack-o.io, tap <b>Scan code</b>, and point it here. This code carries your pass or key, so hide it when you're done.</p>
         <button id="hideqr" type="button" style="margin-top:10px;color:#1a1410;border-color:#d9cfc6">Hide code</button>
       </div>
-      <p id="passmsg" class="help" role="status"></p>
-    </section>
-
-    <section id="characters">
-      <h2>3. Press Start</h2>
-      <div class="field">
-        <label for="persona">Personality</label>
-        <div class="row"><select id="persona"></select><button id="hearchar" type="button">▶ Hear</button></div>
-        <textarea id="custom" placeholder="Describe your pumpkin: who it is, how it talks, what it likes. For example: a sleepy grandpa pumpkin who loves bad jokes." style="display:none"></textarea>
-      </div>
       <details class="ownkey" id="moreopts">
       <summary>More options: voices, language, lantern color</summary>
       <div class="field">
@@ -319,6 +294,28 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <div id="voicechips" class="chips" role="radiogroup" aria-label="Voice"></div>
         <p id="voicemsg" class="help" role="status">Tap a voice to hear it. The one you tap is the one it uses.</p>
         </details>
+      </div>
+      <div class="field">
+      <details class="steps" id="elbox">
+        <summary>ElevenLabs voice <span id="ellockbadge" class="lockbadge">🔒</span></summary>
+        <p class="help" style="margin-top:0">Give your pumpkin any voice from your ElevenLabs account, even one you designed or cloned. Your ElevenLabs account pays for the voice.</p>
+        <p id="ellock" class="help"><b>🔒 Included with the Pumpkin Pass.</b> <a href="#passbox">Get a pass</a> to use it.</p>
+        <label for="elkey">ElevenLabs API key</label>
+        <input id="elkey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your ElevenLabs key">
+        <label for="elvoice">Voice ID</label>
+        <input id="elvoice" type="text" autocomplete="off" spellcheck="false" placeholder="For example: 21m00Tcm4TlvDq8ikWAM">
+        <label class="check"><input type="checkbox" id="eluse" checked> Use this voice</label>
+        <button id="eltest" type="button" style="margin-top:10px">▶ Hear it</button>
+        <p id="elmsg" class="help" role="status"></p>
+        <details class="steps"><summary>Where do I find these?</summary>
+          <ol>
+            <li>Sign in at <a href="https://elevenlabs.io/app" target="_blank" rel="noopener">elevenlabs.io</a>.</li>
+            <li><b>Key:</b> open your profile menu, then <b>API Keys</b>, then <b>Create</b>. Allow "Text to Speech". Copy it.</li>
+            <li><b>Voice ID:</b> open <b>Voices</b>, pick a voice, open its menu, and tap <b>Copy voice ID</b>.</li>
+          </ol>
+        </details>
+        <p class="help">While this is on, the voices above aren't used. Your ElevenLabs key stays on this phone.</p>
+      </details>
       </div>
       <div class="field">
         <label for="lang">Language</label>
@@ -343,6 +340,22 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
           <li><b>To mute:</b> tap the screen or say "Mute on". Say "Mute off" to unmute.</li>
         </ul>
       </details>
+    </section>
+
+    <section id="passbox">
+      <h2>Pumpkin Pass</h2>
+      <p class="help" style="margin-top:0">No key? We handle everything.</p>
+      <div id="nopass">
+        <a id="buypass" class="tipbtn" target="_self">🎃 Get a Pumpkin Pass, $4.99</a>
+        <p class="help center">About 400 replies, plus every character, voice, and color, and any ElevenLabs voice with your own ElevenLabs key.</p>
+      </div>
+      <div id="haspass" style="display:none">
+        <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked.</p>
+        <div class="battery"><div id="batteryfill"></div></div>
+        <p id="batterytext" class="help"></p>
+        <a id="refill" class="tipbtn" target="_self">🔋 Refill, $2.99 (about 250 replies)</a>
+      </div>
+      <p id="passmsg" class="help" role="status"></p>
     </section>
 
     <details id="privacy" class="ownkey">
@@ -431,7 +444,8 @@ function track(e, k) {
 // each reply's real cost against the balance.
 const PASS_URL = "https://buy.stripe.com/6oU14o7Hg3CVai5dgw8Zq02", REFILL_URL = "https://buy.stripe.com/6oUaEY7Hg1uN1Lz0tK8Zq03";
 const PASS_MICROS = 2500000, AVG_REPLY_MICROS = 6000;      // a pass carries $2.50 of AI; a reply averages ~$0.006
-const PASS = { id: (() => { try { return localStorage.getItem("passId") || ""; } catch { return ""; } })(), balance: +(localStorage.getItem("passBal") || 0), empty: false };
+const PASS = { id: (() => { try { return localStorage.getItem("passId") || ""; } catch { return ""; } })(), balance: +(localStorage.getItem("passBal") || 0), empty: false,
+  granted: +(localStorage.getItem("passGranted") || 0) };     // granted > 0: this pass was really paid for (tapping buy alone makes an empty one)
 function ensurePassId() {
   if (!PASS.id) { const b = new Uint8Array(16); crypto.getRandomValues(b); PASS.id = "p" + [...b].map(x => x.toString(16).padStart(2, "0")).join(""); try { localStorage.setItem("passId", PASS.id); } catch {} }
   return PASS.id;
@@ -440,7 +454,10 @@ const usingPass = () => !!PASS.id && PASS.balance > 0;
 const API_BASE = /(^|\.)jack-o\.io$|^localhost$/.test(location.hostname) ? "" : "https://jack-o.io";
 async function refreshPass() {
   if (!PASS.id) return;
-  try { const j = await (await fetch(API_BASE + "/api/pass?pass=" + PASS.id)).json(); if (typeof j.balance === "number") setPassBalance(j.balance); } catch {}
+  try {
+    const j = await (await fetch(API_BASE + "/api/pass?pass=" + PASS.id)).json();
+    if (typeof j.balance === "number") { PASS.granted = +j.granted || 0; try { localStorage.setItem("passGranted", String(PASS.granted)); } catch {} setPassBalance(j.balance); }
+  } catch {}
 }
 function setPassBalance(b) {
   PASS.balance = b; PASS.empty = b <= 0; try { localStorage.setItem("passBal", String(b)); } catch {}
@@ -1053,11 +1070,13 @@ setInterval(syncUnlock, 1500);   // cheap: only asks the server when the key act
 // ------------------------------------------------------------------ pass box
 function showPass() {
   const has = !!PASS.id && PASS.balance > 0;
-  $("nopass").style.display = has ? "none" : "block"; $("ownkey").style.display = has ? "none" : ""; $("haspass").style.display = has ? "block" : "none";
+  $("nopass").style.display = has ? "none" : "block";
+  for (const id of ["elkey", "elvoice", "eluse", "eltest"]) $(id).disabled = !has;
+  $("ellock").style.display = has ? "none" : "block"; $("ellockbadge").style.display = has ? "none" : ""; $("ownkey").style.display = has ? "none" : ""; $("haspass").style.display = has ? "block" : "none";
   const pct = Math.max(0, Math.min(100, Math.round(PASS.balance / PASS_MICROS * 100)));
   $("batteryfill").style.width = pct + "%";
   $("batterytext").textContent = "Pumpkin battery: " + pct + "% (about " + Math.floor(PASS.balance / AVG_REPLY_MICROS) + " replies left)";
-  if (PASS.id && PASS.balance <= 0 && localStorage.getItem("passBal") !== null && !has) { $("buypass").textContent = "🔋 Refill, $2.99 (about 250 replies)"; $("buypass").dataset.refill = "1"; }
+  if (PASS.id && PASS.balance <= 0 && PASS.granted > 0 && !has) { $("buypass").textContent = "🔋 Refill, $2.99 (about 250 replies)"; $("buypass").dataset.refill = "1"; }
   $("unlockbox").style.display = has ? "none" : "";
   if (typeof refreshUnlock === "function") try { refreshUnlock(); } catch {}
 }
@@ -1134,7 +1153,7 @@ $("start").onclick = async () => {
   save(); stopSample(); endVisitForNewSettings();
   if (!usingPass() && !$("key").value.trim()) {
     $("passbox").scrollIntoView({ behavior:"smooth", block:"center" });
-    return showErr(PASS.id && PASS.balance <= 0 && localStorage.getItem("passBal") !== null ? "Your pumpkin's battery is empty. Refill it in step 2, or enter a key." : "Do step 2 first: get a Pumpkin Pass, scan a code from your other phone, or enter a key.");
+    return showErr(PASS.id && PASS.balance <= 0 && PASS.granted > 0 ? "Your pumpkin's battery is empty. Refill it below, or enter a key." : "Power it up first: enter a free key, scan a code from your other phone, or get a Pumpkin Pass below.");
   }
   showErr("");
   try { await ensureAudio(); } catch (e) { return showErr(micHelp(e)); }
@@ -1144,12 +1163,17 @@ $("start").onclick = async () => {
   keepAwake();
   status(streamOn() ? "Live: waiting for chat" : "Waiting for visitors");
   store.set("running", "1");
+  if (!window.RESUMING && !streamOn()) {
+    S.armAt = Date.now() + 5000;                                // the noise of putting it in the pumpkin isn't a visitor
+    const el = $("putin"); el.style.opacity = "1"; el.style.display = "flex";
+    setTimeout(() => { el.style.opacity = "0"; setTimeout(() => { el.style.display = "none"; }, 600); S.end = 0; S.floor = 0.01; }, 5000);
+  }
 };
 
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015142534";
+const BUILD = "20261015143930";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1169,7 +1193,7 @@ setInterval(() => {
   if (store.get("resume", "") !== "1") return;
   store.set("resume", "0");
   setTimeout(async () => {
-    await $("start").onclick();
+    window.RESUMING = true; await $("start").onclick(); window.RESUMING = false;
     if (!S.ctx || S.ctx.state !== "running") {
       $("tapstart").style.display = "flex";
       $("tapstart").onclick = async () => { $("tapstart").style.display = "none"; if (S.ctx) { try { await S.ctx.resume(); } catch {} keepAwake(); } else $("start").onclick(); };
@@ -1341,7 +1365,7 @@ function onMic(samples) {
   if (S.muted) return listenWhileMuted(samples, rms);
   if (S.phase === "idle") {
     if (speaking() || $("setup").style.display !== "none") return;
-    if (rms > S.floor * TUNE.ratio && rms > TUNE.min) { if (++S.loud >= 2 && Date.now() - S.end > TUNE.cooldown) runVisit(false); }
+    if (rms > S.floor * TUNE.ratio && rms > TUNE.min) { if (++S.loud >= 2 && Date.now() - S.end > TUNE.cooldown && !(Date.now() < (S.armAt || 0))) runVisit(false); }
     else { S.loud = 0; S.floor = S.floor * 0.97 + rms * 0.03; }
     return;
   }
@@ -1510,7 +1534,7 @@ function handleOA(text) {
 // A refill bought on any phone sharing this pass wakes it up: it checks the battery every minute while drained.
 // How this pumpkin runs, for /stats: on a pass (and with an ElevenLabs voice), or on its own Google/OpenAI key (free or unlocked).
 function modeName() { if (usingPass()) return elWanted() ? "pass+eleven" : "pass"; return (providerOf($("key").value) === "openai" ? "openai" : "google") + (unlocked() ? "-unlocked" : "-free"); }
-function passDrained() { return !!PASS.id && PASS.balance <= 0 && localStorage.getItem("passBal") !== null && !store.get("geminiKey", "").trim(); }
+function passDrained() { return !!PASS.id && PASS.balance <= 0 && PASS.granted > 0 && !store.get("geminiKey", "").trim(); }
 function drained() {
   closeVisit(); try { setTorch(false); } catch {}
   if (S.drained) return;
