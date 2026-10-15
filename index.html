@@ -87,6 +87,9 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   .overlay .help.small { font-size:14px; }
   .overlay details#privacy ul { margin-top:10px; }
   .overlay #characters #start { margin-top:14px; }
+  .overlay details.freeopt { margin:10px 0 4px; border:1.5px solid var(--ink); border-top:1.5px solid var(--ink); border-radius:10px; padding:10px 14px; background:var(--surface); }
+  .overlay details.freeopt > summary { font-size:17px; }
+  .overlay #moreopts { margin:12px 0 0; padding-top:10px; }
   .by { margin-top:28px; padding-top:20px; border-top:1px solid var(--line); font-size:14px; color:var(--muted); }
   .by p { margin:0 0 10px; } .by b { color:var(--fg); font-weight:600; }
   .by .links { display:flex; flex-wrap:wrap; gap:8px; }
@@ -192,95 +195,8 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <div id="nopass">
         <a id="buypass" class="tipbtn" target="_self">🎃 Get a Pumpkin Pass, $4.99</a>
         <p class="help center">About 400 replies, plus every character, voice, and color.</p>
-        <p class="help" id="elbonus" hidden><b>Pass bonus:</b> have an ElevenLabs account? Give your pumpkin <b>any ElevenLabs voice</b>, even one you designed or cloned yourself. Just paste your ElevenLabs key and a voice ID.</p>
       </div>
-      <div id="haspass" style="display:none">
-        <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked.</p>
-        <div class="battery"><div id="batteryfill"></div></div>
-        <p id="batterytext" class="help"></p>
-        <a id="refill" class="tipbtn" target="_self">🔋 Refill, $2.99 (about 250 replies)</a>
-        <details class="steps" id="elbox" hidden>
-          <summary>Pass bonus: use any ElevenLabs voice</summary>
-          <p class="help">Give your pumpkin any voice from your ElevenLabs account, including one you designed or cloned. Your pumpkin still thinks and talks the same way. ElevenLabs just speaks its words. Your ElevenLabs account pays for the voice, and your pass covers the rest.</p>
-          <label for="elkey">ElevenLabs API key</label>
-          <input id="elkey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your ElevenLabs key">
-          <label for="elvoice">Voice ID</label>
-          <input id="elvoice" type="text" autocomplete="off" spellcheck="false" placeholder="For example: 21m00Tcm4TlvDq8ikWAM">
-          <label class="check"><input type="checkbox" id="eluse" checked> Use this voice</label>
-          <button id="eltest" type="button" style="margin-top:10px">▶ Hear it</button>
-          <p id="elmsg" class="help" role="status"></p>
-          <details class="steps"><summary>Where do I find these?</summary>
-            <ol>
-              <li>Sign in at <a href="https://elevenlabs.io/app" target="_blank" rel="noopener">elevenlabs.io</a>.</li>
-              <li><b>Key:</b> open your profile menu, then <b>API Keys</b>, then <b>Create</b>. Allow "Text to Speech". Copy it.</li>
-              <li><b>Voice ID:</b> open <b>Voices</b>, pick a voice, open its menu, and tap <b>Copy voice ID</b>.</li>
-            </ol>
-          </details>
-          <p class="help">While this is on, the voice picker above isn't used. The character's personality still is. Your ElevenLabs key stays on this phone.</p>
-        </details>
-      </div>
-      <div class="btnrow three">
-        <button id="scan" type="button">Scan code</button>
-        <button id="share" type="button">Show code</button>
-        <button id="gofree" type="button">Enter key</button>
-      </div>
-      <p class="help center small">Pass or key on another phone? Tap <b>Show code</b> there and <b>Scan code</b> here.</p>
-      <p id="keymsg" class="help" role="status" style="color:var(--fg)"></p>
-      <div id="scanbox">
-        <video id="scanvid" playsinline muted></video>
-        <p class="help">Point this camera at the square code on the other phone.</p>
-        <button id="stopscan" type="button" style="margin-top:8px">Cancel</button>
-      </div>
-      <div id="qrbox" role="dialog" aria-label="QR code with your key">
-        <div id="qr"></div>
-        <p>On the old phone, open jack-o.io, tap <b>Scan code</b>, and point it here. This code carries your pass or key, so hide it when you're done.</p>
-        <button id="hideqr" type="button" style="margin-top:10px;color:#1a1410;border-color:#d9cfc6">Hide code</button>
-      </div>
-      <p id="passmsg" class="help" role="status"></p>
-    </section>
-
-    <section id="characters">
-      <h2>3. Press Start</h2>
-      <div class="field">
-        <label for="persona">Personality</label>
-        <div class="row"><select id="persona"></select><button id="hearchar" type="button">▶ Hear</button></div>
-        <textarea id="custom" placeholder="Describe your pumpkin: who it is, how it talks, what it likes. For example: a sleepy grandpa pumpkin who loves bad jokes." style="display:none"></textarea>
-      </div>
-      <button class="primary" id="start">Start</button>
-      <div id="err" role="alert"></div>
-      <details class="steps" id="phonetips"><summary>Phone tips</summary>
-        <ul class="help plain">
-          <li><b>Brightness all the way up</b>, auto-brightness off.</li>
-          <li><b>Keep the screen on.</b> iPhone: Settings › Display &amp; Brightness › Auto-Lock › Never, Low Power Mode off. Android: Settings › Display › Screen timeout › longest, battery saver off.</li>
-          <li><b>Volume all the way up</b>, and plug it in.</li>
-          <li><b>To mute:</b> tap the screen or say "Mute on". Say "Mute off" to unmute.</li>
-        </ul>
-      </details>
-    </section>
-
-    <details class="ownkey" id="moreopts">
-      <summary>More options: voices, language, lantern color</summary>
-      <div class="field">
-        <details class="steps" id="morevoices"><summary>Try other voices</summary>
-        <select id="voice" hidden></select>
-        <div id="voicechips" class="chips" role="radiogroup" aria-label="Voice"></div>
-        <p id="voicemsg" class="help" role="status">Tap a voice to hear it. The one you tap is the one it uses.</p>
-        </details>
-      </div>
-      <div class="field">
-        <label for="lang">Language</label>
-        <select id="lang"></select>
-        <p class="help"><b>Match the visitor</b> answers in the language people speak to it. If it switches languages by mistake, pick one language.</p>
-      </div>
-      <div id="light-section" class="field">
-      <label>Lantern color <span class="lockbadge" data-lock>🔒</span></label>
-      <div id="colors" class="swatches" role="radiogroup" aria-label="Lantern color"></div>
-      <p id="colormsg" class="help" role="status"></p>
-        <p class="help">The screen glows in this color as it talks.</p>
-      </div>
-    </details>
-
-    <details id="ownkey" class="ownkey">
+      <details id="ownkey" class="ownkey freeopt">
       <summary>Free option: use your own Google key</summary>
       <p class="help">Bring a free Google key (or an OpenAI key) and the basic pumpkin is free. The $1.99 unlock adds every voice and color.</p>
     <section id="key-section">
@@ -342,6 +258,95 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <p id="unlockmsg" class="help" role="status"></p>
     </section>
     </details>
+
+      <div>
+        <p class="help" id="elbonus" hidden><b>Pass bonus:</b> have an ElevenLabs account? Give your pumpkin <b>any ElevenLabs voice</b>, even one you designed or cloned yourself. Just paste your ElevenLabs key and a voice ID.</p>
+      </div>
+      <div id="haspass" style="display:none">
+        <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked.</p>
+        <div class="battery"><div id="batteryfill"></div></div>
+        <p id="batterytext" class="help"></p>
+        <a id="refill" class="tipbtn" target="_self">🔋 Refill, $2.99 (about 250 replies)</a>
+        <details class="steps" id="elbox" hidden>
+          <summary>Pass bonus: use any ElevenLabs voice</summary>
+          <p class="help">Give your pumpkin any voice from your ElevenLabs account, including one you designed or cloned. Your pumpkin still thinks and talks the same way. ElevenLabs just speaks its words. Your ElevenLabs account pays for the voice, and your pass covers the rest.</p>
+          <label for="elkey">ElevenLabs API key</label>
+          <input id="elkey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your ElevenLabs key">
+          <label for="elvoice">Voice ID</label>
+          <input id="elvoice" type="text" autocomplete="off" spellcheck="false" placeholder="For example: 21m00Tcm4TlvDq8ikWAM">
+          <label class="check"><input type="checkbox" id="eluse" checked> Use this voice</label>
+          <button id="eltest" type="button" style="margin-top:10px">▶ Hear it</button>
+          <p id="elmsg" class="help" role="status"></p>
+          <details class="steps"><summary>Where do I find these?</summary>
+            <ol>
+              <li>Sign in at <a href="https://elevenlabs.io/app" target="_blank" rel="noopener">elevenlabs.io</a>.</li>
+              <li><b>Key:</b> open your profile menu, then <b>API Keys</b>, then <b>Create</b>. Allow "Text to Speech". Copy it.</li>
+              <li><b>Voice ID:</b> open <b>Voices</b>, pick a voice, open its menu, and tap <b>Copy voice ID</b>.</li>
+            </ol>
+          </details>
+          <p class="help">While this is on, the voice picker above isn't used. The character's personality still is. Your ElevenLabs key stays on this phone.</p>
+        </details>
+      </div>
+      <div class="btnrow three">
+        <button id="scan" type="button">Scan code</button>
+        <button id="share" type="button">Show code</button>
+        <button id="gofree" type="button">Enter key</button>
+      </div>
+      <p class="help center small">Pass or key on another phone? Tap <b>Show code</b> there and <b>Scan code</b> here.</p>
+      <p id="keymsg" class="help" role="status" style="color:var(--fg)"></p>
+      <div id="scanbox">
+        <video id="scanvid" playsinline muted></video>
+        <p class="help">Point this camera at the square code on the other phone.</p>
+        <button id="stopscan" type="button" style="margin-top:8px">Cancel</button>
+      </div>
+      <div id="qrbox" role="dialog" aria-label="QR code with your key">
+        <div id="qr"></div>
+        <p>On the old phone, open jack-o.io, tap <b>Scan code</b>, and point it here. This code carries your pass or key, so hide it when you're done.</p>
+        <button id="hideqr" type="button" style="margin-top:10px;color:#1a1410;border-color:#d9cfc6">Hide code</button>
+      </div>
+      <p id="passmsg" class="help" role="status"></p>
+    </section>
+
+    <section id="characters">
+      <h2>3. Press Start</h2>
+      <div class="field">
+        <label for="persona">Personality</label>
+        <div class="row"><select id="persona"></select><button id="hearchar" type="button">▶ Hear</button></div>
+        <textarea id="custom" placeholder="Describe your pumpkin: who it is, how it talks, what it likes. For example: a sleepy grandpa pumpkin who loves bad jokes." style="display:none"></textarea>
+      </div>
+      <details class="ownkey" id="moreopts">
+      <summary>More options: voices, language, lantern color</summary>
+      <div class="field">
+        <details class="steps" id="morevoices"><summary>Try other voices</summary>
+        <select id="voice" hidden></select>
+        <div id="voicechips" class="chips" role="radiogroup" aria-label="Voice"></div>
+        <p id="voicemsg" class="help" role="status">Tap a voice to hear it. The one you tap is the one it uses.</p>
+        </details>
+      </div>
+      <div class="field">
+        <label for="lang">Language</label>
+        <select id="lang"></select>
+        <p class="help"><b>Match the visitor</b> answers in the language people speak to it. If it switches languages by mistake, pick one language.</p>
+      </div>
+      <div id="light-section" class="field">
+      <label>Lantern color <span class="lockbadge" data-lock>🔒</span></label>
+      <div id="colors" class="swatches" role="radiogroup" aria-label="Lantern color"></div>
+      <p id="colormsg" class="help" role="status"></p>
+        <p class="help">The screen glows in this color as it talks.</p>
+      </div>
+    </details>
+
+      <button class="primary" id="start">Start</button>
+      <div id="err" role="alert"></div>
+      <details class="steps" id="phonetips"><summary>Phone tips</summary>
+        <ul class="help plain">
+          <li><b>Brightness all the way up</b>, auto-brightness off.</li>
+          <li><b>Keep the screen on.</b> iPhone: Settings › Display &amp; Brightness › Auto-Lock › Never, Low Power Mode off. Android: Settings › Display › Screen timeout › longest, battery saver off.</li>
+          <li><b>Volume all the way up</b>, and plug it in.</li>
+          <li><b>To mute:</b> tap the screen or say "Mute on". Say "Mute off" to unmute.</li>
+        </ul>
+      </details>
+    </section>
 
     <details id="privacy" class="ownkey">
       <summary>Privacy</summary>
@@ -1051,7 +1056,7 @@ setInterval(syncUnlock, 1500);   // cheap: only asks the server when the key act
 // ------------------------------------------------------------------ pass box
 function showPass() {
   const has = !!PASS.id && PASS.balance > 0;
-  $("nopass").style.display = has ? "none" : "block"; $("haspass").style.display = has ? "block" : "none";
+  $("nopass").style.display = has ? "none" : "block"; $("ownkey").style.display = has ? "none" : ""; $("haspass").style.display = has ? "block" : "none";
   const pct = Math.max(0, Math.min(100, Math.round(PASS.balance / PASS_MICROS * 100)));
   $("batteryfill").style.width = pct + "%";
   $("batterytext").textContent = "Pumpkin battery: " + pct + "% (about " + Math.floor(PASS.balance / AVG_REPLY_MICROS) + " replies left)";
@@ -1147,7 +1152,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015142214";
+const BUILD = "20261015142504";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
