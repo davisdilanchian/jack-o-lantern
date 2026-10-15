@@ -450,7 +450,8 @@ function track(e, k) {
 (function importKeyFromLink() {
   const m = location.hash.match(/^#k=([A-Za-z0-9._-]{20,300})(&|$)/), p = location.hash.match(/[#&]p=(p[0-9a-f]{32})/);
   if (!m && !p) return;
-  try { if (m) localStorage.setItem("geminiKey", m[1]); if (p) localStorage.setItem("passId", p[1]); } catch {}
+  const keepPaid = () => +(localStorage.getItem("passGranted") || 0) > 0 && +(localStorage.getItem("passBal") || 0) > 0 && localStorage.getItem("passId");
+  try { if (m) localStorage.setItem("geminiKey", m[1]); if (p && !keepPaid()) localStorage.setItem("passId", p[1]); } catch {}
   history.replaceState(null, "", location.pathname + location.search);
 })();
 
@@ -1213,7 +1214,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015154446";
+const BUILD = "20261015163037";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1227,7 +1228,7 @@ setInterval(async () => {
 setInterval(() => {
   const running = S.ctx && $("setup").style.display === "none";
   const idle = !running || (S.phase === "idle" || S.phase === "listening") && !S.turn && !speaking() && !CHAT.q.length && !CHAT.waiting;
-  if (updateReady && idle) { store.set("resume", running ? "1" : "0"); try { sessionStorage.setItem("selfReload", "1"); } catch {} location.reload(); }
+  if (updateReady && idle && !(IOS && running)) { store.set("resume", running ? "1" : "0"); try { sessionStorage.setItem("selfReload", "1"); } catch {} location.reload(); }
 }, 2000);
 (function resumeAfterUpdate() {
   if (store.get("resume", "") !== "1") return;
@@ -1281,6 +1282,7 @@ $("scan").onclick = async () => {
       c.width = w; c.height = h; g.drawImage(v, 0, 0, w, h);
       const code = jsQR(g.getImageData(0, 0, w, h).data, w, h, { inversionAttempts:"dontInvert" });
       const pp = code && code.data.match(/[#&]p=(p[0-9a-f]{32})/);
+      if (pp && PASS.granted > 0 && PASS.balance > 0 && pp[1] !== PASS.id) { stopScan(); keyMsg("This phone already has a Pumpkin Pass with battery left, so I kept it."); return; }
       if (pp) { PASS.id = pp[1]; try { localStorage.setItem("passId", PASS.id); } catch {} refreshPass(); if (!/#k=/.test(code.data)) { track("code_scan"); stopScan(); keyMsg("Pumpkin Pass added from the other phone."); return; } }
       const m = code && (code.data.match(/#k=([A-Za-z0-9._-]{20,300})(&|$)/) || code.data.match(/^([A-Za-z0-9._-]{20,300})$/));
       if (m) track("code_scan");
@@ -1396,6 +1398,12 @@ async function keepAwake() {
   try { await v.play(); } catch {}
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && S.ctx) keepAwake(); });
+setInterval(() => {                                          // a running pumpkin keeps its audio alive
+  if (!S.ctx || $("setup").style.display !== "none" || streamOn()) return;
+  if (S.ctx.state !== "running") { S.ctx.resume().catch(() => {}); return; }
+  const tr = S.mic && S.mic.getAudioTracks && S.mic.getAudioTracks()[0];
+  if (tr && tr.readyState === "ended") { S.mic = null; attachMic(null); reopenMic(); }
+}, 5000);
 
 // ------------------------------------------------------------------ microphone
 function onMic(samples) {
@@ -1898,7 +1906,7 @@ const UNMUTE_RE = /\bun ?mute\b|\bmute off\b|\bsound on\b|\bpumpkin\b.*\b(wake u
 const MUTE_RE = /\bmute( on)?\b|\bsound off\b|\bpumpkin\b.*\b(stop talking|be quiet|go to sleep|shush|hush)\b/;
 function voiceCommand(text) {
   const t = norm(text);
-  if (!S.muted && !UNMUTE_RE.test(t) && MUTE_RE.test(t)) { S.heard = ""; setMute(true); return true; }
+  if (!S.muted && ownKey() && !UNMUTE_RE.test(t) && MUTE_RE.test(t)) { S.heard = ""; setMute(true); return true; }   // pass-only: tap to mute
   return false;
 }
 // While muted nothing goes to the AI. When someone speaks up, record about 2.5 seconds and ask for a
