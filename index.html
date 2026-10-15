@@ -340,7 +340,8 @@ let KEYHASH = "";
 // Fingerprints of every key this phone has seen unlocked (switching back to an old key stays unlocked, even offline).
 const paidKeys = () => { try { return JSON.parse(localStorage.getItem("paidKeys") || "[]"); } catch { return []; } };
 const setPaid = (h, on) => { const l = paidKeys().filter(x => x !== h); if (on) l.push(h); try { localStorage.setItem("paidKeys", JSON.stringify(l.slice(-20))); } catch {} };
-const unlocked = () => !!KEYHASH && paidKeys().includes(KEYHASH);
+const OWNER_PAGE = location.pathname.replace(/\/$/, "") === "/streaming";   // password-protected: it's the owner
+const unlocked = () => OWNER_PAGE || (!!KEYHASH && paidKeys().includes(KEYHASH));
 // A phone unlocked with a paid key switched to a new key: ask the server to unlock the new key too.
 async function linkKey(to) {
   for (const from of paidKeys().slice().reverse()) {
@@ -453,6 +454,7 @@ for (const [code,name] of LANGS) $("lang").add(new Option(name,code));
 $("key").value = store.get("geminiKey","");
 $("persona").value = store.get("persona","jack");
 $("custom").value = store.get("custom","");
+$("custom").addEventListener("change", () => { store.set("custom", $("custom").value); endVisitForNewSettings(); });   // next answer uses the new character
 const ANDROID = /Android/i.test(navigator.userAgent);
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 $("light").value = store.get("light", IOS ? "screen" : "both");
@@ -490,7 +492,7 @@ function renderChips() {
     b.onclick = () => {
       sampleVoice(o.value);
       if (isLocked) return lockedNote("voicemsg", "That voice is part of the $1.99 unlock. Free: this character's own voice.");
-      $("voice").value = o.value; store.set(voiceKey(), o.value); renderChips();
+      $("voice").value = o.value; store.set(voiceKey(), o.value); renderChips(); endVisitForNewSettings();   // next answer uses the new voice
     };
     box.appendChild(b);
   }
@@ -763,7 +765,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014222138";
+const BUILD = "20261014222410";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
