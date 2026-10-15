@@ -673,16 +673,18 @@ let chatsAnswered = 0;
 // Dead air: when chat has been quiet for a while, the pumpkin fills the silence on its own. The filler
 // kinds rotate (shuffled, never the same twice in a row) so it doesn't repeat itself.
 const FILLERS = [
-  "Nobody is chatting. Make one oddly specific, deadpan observation about people who watch live streams for ages without ever typing anything.",
-  "Nobody is chatting. Reveal a petty, very specific grudge you hold against something completely mundane (a kitchen object, a day of the week, a font, a type of sock).",
-  "Nobody is chatting. Give one piece of confidently terrible life advice, completely deadpan, as if it's wisdom.",
-  "Nobody is chatting. Rate something random (the room, the internet, a snack, the concept of Tuesdays) out of ten, with an oddly precise reason.",
-  "Nobody is chatting. Describe one specific, uncomfortable detail of what it's actually like being an old phone stuffed inside a squash.",
-  "Nobody is chatting. Calmly start a conspiracy theory about something harmless and ordinary, delivered completely seriously.",
-  "Nobody is chatting. Ask chat one weird, specific would-you-rather or opinion question that people will want to argue about.",
-  "Nobody is chatting. Call back to something a viewer said earlier in the stream, if there was anything, and escalate the bit; otherwise complain about the silence in one dry, specific line.",
-  "Nobody is chatting. Grudgingly suggest people check out the bio and follow, in one dry sentence, as if it physically pains you."
+  "Ask the viewers a weird, very specific would-you-rather question.",
+  "Ask the viewers to settle a petty debate you're having with yourself about something mundane.",
+  "Ask the viewers what the worst thing they ever ate was, in your own dry way.",
+  "Ask the viewers an absurd hypothetical question about everyday life.",
+  "Ask the viewers which ordinary thing is overrated, giving your own oddly specific pick first.",
+  "Ask the viewers about the most useless skill they have.",
+  "Ask the viewers to rate something random out of ten, after giving your own oddly precise rating.",
+  "Ask the viewers what they'd do with a strange, specific superpower you make up on the spot.",
+  "Ask the viewers which small everyday thing they hold an unreasonable grudge against.",
+  "Ask the viewers a question about where they're watching from right now, in a dry, nosy way."
 ];
+const FILLER_RULE = " Do not mention silence, quiet, or that nobody is chatting; just ask it naturally, in one or two dry sentences.";
 const IDLE = { last: Date.now(), next: 8000, order: [], prev: -1 };
 const idleWait = () => 5000 + Math.random() * 5000;   // 5-10 s of quiet
 function nextFiller() {
@@ -736,7 +738,7 @@ function pumpChat() {
   if (m.type === "idle") {
     $("question").textContent = ""; $("caption").textContent = "";
     CHAT.waiting = true; S.lastAct = Date.now(); S.said = "";
-    const line = "(" + m.text + ")";
+    const line = "(" + m.text + FILLER_RULE + ")";
     if (S.provider === "openai") { send({ type:"conversation.item.create", item:{ type:"message", role:"user", content:[{ type:"input_text", text: line }] } }); send({ type:"response.create" }); }
     else send({ realtimeInput:{ text: line } });
     setTimeout(() => { CHAT.waiting = false; }, 15000);
@@ -822,7 +824,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014225628";
+const BUILD = "20261014230200";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
