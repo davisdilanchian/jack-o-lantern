@@ -229,7 +229,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <details class="steps" id="morevoices"><summary>Try other voices</summary>
         <select id="voice" hidden></select>
         <div id="voicechips" class="chips" role="radiogroup" aria-label="Voice"></div>
-        <p id="voicemsg" class="help" role="status">Tap a voice to hear it. The one you tap is the one it uses.</p>
+        <p id="voicemsg" class="help" role="status">Tap a voice to hear it and use it.</p>
         </details>
       </div>
     </div>
@@ -238,10 +238,9 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <h2>Set it up</h2>
       <details id="ownkey" class="ownkey freeopt">
       <summary>Free option: use your own Google key</summary>
-      <p class="help">Bring a free Google key (or an OpenAI key) and the pumpkin is free, in each character's own voice. Want every voice and color too? A Pumpkin Pass adds them, and your key still does the talking.</p>
+      <p class="help">Free with your own Google (or OpenAI) key, in each character's own voice. A Pumpkin Pass adds every voice and color, and your key still does the talking.</p>
     <section id="key-section">
-      <h2>Your own key</h2>
-      <p class="help" style="margin-top:0">The pumpkin's voice and wit come from Google (or OpenAI). A "key" is a long code, like a password, that lets your pumpkin use them. Google's is free.</p>
+      <p class="help" style="margin-top:0">A key is a long code, like a password, that lets the pumpkin use Google (free) or OpenAI (paid).</p>
       <div class="seg" role="radiogroup" aria-label="Which service">
         <button type="button" id="provgemini" role="radio">Google <small>free</small></button>
         <button type="button" id="provopenai" role="radio">OpenAI <small>paid</small></button>
@@ -251,24 +250,22 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <details class="steps" id="howgemini">
         <summary>How do I get a key?</summary>
         <ol>
-          <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google's free key page</a> and sign in with any Google or Gmail account. Agree to the terms if it asks.</li>
-          <li>Tap <b>Create API key</b>.</li>
-          <li>Tap the copy button next to the long code.</li>
-          <li>Come back here and paste it in the box above.</li>
+          <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google's free key page</a> and sign in with any Google account.</li>
+          <li>Tap <b>Create API key</b> and copy the code.</li>
+          <li>Paste it in the box above.</li>
         </ol>
       </details>
       <details class="steps" id="howopenai" style="display:none">
         <summary>How do I get a key?</summary>
         <ol>
           <li>Open <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">OpenAI's key page</a> and sign in.</li>
-          <li>Tap <b>Create new secret key</b>, then copy it. It starts with sk-.</li>
-          <li>Add a few dollars of credit under <b>Billing</b>. OpenAI isn't free: about a few cents per conversation.</li>
-          <li>Come back here and paste it in the box above.</li>
+          <li>Tap <b>Create new secret key</b> and copy it (it starts with sk-).</li>
+          <li>Add a few dollars under <b>Billing</b>. It costs a few cents per conversation.</li>
+          <li>Paste it in the box above.</li>
         </ol>
       </details>
       <p id="keykind" class="help" role="status"></p>
-      <p class="help">You can save both a Google and an OpenAI key and switch between them with the buttons above.</p>
-      <p class="help">Your key stays on this phone. It only goes to Google (or OpenAI). Don't share it with people you don't know.</p>
+      <p class="help">Your key stays on this phone and only goes to Google or OpenAI. You can save one of each and switch above.</p>
     </section>
     <section id="unlockbox" hidden>      <!-- retired $1.99 unlock: kept so earlier buyers stay unlocked -->
       <h2>Unlock everything</h2>
@@ -303,10 +300,10 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <p class="help center" style="margin:14px 0 0">No key? We handle everything.</p>
         <div id="nopass">
           <a id="buypass" class="tipbtn" target="_self">🎃 Get a Pumpkin Pass, $4.99</a>
-          <p class="help center">About 400 replies, plus every character, voice, and color, and any ElevenLabs voice with your own ElevenLabs key.</p>
+          <p class="help center">About 400 replies, every voice and color, and ElevenLabs voices.</p>
       </div>
         <div id="haspass" style="display:none">
-          <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked. If you also enter your own key, the pumpkin talks on your key and the battery is saved.</p>
+          <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked. Add your own key too and it talks on that, saving the battery.</p>
           <div class="battery"><div id="batteryfill"></div></div>
           <p id="batterytext" class="help"></p>
           <a id="refill" class="tipbtn" target="_self">🔋 Refill, $2.99 (about 250 replies)</a>
@@ -321,12 +318,12 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <p id="keymsg" class="help" role="status" style="color:var(--fg)"></p>
       <div id="scanbox">
         <video id="scanvid" playsinline muted></video>
-        <p class="help">Point this camera at the square code on the other phone.</p>
+        <p class="help">Point the camera at the code on the other phone.</p>
         <button id="stopscan" type="button" style="margin-top:8px">Cancel</button>
       </div>
       <div id="qrbox" role="dialog" aria-label="QR code with your key">
         <div id="qr"></div>
-        <p>On the old phone, open jack-o.io, tap <b>Scan Key</b>, and point it here. This code carries your pass or key, so hide it when you're done.</p>
+        <p>On the old phone, open jack-o.io and tap <b>Scan Key</b>. Hide this when done: it carries your pass or key.</p>
         <button id="hideqr" type="button" style="margin-top:10px;color:#1a1410;border-color:#d9cfc6">Hide code</button>
       </div>
       <details class="ownkey" id="moreopts">
@@ -334,7 +331,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <div class="field">
       <details class="steps" id="elbox">
         <summary>ElevenLabs voice <span id="ellockbadge" class="lockbadge">🔒</span></summary>
-        <p class="help" style="margin-top:0">Give your pumpkin any voice from your ElevenLabs account, even one you designed or cloned. Your ElevenLabs account pays for the voice.</p>
+        <p class="help" style="margin-top:0">Use any voice from your ElevenLabs account, even your own clone. ElevenLabs bills you for the voice.</p>
         <p id="ellock" class="help"><b>🔒 Included with the Pumpkin Pass.</b> <a href="#passbox">Get a pass</a> to use it.</p>
         <label for="elkey">ElevenLabs API key</label>
         <input id="elkey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your ElevenLabs key">
@@ -346,17 +343,17 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <details class="steps"><summary>Where do I find these?</summary>
           <ol>
             <li>Sign in at <a href="https://elevenlabs.io/app" target="_blank" rel="noopener">elevenlabs.io</a>.</li>
-            <li><b>Key:</b> open your profile menu, then <b>API Keys</b>, then <b>Create</b>. Allow "Text to Speech". Copy it.</li>
-            <li><b>Voice ID:</b> open <b>Voices</b>, pick a voice, open its menu, and tap <b>Copy voice ID</b>.</li>
+            <li><b>Key:</b> profile menu › <b>API Keys</b> › <b>Create</b>, with "Text to Speech" allowed.</li>
+            <li><b>Voice ID:</b> <b>Voices</b> › pick one › its menu › <b>Copy voice ID</b>.</li>
           </ol>
         </details>
-        <p class="help">While this is on, the voices above aren't used. Your ElevenLabs key stays on this phone.</p>
+        <p class="help">This replaces the voices above. Your key stays on this phone.</p>
       </details>
       </div>
       <div class="field">
         <label for="lang">Language</label>
         <select id="lang"></select>
-        <p class="help"><b>Match the visitor</b> answers in the language people speak to it. If it switches languages by mistake, pick one language.</p>
+        <p class="help"><b>Match the visitor</b> replies in their language. If it switches by mistake, pick one.</p>
       </div>
       <div id="light-section" class="field">
       <label>Lantern color <span class="lockbadge" data-lock>🔒</span></label>
@@ -381,15 +378,11 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
     <details id="privacy" class="ownkey">
       <summary>Privacy</summary>
       <ul class="help plain">
-        <li>When someone talks to the pumpkin, what they say goes to Google (or OpenAI, if you use an OpenAI key) so it can answer.</li>
-        <li>This website doesn't record or keep anything. Your key and settings stay on this phone.</li>
-        <li>With a free Google key, Google may use what it hears to improve its products.</li>
-        <li>Payments are handled by Stripe. Your card details never touch this site.</li>
-        <li>If you use your own key, the site checks a scrambled fingerprint of it (never the key itself) to restore an earlier purchase. It can't be turned back into your key.</li>
-        <li>The how-it-works video plays from YouTube (privacy-enhanced mode).</li>
-        <li>If you came here from a Google ad, Google's ad tag notes whether that visit led to a purchase, so we can tell which ads work. It doesn't see what the pumpkin hears.</li>
-        <li>If you add an ElevenLabs key, the words the pumpkin says go to ElevenLabs so it can speak them in your voice.</li>
-        <li>The site counts anonymous usage, like page views and which options are used, with a random number stored on your phone. No names, no accounts, nothing it hears.</li>
+        <li>What visitors say goes to Google (or OpenAI) so the pumpkin can answer. With a free Google key, Google may use it to improve its products.</li>
+        <li>This site records nothing. Your key and settings stay on this phone.</li>
+        <li>With an ElevenLabs key, the pumpkin's words go to ElevenLabs to be spoken.</li>
+        <li>Stripe handles payments; card details never touch this site. To restore an earlier purchase, the site checks a scrambled fingerprint of your key, never the key.</li>
+        <li>We count anonymous usage (page views, options used) with a random number on your phone. Google's ad tag notes which ad visits led to a purchase. The video plays from YouTube (privacy-enhanced).</li>
         <li>Put a small "talking pumpkin" sign nearby so people know it's listening.</li>
       </ul>
     </details>
@@ -414,7 +407,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <a href="https://youtube.com/@davisdilanchian" target="_blank" rel="noopener">YouTube</a>
         <a href="https://x.com/davisdilanchian" target="_blank" rel="noopener">X</a>
       </p>
-      <p class="help"><b>Choppy or stuttering sound?</b> Open this page in <b>Chrome</b> instead of the phone's built-in browser. Some older built-in browsers (like Samsung Internet) can't keep up with live audio.</p>
+      <p class="help"><b>Choppy sound?</b> Open this page in <b>Chrome</b>, not the phone's built-in browser.</p>
       <p class="made">Made by <a href="https://davisdilanchian.com" target="_blank" rel="noopener">Davis Dilanchian</a>. More projects on my site.</p>
     </footer>
   </div>
@@ -718,7 +711,7 @@ async function sampleVoice(v) {
   src.onended = () => { if (SAMPLE.src === src) stopSample(); };
   src.start(); SAMPLE.src = src;
   for (const b of $("voicechips").children) b.classList.toggle("playing", b.dataset.v === v);
-  if (/^(Loading|Getting)/.test($("voicemsg").textContent)) voiceMsg("Tap a voice to hear it. The one you tap is the one it uses.");
+  if (/^(Loading|Getting)/.test($("voicemsg").textContent)) voiceMsg("Tap a voice to hear it and use it.");
 }
 
 // Notice the key however it arrives: typing, pasting, autofill, a scanned QR, or a saved key.
@@ -1218,7 +1211,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015153210";
+const BUILD = "20261015153334";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
