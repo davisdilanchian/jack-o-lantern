@@ -468,17 +468,27 @@ const boostLevel = () => Math.min(300, Math.max(100, +store.get("boost", "100") 
 // speech, 100% -> about -16 dB and 300% -> about -8.5 dB, so roughly 1.75 times as loud.
 const CLIP_CURVE = (() => { const n = 2048, c = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; c[i] = Math.tanh(1.5 * x) / Math.tanh(1.5); } return c; })();
 function makeBoost(ctx) {
-  const comp = ctx.createDynamicsCompressor(), gain = ctx.createGain(), clip = ctx.createWaveShaper();
-  comp.knee.value = 12; comp.attack.value = 0.003; comp.release.value = 0.2; clip.curve = CLIP_CURVE;
+  // At 100% there is nothing here but one plain connection: no compressor or clipper exists, so old
+  // phones (whose audio thread is already busy with echo cancellation) carry no extra load.
   const input = ctx.createGain(), output = ctx.createGain();
-  comp.connect(gain); gain.connect(clip); clip.connect(output);
-  let on = null;
+  let parts = null;
   const set = b => {
-    comp.threshold.value = -8 - 7 * (b - 1); comp.ratio.value = 1 + 4 * (b - 1); gain.gain.value = 0.75 * b;
-    const want = b > 1.001;                                  // at 100% the sound goes straight through, untouched
-    if (want === on) return; on = want;
-    try { input.disconnect(); } catch {}
-    input.connect(want ? comp : output);
+    const want = b > 1.001;
+    if (want && !parts) {
+      const comp = ctx.createDynamicsCompressor(), gain = ctx.createGain(), clip = ctx.createWaveShaper();
+      comp.knee.value = 12; comp.attack.value = 0.003; comp.release.value = 0.2; clip.curve = CLIP_CURVE;
+      comp.connect(gain); gain.connect(clip); clip.connect(output);
+      parts = { comp, gain, clip };
+      try { input.disconnect(); } catch {}
+      input.connect(comp);
+    }
+    if (!want && parts) {
+      try { input.disconnect(); } catch {}
+      for (const n of Object.values(parts)) { try { n.disconnect(); } catch {} }
+      parts = null;
+    }
+    if (!want) { try { input.disconnect(); } catch {} input.connect(output); return; }
+    parts.comp.threshold.value = -8 - 7 * (b - 1); parts.comp.ratio.value = 1 + 4 * (b - 1); parts.gain.gain.value = 0.75 * b;
   };
   set(boostLevel());
   return { input, output, set };
@@ -774,7 +784,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014213108";
+const BUILD = "20261014214745";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1152,7 +1162,7 @@ function telReport() {
   TEL.on = false;
   const r = { ua:navigator.userAgent.slice(0, 120), provider:S.provider, rate:S.ctx && S.ctx.sampleRate, baseLatency:S.ctx && S.ctx.baseLatency, outputLatency:S.ctx && S.ctx.outputLatency,
     mic:!!S.mic, audioSec:+(TEL.samples / 24000).toFixed(2), arrivedOverSec:+((TEL.lastAt - TEL.t0) / 1000).toFixed(2), chunks:TEL.chunks,
-    maxChunkGapMs:Math.round(TEL.maxGap), underruns:S.dbg.underrun - TEL.under, minBufferAheadSec:+TEL.minAhead.toFixed(3), maxFreezeMs:Math.round(TEL.stall), cushion:PLAY.cushion, capture:S.capture || "none", light:lightMode(), torchToggles:S.dbg.torch, watchdogs:S.dbg.watchdog, stream:streamOn(), build:BUILD };
+    maxChunkGapMs:Math.round(TEL.maxGap), underruns:S.dbg.underrun - TEL.under, minBufferAheadSec:+TEL.minAhead.toFixed(3), maxFreezeMs:Math.round(TEL.stall), cushion:PLAY.cushion, capture:S.capture || "none", light:lightMode(), boost:boostLevel(), torchToggles:S.dbg.torch, watchdogs:S.dbg.watchdog, stream:streamOn(), build:BUILD };
   fetch("/api/stream/report", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(r) }).catch(() => {});
 }
 function play(b64data) {
