@@ -89,10 +89,11 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   .overlay .help.small { font-size:14px; }
   .overlay details#privacy ul { margin-top:10px; }
   .overlay #characters #start { margin-top:14px; }
-  .overlay .intro { display:grid; grid-template-columns:minmax(0,1fr) minmax(118px,36%); gap:16px; align-items:start; margin-top:4px; }
+  .overlay .intro { display:grid; grid-template-columns:minmax(0,1fr) minmax(104px,32%); gap:14px; align-items:center; margin-top:6px; }
+  .overlay .intro ol.steps3 { margin-top:8px; }
   .overlay .introvid .help { font-size:13px; text-align:center; }
   @media (max-width:340px) { .overlay .intro { grid-template-columns:1fr; } .overlay .introvid { width:min(210px,70vw); margin:0 auto; } }
-  .overlay .demo { width:100%; aspect-ratio:9/16; margin:10px 0 0; border-radius:16px; overflow:hidden; background:#000;
+  .overlay .demo { width:100%; aspect-ratio:9/16; margin:0; border-radius:16px; overflow:hidden; background:#000;
     border:1.5px solid var(--ink); box-shadow:2px 3px 0 rgba(58,40,26,.85); }
   .overlay .demo iframe { display:block; width:100%; height:100%; border:0; }
   /* Type scale: Patrick Hand for headings, buttons and every fold-out title; the system font for reading text. */
@@ -198,9 +199,9 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
     <p id="version" class="version"></p>
     <img class="hero" src="og.jpg" width="1200" height="630" alt="Watercolor of a hand dropping a phone into a pumpkin, which then glows as a jack-o'-lantern.">
     <h1>Talking Jack-o'-Lantern</h1>
+    <p class="lede">Put an old phone in a pumpkin. It hears trick-or-treaters and talks back in character.</p>
     <div class="intro">
       <div class="introtext">
-      <p class="lede">Put an old phone in a pumpkin. It hears trick-or-treaters and talks back in character.</p>
       <ol class="steps3" id="how">
         <li><span class="num">1</span><span><b>Open jack-o.io on an old phone.</b></span></li>
         <li><span class="num">2</span><span><b>Power it up:</b> enter a free key, scan a code from your other phone, or get a Pumpkin Pass.</span></li>
@@ -208,7 +209,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       </ol>
       </div>
       <div class="introvid">
-      <div class="demo"><iframe id="demovid" title="Jack-o talking to trick-or-treaters" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+      <div class="demo"><iframe id="demovid" title="Jack-o talking to trick-or-treaters" src="https://www.youtube-nocookie.com/embed/3MoDAMpuUsY?autoplay=1&amp;mute=1&amp;loop=1&amp;playlist=3MoDAMpuUsY&amp;playsinline=1&amp;rel=0&amp;modestbranding=1" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
       <p class="help center">Tap for sound.</p>
       </div>
     </div>
@@ -1167,7 +1168,7 @@ function demo(on) {
   const f = $("demovid"); if (OWNER_PAGE) { f.parentNode.style.display = "none"; return; }
   const want = on ? DEMO : "about:blank"; if ((f.getAttribute("src") || "about:blank") !== want) f.setAttribute("src", want);
 }
-setTimeout(() => { if ($("setup").style.display !== "none") demo(true); }, 1200);
+if (OWNER_PAGE) demo(false);
 $("gear").onclick = e => { e.stopPropagation(); demo(true); $("setup").style.display = "flex"; $("start").textContent = "Save and resume"; };
 // Settings changed: hang up any conversation in progress so the next one uses the new character, voice and language.
 function endVisitForNewSettings() { if (S.ctx && S.phase !== "idle") { stopPlayback(); closeVisit(); } }
@@ -1195,7 +1196,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015144210";
+const BUILD = "20261015144832";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
