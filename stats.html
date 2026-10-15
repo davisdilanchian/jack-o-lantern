@@ -13,7 +13,7 @@
   h1 { font-size:24px; margin:0 0 4px; color:var(--ink); }
   h2 { font-size:16px; margin:26px 0 10px; color:var(--ink); }
   .sub { color:var(--muted); margin:0 0 14px; font-size:13px; }
-  .seg { display:inline-flex; border:1.5px solid var(--ink); border-radius:10px; overflow:hidden; margin:6px 0 4px; }
+  .seg { display:inline-flex; flex-wrap:wrap; border:1.5px solid var(--ink); border-radius:10px; overflow:hidden; margin:6px 0 4px; }
   .seg button { font:inherit; padding:7px 14px; border:0; background:var(--surface); color:var(--ink); cursor:pointer; }
   .seg button + button { border-left:1.5px solid var(--ink); }
   .seg button.on { background:var(--accent); color:#2b1d12; font-weight:600; }
@@ -45,7 +45,7 @@
   <h1>🎃 Jack-o stats</h1>
   <p class="sub" id="asof">Loading…</p>
   <div class="seg" role="radiogroup" aria-label="Period">
-    <button data-p="today" class="on">Today</button><button data-p="7">7 days</button><button data-p="all">All</button>
+    <button data-p="hour">This hour</button><button data-p="today" class="on">Today</button><button data-p="24h">24 hours</button><button data-p="7">7 days</button><button data-p="all">All</button><button data-p="update">Since update</button>
   </div>
   <div id="out"></div>
 </main>
@@ -62,16 +62,35 @@ const OPENED = { ownkey:"Free option (own key)", moreopts:"More options", phonet
   howgemini:"How do I get a key? (Google)", howopenai:"How do I get a key? (OpenAI)" };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 const pct = (a, b) => b ? (100 * a / b).toFixed(a / b < 0.1 ? 1 : 0) + "%" : "–";
-function days() {
+function days(everyDay) {
   const all = new Set([...Object.keys(DATA.events), ...Object.keys(DATA.loads), ...DATA.sales.map(s => DAY(s.at))]);
   const list = [...all].sort();
+  if (everyDay) return list;
   if (PERIOD === "today") return [DAY(Date.now())];
   if (PERIOD === "7") { const cut = DAY(Date.now() - 6 * 86400000); return list.filter(d => d >= cut); }
   return list;
 }
-function sum(ds, pick) {      // add up per-day objects
+// The counts for the chosen period: a list of count objects, plus when the period starts (for sales).
+function period() {
+  const now = Date.now();
+  if (PERIOD === "hour" || PERIOD === "24h") {
+    const n = PERIOD === "hour" ? 1 : 24, keys = [];
+    for (let i = 0; i < n; i++) keys.push(new Date(now - i * 3600000).toISOString().slice(0, 13));
+    return { objs: keys.map(k => (DATA.hours || {})[k]).filter(Boolean), from: PERIOD === "hour" ? new Date(new Date().toISOString().slice(0, 13) + ":00:00Z").getTime() : now - 86400000, days: [] };
+  }
+  if (PERIOD === "update") {
+    const b = Object.keys(DATA.builds || {}).sort().pop();
+    return { objs: b ? [DATA.builds[b]] : [], from: b ? buildTime(b) : now, days: [], build: b };
+  }
+  const ds = days();
+  return { objs: ds.map(d => DATA.events[d]).filter(Boolean), from: null, days: ds };
+}
+// Site versions are named by when they went out (Pacific time on the deploying Mac): 20261015152627.
+const buildTime = b => new Date(+b.slice(0, 4), +b.slice(4, 6) - 1, +b.slice(6, 8), +b.slice(8, 10), +b.slice(10, 12), +b.slice(12, 14)).getTime();
+const when = t => new Date(t).toLocaleString([], { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" });
+function sum(objs, pick) {     // add up count objects
   const o = {};
-  for (const d of ds) { const v = pick(DATA.events[d]) || {}; for (const [k, n] of Object.entries(v)) o[k] = (o[k] || 0) + n; }
+  for (const e of objs) { const v = (e && pick(e)) || {}; for (const [k, n] of Object.entries(v)) o[k] = (o[k] || 0) + n; }
   return o;
 }
 function bars(obj, label = k => k, total, keepOrder) {
@@ -82,14 +101,15 @@ function bars(obj, label = k => k, total, keepOrder) {
     <div class="track"><div class="fill" style="width:${(100 * n / max).toFixed(1)}%"></div></div><div class="v">${n} · ${pct(n, tot)}</div></div>`).join("") + "</div>";
 }
 function render() {
-  const ds = days(), set = new Set(ds);
-  const u = sum(ds, d => d && d.u), n = sum(ds, d => d && d.n);
+  const P = period(), ds = P.days, set = new Set(ds);
+  const u = sum(P.objs, d => d.u), n = sum(P.objs, d => d.n);
   const by = (obj, prefix) => Object.fromEntries(Object.entries(obj).filter(([k]) => k.startsWith(prefix + ":")).map(([k, v]) => [k.slice(prefix.length + 1), v]));
-  const sales = DATA.sales.filter(s => set.has(DAY(s.at)));
+  const sales = P.from ? DATA.sales.filter(s => s.at >= P.from) : DATA.sales.filter(s => set.has(DAY(s.at)));
   const rev = sales.reduce((a, s) => a + (s.amount || 0), 0) / 100;
   const soldKinds = sales.reduce((o, s) => (o[s.kind] = (o[s.kind] || 0) + 1, o), {});
   const phones = u.load || 0, loads = ds.reduce((a, d) => a + (DATA.loads[d] || 0), 0);
-  const multi = PERIOD !== "today" ? '<p class="note">Over several days, "phones" adds up each day\'s count, so a phone that came back on two days counts twice.</p>' : "";
+  const multi = P.objs.length > 1 ? '<p class="note">This period adds up several days or hours, so a phone that came back in two of them counts twice.</p>' : "";
+  const since = PERIOD === "update" ? (P.build ? '<p class="note"><b>Since the site update at ' + when(buildTime(P.build)) + '.</b> Only visits from that version count here.</p>' : '<p class="note">No visits counted on the newest version yet.</p>') : "";
   const funnel = { "Visited the site": u.load || 0, "Played a character's voice": u.hear || 0, "Tapped a buy button": u.buy || 0,
     "Came back from paying": u.paid_back || 0, "Tapped Start": u.start || 0, "Had a trick-or-treater (a conversation)": u.visit || 0 };
   $("out").innerHTML = `
@@ -101,7 +121,7 @@ function render() {
       <div class="card"><b>${pct(sales.length, phones)}</b><span>of visiting phones bought</span></div>
       <div class="card"><b>${n.visit || 0}</b><span>conversations with visitors</span></div>
     </div>
-    ${multi}
+    ${multi}${since}
     <h2>Where people drop off (phones)</h2>
     ${bars(funnel, k => k, phones, true)}
     <p class="note">Percentages are of phones that visited. Buy taps: ${Object.entries(by(u, "buy")).map(([k, v]) => v + " " + k).join(", ") || "none"}. Sold: ${Object.entries(soldKinds).map(([k, v]) => v + " " + k).join(", ") || "none"}.</p>
@@ -123,14 +143,20 @@ function render() {
     ${bars(by(n, "visit"), k => MODE[k] || k)}
     <p class="note">Battery ran out: ${u.drained || 0} phone(s). Showed the move-to-old-phone code: ${u.code_show || 0}. Scanned it: ${u.code_scan || 0}.</p>
     <div class="two">
-      <div><h2>Where visitors came from</h2>${bars(sum(ds, d => d && d.src))}</div>
-      <div><h2>Devices</h2>${bars(sum(ds, d => d && d.dev))}<h2>Countries</h2>${bars(sum(ds, d => d && d.cc))}</div>
+      <div><h2>Where visitors came from</h2>${bars(sum(P.objs, d => d.src))}</div>
+      <div><h2>Devices</h2>${bars(sum(P.objs, d => d.dev))}<h2>Countries</h2>${bars(sum(P.objs, d => d.cc))}</div>
     </div>
     <h2>By day</h2>
     <div class="tablewrap"><table><thead><tr><th>Day</th><th>Page loads</th><th>Phones</th><th>Heard</th><th>Buy taps</th><th>Sales</th><th>Revenue</th><th>Started</th><th>Conversations</th></tr></thead><tbody>
-    ${[...ds].reverse().map(d => { const e = DATA.events[d] || { u:{}, n:{} }, s = DATA.sales.filter(x => DAY(x.at) === d);
+    ${[...days(true)].reverse().map(d => { const e = DATA.events[d] || { u:{}, n:{} }, s = DATA.sales.filter(x => DAY(x.at) === d);
       return `<tr><td>${d}</td><td>${DATA.loads[d] || 0}</td><td>${e.u.load || 0}</td><td>${e.u.hear || 0}</td><td>${e.u.buy || 0}</td><td>${s.length}</td><td>$${(s.reduce((a, x) => a + (x.amount || 0), 0) / 100).toFixed(2)}</td><td>${e.u.start || 0}</td><td>${e.n.visit || 0}</td></tr>`; }).join("")}
     </tbody></table></div>
+    <h2>By site update</h2>
+    <div class="tablewrap"><table><thead><tr><th>Version (went live)</th><th>Phones</th><th>Heard</th><th>Saw the Pass</th><th>Buy taps</th><th>Sales</th><th>Started</th><th>Conversations</th></tr></thead><tbody>
+    ${(() => { const bs = Object.keys(DATA.builds || {}).sort(); return bs.map((b, i) => { const e = DATA.builds[b], t0 = buildTime(b), t1 = i + 1 < bs.length ? buildTime(bs[i + 1]) : Infinity, sl = DATA.sales.filter(x => x.at >= t0 && x.at < t1);
+      return `<tr><td>${when(t0)}</td><td>${e.u.load || 0}</td><td>${e.u.hear || 0}</td><td>${e.u["seen:pumpkinpass"] || 0}</td><td>${e.u.buy || 0}</td><td>${sl.length}</td><td>${e.u.start || 0}</td><td>${e.n.visit || 0}</td></tr>`; }).reverse().join(""); })()}
+    </tbody></table></div>
+    <p class="note">Counting by version and by hour started Oct 15 around 3:30 PM.</p>
     <p class="note">"Page loads" is the older raw count. It includes reloads, and before Oct 15 afternoon it included the automatic reload after each site update. "Phones" counts each phone once a day (a random number stored on the phone, no personal data). Phone counts start Oct 15, 2026. Sales come from the payment records.</p>`;
 }
 async function load() {

@@ -444,13 +444,14 @@ function visitSource() {
 }
 function track(e, k) {
   if (location.pathname.replace(/\/$/, "") === "/streaming" || /^(localhost|127\.)/.test(location.hostname)) return;
-  const body = JSON.stringify({ e, k: k || "", aid: AID, dev: DEV, src: e === "load" ? visitSource() : undefined });
+  let b = ""; try { b = BUILD; } catch {}                     // site version, for "since the last update" on /stats
+  const body = JSON.stringify({ e, k: k || "", aid: AID, dev: DEV, b, src: e === "load" ? visitSource() : undefined });
   const url = (/(^|\.)jack-o\.io$/.test(location.hostname) ? "" : "https://jack-o.io") + "/api/ev";
   try { if (!navigator.sendBeacon || !navigator.sendBeacon(url, body)) fetch(url, { method:"POST", body, keepalive:true }).catch(() => {}); } catch {}
 }
 (function trackLoad() {             // the reload after a site update isn't a new visit
   let again = false; try { again = sessionStorage.getItem("selfReload") === "1"; sessionStorage.removeItem("selfReload"); } catch {}
-  if (!again) track("load");
+  if (!again) setTimeout(() => track("load"), 0);            // after the whole script ran, so the version is known
 })();
 
 // ------------------------------------------------------------------ key handoff: a QR link with the key after "#".
@@ -1220,7 +1221,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015152627";
+const BUILD = "20261015152825";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
