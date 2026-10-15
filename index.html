@@ -468,30 +468,16 @@ const boostLevel = () => Math.min(300, Math.max(100, +store.get("boost", "100") 
 // speech, 100% -> about -16 dB and 300% -> about -8.5 dB, so roughly 1.75 times as loud.
 const CLIP_CURVE = (() => { const n = 2048, c = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; c[i] = Math.tanh(1.5 * x) / Math.tanh(1.5); } return c; })();
 function makeBoost(ctx) {
-  // At 100% there is nothing here but one plain connection: no compressor or clipper exists, so old
-  // phones (whose audio thread is already busy with echo cancellation) carry no extra load.
-  const input = ctx.createGain(), output = ctx.createGain();
-  let parts = null;
-  const set = b => {
-    const want = b > 1.001;
-    if (want && !parts) {
-      const comp = ctx.createDynamicsCompressor(), gain = ctx.createGain(), clip = ctx.createWaveShaper();
-      comp.knee.value = 12; comp.attack.value = 0.003; comp.release.value = 0.2; clip.curve = CLIP_CURVE;
-      comp.connect(gain); gain.connect(clip); clip.connect(output);
-      parts = { comp, gain, clip };
-      try { input.disconnect(); } catch {}
-      input.connect(comp);
-    }
-    if (!want && parts) {
-      try { input.disconnect(); } catch {}
-      for (const n of Object.values(parts)) { try { n.disconnect(); } catch {} }
-      parts = null;
-    }
-    if (!want) { try { input.disconnect(); } catch {} input.connect(output); return; }
-    parts.comp.threshold.value = -8 - 7 * (b - 1); parts.comp.ratio.value = 1 + 4 * (b - 1); parts.gain.gain.value = 0.75 * b;
-  };
-  set(boostLevel());
-  return { input, output, set };
+  // The boost is applied to the voice before it is played (see play()), so the audio system itself only
+  // ever carries one plain connection. A compressor here overloaded old phones' audio thread.
+  const input = ctx.createGain(), output = input;
+  return { input, output, set: () => {} };
+}
+// Volume boost and peak rounding, applied to each sample of the voice: below 0.8 it is a plain
+// multiply; above that, peaks are rounded off smoothly instead of clipping.
+function boostSample(x, g) {
+  x *= g; const a = Math.abs(x);
+  return a <= 0.8 ? x : Math.sign(x) * (0.8 + 0.2 * Math.tanh((a - 0.8) / 0.2));
 }
 $("boost").value = store.get("boost", "100"); $("boostval").textContent = $("boost").value + "%";
 $("boost").oninput = () => {
@@ -566,7 +552,7 @@ async function sampleVoice(v) {
   if (mine !== SAMPLE.n) return;
   // Sample files are already loudness-matched when they're recorded; play them as they are.
   const g = ctx.createGain();
-  const bc = makeBoost(ctx); g.connect(bc.input); bc.output.connect(ctx.destination);
+  g.gain.value = Math.min(2, boostLevel()); g.connect(ctx.destination);
   const src = ctx.createBufferSource(); src.buffer = buf; src.connect(g);
   src.onended = () => { if (SAMPLE.src === src) stopSample(); };
   src.start(); SAMPLE.src = src;
@@ -654,7 +640,7 @@ function save() {
 const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, torchAt:0, ws:null, phase:"idle",
   muted:false, turn:false, greeting:false, playEnd:0, floor:0.01, loud:0, lastAct:0, start:0, end:0, visits:[],
   analyser:null, out:null, level:0, peak:0.05, said:"", wake:null, visitId:0, lastChunk:0, lastMsg:0, echo:0.02, couple:0.5, outHist:[], hold:[], barge:false, dbg:{ barge:0, interrupted:0, underrun:0, watchdog:0, torch:0 }, heard:"", cmd:null, pre:[], cmdBusy:false, cmdTimes:[], inRate: providerOf(store.get("geminiKey","")) === "openai" ? 24000 : 16000 };
-const TUNE = { ratio:3.5, min:0.015, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.6 };
+const TUNE = { ratio:2.5, min:0.01, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.6 };
 const status = t => $("status").textContent = t;
 const speaking = () => S.turn || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
 
@@ -785,7 +771,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014215318";
+const BUILD = "20261014220347";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -943,7 +929,7 @@ async function reopenMic() {
   } catch {}
   S.micOpening = false;
 }
-const micBusy = () => S.turn || PLAY.queue.length > 0 || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + 0.4);
+const micBusy = () => S.turn || PLAY.queue.length > 0 || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + 0.15);
 function micDuty() {
   freshOutput.pending && !micBusy() && freshOutput() && (freshOutput.pending = false);
   if (!IOS || !S.capNode) return;
@@ -1037,7 +1023,7 @@ function runVisit(isPreview) {
     generationConfig:{ responseModalities:["AUDIO"], speechConfig: Object.assign(store.get("lang","auto") === "auto" ? {} : { languageCode: store.get("lang","auto") }, { voiceConfig:{ prebuiltVoiceConfig:{ voiceName: activeVoice() } } }) },
     systemInstruction:{ parts:[{ text: personaText() }] },
     realtimeInputConfig:{ activityHandling: "NO_INTERRUPTION",
-      automaticActivityDetection:{ endOfSpeechSensitivity:"END_SENSITIVITY_HIGH", silenceDurationMs:500 } },
+      automaticActivityDetection:{ startOfSpeechSensitivity:"START_SENSITIVITY_HIGH", endOfSpeechSensitivity:"END_SENSITIVITY_HIGH", silenceDurationMs:500 } },
     outputAudioTranscription:{}, inputAudioTranscription:{}
   }}));
   ws.onmessage = e => handle(typeof e.data === "string" ? e.data : new TextDecoder().decode(e.data));
@@ -1056,7 +1042,7 @@ async function openAIVisit(isPreview, key, id) {
   const session = { type:"realtime", model: OA_MODELS[oaIdx], instructions: personaText(),
     audio:{ input:{ format:{ type:"audio/pcm", rate:24000 },
                     transcription:{ model:"gpt-4o-mini-transcribe" },
-                    turn_detection:{ type:"server_vad", threshold:0.55, silence_duration_ms:450, prefix_padding_ms:250, create_response:true, interrupt_response: false } },
+                    turn_detection:{ type:"server_vad", threshold:0.4, silence_duration_ms:450, prefix_padding_ms:250, create_response:true, interrupt_response: false } },
             output:{ format:{ type:"audio/pcm", rate:24000 }, voice: activeVoice() } } };
   let r, j = {};
   try {
@@ -1193,9 +1179,9 @@ function play(b64data) {
   const bin = atob(b64data), n = bin.length >> 1;
   if (!n) return;
   telChunk(n); S.lastChunk = Date.now(); if (IOS) releaseMic();
-  const g = S.provider === "openai" ? 1.5 : 1;            // OpenAI's voices are about 1.5x quieter than Google's
+  const g = (S.provider === "openai" ? 1.5 : 1) * boostLevel();   // OpenAI's voices are about 1.5x quieter than Google's; plus the volume boost
   const inp = new Float32Array(n);
-  for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if (v & 0x8000) v -= 0x10000; inp[i] = Math.max(-1, Math.min(1, v / 32768 * g)); }
+  for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if (v & 0x8000) v -= 0x10000; inp[i] = g === 1 ? v / 32768 : boostSample(v / 32768, g); }
   const rate = S.ctx.sampleRate, step = 24000 / rate;
   const outLen = Math.max(0, Math.ceil((n - 1 - PLAY.pos) / step));   // stop before the last input sample; the next chunk finishes the gap
   if (outLen <= 0) return;
@@ -1340,7 +1326,7 @@ function setMute(m) {
   $("muted").style.display = m ? "flex" : "none";
   S.cmd = null; S.pre = []; S.loud = 0;
   if (m) { stopPlayback(); closeVisit(); setTorch(false); }
-  else status(streamOn() ? "Live: waiting for chat" : "Waiting for visitors");
+  else { S.end = 0; S.floor = 0.01; status(streamOn() ? "Live: waiting for chat" : "Waiting for visitors"); }   // listen right away, fresh noise level
 }
 for (const el of [$("stage"), $("muted"), $("glow"), $("white")]) el.addEventListener("click", () => { if (S.ctx) setMute(!S.muted); });
 </script>
