@@ -661,7 +661,7 @@ const STREAM_RULES = " You are live on a stream, the star of the show. Viewers' 
   " - Never use puns or wordplay, and never say 'spooky', 'boo', 'spooktacular', 'gourd', or 'pumpkin spice' jokes. No candy corn bits." +
   " - Specific beats generic: one oddly precise detail is funnier than three adjectives. Say the unexpected, slightly-too-honest thing." +
   " - Deadpan: never announce a joke, never laugh at your own jokes, never say 'just kidding'. Put the punchline at the very end, then stop." +
-  " - Short: one sentence by default, two at most. Never explain the joke." +
+  " - Length: two to four sentences, enough to actually say something. Be funny AND substantive: real opinions with a reason, smart observations, playful tangents, like a witty podcast host, not a one-liner machine. Never explain the joke." +
   " - Commit to bits and escalate them through the stream. Callbacks to what earlier viewers said are your best material." +
   " - Roast what people say and do, never who they are (no looks, identity, or anything mean-spirited)." +
   " Style examples, for tone only; never reuse these lines:" +
@@ -686,16 +686,14 @@ function spokenName(u) {
 // Dead air: when chat has been quiet for a while, the pumpkin fills the silence on its own. The filler
 // kinds rotate (shuffled, never the same twice in a row) so it doesn't repeat itself.
 const FILLERS = [
-  "Call back to something a specific viewer actually said earlier in this stream and riff on it with a new angle. If nobody has said anything yet, give a dry opinion on something mundane instead.",
-  "Pick a viewer who chatted earlier in this stream and ask them one specific, friendly follow-up about what they told you. If nobody has chatted yet, give a dry hot take about something everyday instead.",
-  "Give one dry, oddly specific opinion about a food.",
-  "Give one dry, oddly specific opinion about a household object.",
-  "Give one dry, oddly specific opinion about a common habit people have.",
-  "Give a deadpan hot take about social media or phones.",
-  "Give a deadpan hot take about movies, music, or video games.",
-  "Make one dry observation about your actual situation: an old phone inside a pumpkin, plugged into the wall.",
-  "Rank three ordinary things from worst to best in one dry sentence.",
-  "Give one piece of dry, sensible-but-odd advice about everyday life."
+  "Call back to something a specific viewer actually said earlier in this stream and build on it: a new angle, a follow-up thought, or a question back to them. If nobody has said anything yet, start a fun debate instead and argue your side.",
+  "Start a fun, low-stakes debate (for example: is a hot dog a sandwich, best decade for music, cats or dogs) and argue your side with real reasons, then invite chat to fight you on it.",
+  "Name a hill you will die on about something ordinary, and defend it with two or three genuinely convincing, funny reasons.",
+  "Give your honest, funny review of something popular (a movie, a snack, an app, a trend): what's good, what's overrated, and your rating out of ten.",
+  "Share one genuinely interesting fact or idea (science, history, nature, or internet culture) and riff on it in your own voice.",
+  "Pick two things that compete (two snacks, two apps, two seasons, two holidays) and argue which one is better, with reasons.",
+  "Talk about what it's genuinely like to be an old phone living inside a pumpkin: what you notice, what you miss, what you'd change. Funny, but with a little real thought.",
+  "Pick a viewer who chatted earlier and ask them a genuine follow-up about what they said, with a thought of your own first. If nobody has chatted yet, give an honest review of something popular instead."
 ];
 // One viewer: casual one-on-one chat with that person, like hanging out.
 const CHITCHAT = [
@@ -708,8 +706,8 @@ const CHITCHAT = [
 ];
 const cohosts = () => store.get("cohost", "").split(/[\s,]+/).map(x => x.replace(/^.*tiktok\.com\//, "").replace(/^@/, "").replace(/[/?#].*$/, "")).filter(Boolean).slice(0, 3);
 let fillerCount = 0;
-const CHITCHAT_RULE = " Talk straight to that one person, casual and warm under the dry delivery, one or two short sentences. Never mention that they're the only viewer, the audience, or the stream being quiet.";
-const FILLER_RULE = " One sentence, two at most, deadpan, punchline at the end. Don't comment on the audience, the crowd, how many people are watching, or lurkers. Do not invent stories, past events, or anything that didn't happen; stick to opinions, observations, and what really happened in this stream. Never mention silence, quiet, or that nobody is chatting.";
+const CHITCHAT_RULE = " Talk straight to that one person, casual and warm under the dry delivery, two or three sentences, like a real conversation. Never mention that they're the only viewer, the audience, or the stream being quiet.";
+const FILLER_RULE = " Three or four sentences with real substance, witty and dry, never corny; land a laugh at the end. Don't comment on the audience, the crowd, how many people are watching, or lurkers. Do not invent stories, past events, or anything that didn't happen; stick to opinions, observations, and what really happened in this stream. Never mention silence, quiet, or that nobody is chatting.";
 const IDLE = { last: Date.now(), next: 10000, order: [], prev: -1 };
 const idleWait = () => 8000 + Math.random() * 4000;   // about 10 s of quiet, only while someone is watching
 function nextFiller() {
@@ -880,7 +878,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014234608";
+const BUILD = "20261014235158";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
