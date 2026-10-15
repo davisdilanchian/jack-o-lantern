@@ -127,6 +127,14 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
 #tapstart { position:fixed; inset:0; z-index:60; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; background:#000; color:#fff; font:600 22px system-ui,sans-serif; text-align:center; padding:24px; }
 #tapstart b { font-size:64px; }
 .version { margin:0 0 8px; font:12px ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--muted); text-align:right; }
+.battery { height:18px; border:1.5px solid var(--ink); border-radius:9px; overflow:hidden; background:var(--surface); margin:8px 0 4px; }
+#batteryfill { height:100%; width:0; background:var(--accent); transition:width .4s; }
+details.ownkey { margin:22px 0 0; border-top:1.5px dashed var(--line); padding-top:14px; }
+details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); font-size:17px; }
+#passbox .tipbtn { display:block; text-align:center; margin:10px 0 6px; }
+#characters .row select { flex:1 1 auto; min-width:0; }
+.overlay #hearchar { flex:0 0 auto; width:auto; padding:0 18px; }
+#morevoices { margin-top:12px; }
 </style>
 </head>
 <body>
@@ -148,15 +156,97 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
     <p id="version" class="version"></p>
     <img class="hero" src="og.jpg" width="1200" height="630" alt="Watercolor of a hand dropping a phone into a pumpkin, which then glows as a jack-o'-lantern.">
     <h1>Talking Jack-o'-Lantern</h1>
-    <p class="lede">Put a phone inside a pumpkin and it talks to trick-or-treaters. It hears them, answers out loud, and glows as it speaks. No app to install.</p>
+    <p class="lede">Put an old phone inside a pumpkin and it talks to trick-or-treaters. It hears them, answers out loud in character, and glows as it speaks.</p>
     <ol class="how" id="how">
-      <li><b>Get a free key from Google.</b> About 2 minutes.</li>
-      <li><b>Pick a character</b> and a voice.</li>
-      <li><b>Tap Start</b> and put the phone in your pumpkin.</li>
+      <li><b>Pick a pumpkin</b> and hear its voice.</li>
+      <li><b>Tap Start.</b> We run the AI for you.</li>
+      <li><b>Put the phone in your pumpkin.</b> That's it.</li>
     </ol>
 
+    <section id="characters">
+      <h2>1. Meet the pumpkins</h2>
+      <p class="help" style="margin-top:0">Pick a character and hear it. Tap any voice to hear it too.</p>
+      <div class="field">
+        <label for="persona">Personality</label>
+        <div class="row"><select id="persona"></select><button id="hearchar" type="button">▶ Hear</button></div>
+        <textarea id="custom" placeholder="Describe your pumpkin: who it is, how it talks, what it likes. For example: a sleepy grandpa pumpkin who loves bad jokes." style="display:none"></textarea>
+      </div>
+      <div class="field">
+        <details class="steps" id="morevoices"><summary>Try other voices</summary>
+        <select id="voice" hidden></select>
+        <div id="voicechips" class="chips" role="radiogroup" aria-label="Voice"></div>
+        <p id="voicemsg" class="help" role="status">Tap a voice to hear it. The one you tap is the one it uses.</p>
+        </details>
+      </div>
+      <div class="field">
+        <label for="lang">Language</label>
+        <select id="lang"></select>
+        <p class="help"><b>Match the visitor</b> answers in the language people speak to it. If it switches languages by mistake, pick one language.</p>
+      </div>
+
+    </section>
+
+    <section id="light-section">
+      <h2>Lantern</h2>
+      <label>Lantern color <span class="lockbadge" data-lock>🔒</span></label>
+      <div id="colors" class="swatches" role="radiogroup" aria-label="Lantern color"></div>
+      <p id="colormsg" class="help" role="status"></p>
+      <label for="light">What lights up</label>
+      <select id="light">
+        <option value="both">Screen and flashlight</option>
+        <option value="screen">Screen only</option>
+        <option value="torch">Flashlight only</option>
+      </select>
+      <p class="help">The screen glows in the lantern color and gets brighter as it talks. The flashlight can flicker too (always white), but only on Android phones in Chrome. iPhones use the screen.</p>
+    </section>
+
+    <section id="passbox">
+      <h2>2. Start your pumpkin</h2>
+      <div id="nopass">
+        <a id="buypass" class="tipbtn" target="_self">🎃 Get a Pumpkin Pass, $4.99</a>
+        <p class="help">We run the AI for you: every character, voice, and color, plus about <b>400 replies</b> of talk time, enough for a whole Halloween night. Top up anytime. No account, no key, nothing to set up.</p>
+        <p class="help">Rather not pay? <a href="#ownkey" id="gofree">Use your own free AI key</a> for the basic pumpkin.</p>
+      </div>
+      <div id="haspass" style="display:none">
+        <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked and we run the AI.</p>
+        <div class="battery"><div id="batteryfill"></div></div>
+        <p id="batterytext" class="help"></p>
+        <a id="refill" class="tipbtn" target="_self">🔋 Refill, $2.99 (about 250 replies)</a>
+        <p class="help">Moving to another phone? Tap <b>Share my key</b> under "Your own AI key" below: the code carries your pass too.</p>
+      </div>
+      <p id="passmsg" class="help" role="status"></p>
+    </section>
+
+    <section>
+      <h2>3. Set up the phone</h2>
+      <ol>
+        <li><b>Turn brightness all the way up.</b> Turn off auto-brightness.</li>
+        <li><b>Stop the screen from turning off.</b> iPhone: open Settings › Display &amp; Brightness › Auto-Lock › Never. Also turn off Low Power Mode. Android: open Settings › Display › Screen timeout › pick the longest. Also turn off battery saver.</li>
+        <li><b>Turn the volume all the way up</b> and plug the phone in to charge.</li>
+        <li><b>Optional:</b> put yellow or orange tape over the flashlight for a warmer glow.</li>
+        <li><b>Tap Start,</b> allow the microphone when asked, and put the phone in the pumpkin with the screen facing out.</li>
+      </ol>
+      <p class="help">To mute it, tap the screen or say <b>"Mute on"</b> (or "Pumpkin, stop talking"). To unmute, tap again or say <b>"Mute off"</b> (or "Pumpkin, unmute"). Tap <b>Settings</b> in the corner to change things.</p>
+    </section>
+
+
+
+
+    
+
+
+
+
+
+
+    <button class="primary" id="start">Start</button>
+    <div id="err" role="alert"></div>
+
+    <details id="ownkey" class="ownkey">
+      <summary>Free option: use your own AI key</summary>
+      <p class="help">Bring a free Google key (or an OpenAI key) and the basic pumpkin is free forever. The $1.99 unlock below adds every character, voice, and color.</p>
     <section id="key-section">
-      <h2>1. Your AI key</h2>
+      <h2>Your own AI key</h2>
       <p class="help" style="margin-top:0">The pumpkin's brain is an AI from Google or OpenAI. A "key" is a long code, like a password, that lets your pumpkin use it. Google's is free.</p>
       <div class="seg" role="radiogroup" aria-label="Which AI">
         <button type="button" id="provgemini" role="radio">Google <small>free</small></button>
@@ -202,56 +292,6 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
         <button id="hideqr" type="button" style="margin-top:10px;color:#1a1410;border-color:#d9cfc6">Hide code</button>
       </div>
     </section>
-
-    <section id="characters">
-      <h2>2. Pick a character</h2>
-      <div class="field">
-        <label for="persona">Personality</label>
-        <select id="persona"></select>
-        <textarea id="custom" placeholder="Describe your pumpkin: who it is, how it talks, what it likes. For example: a sleepy grandpa pumpkin who loves bad jokes." style="display:none"></textarea>
-      </div>
-      <div class="field">
-        <label for="voice">Voice</label>
-        <select id="voice" hidden></select>
-        <div id="voicechips" class="chips" role="radiogroup" aria-label="Voice"></div>
-        <p id="voicemsg" class="help" role="status">Tap a voice to hear it. The one you tap is the one it uses.</p>
-      </div>
-      <div class="field">
-        <label for="lang">Language</label>
-        <select id="lang"></select>
-        <p class="help"><b>Match the visitor</b> answers in the language people speak to it. If it switches languages by mistake, pick one language.</p>
-      </div>
-
-    </section>
-
-    
-
-    <section id="light-section">
-      <h2>Light</h2>
-      <label>Lantern color <span class="lockbadge" data-lock>🔒</span></label>
-      <div id="colors" class="swatches" role="radiogroup" aria-label="Lantern color"></div>
-      <p id="colormsg" class="help" role="status"></p>
-      <label for="light">What lights up</label>
-      <select id="light">
-        <option value="both">Screen and flashlight</option>
-        <option value="screen">Screen only</option>
-        <option value="torch">Flashlight only</option>
-      </select>
-      <p class="help">The screen glows in the lantern color and gets brighter as it talks. The flashlight can flicker too (always white), but only on Android phones in Chrome. iPhones use the screen.</p>
-    </section>
-
-    <section id="streambox" style="display:none">
-      <h2>Stream mode</h2>
-      <p class="help" style="margin-top:0">The pumpkin answers your TikTok LIVE chat out loud instead of people in the room. Only this phone is affected.</p>
-      <label for="tiktok">Your TikTok LIVE link or @name</label>
-      <input id="tiktok" type="text" autocomplete="off" spellcheck="false" placeholder="tiktok.com/@you/live">
-      <label for="cohost">Co-hosts' TikToks (optional, while you're paired)</label>
-      <input id="cohost" type="text" autocomplete="off" spellcheck="false" placeholder="@anna, @bob">
-      <p class="help">Up to 3, separated by commas. The pumpkin answers their viewers and talks to them by name. Clear this when the pairing ends.</p>
-      <label class="check"><input type="checkbox" id="streamon"> Stream mode on (answer chat only, ignore the room)</label>
-      <p id="streamstatus" class="help" role="status">Not connected.</p>
-    </section>
-
     <section id="unlockbox">
       <h2>Unlock everything</h2>
       <div id="locked">
@@ -279,6 +319,7 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
       </div>
       <p id="unlockmsg" class="help" role="status"></p>
     </section>
+    </details>
 
     <section id="privacy">
       <h2>Privacy</h2>
@@ -291,20 +332,17 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
       </ul>
     </section>
 
-    <section>
-      <h2>3. Set up the phone</h2>
-      <ol>
-        <li><b>Turn brightness all the way up.</b> Turn off auto-brightness.</li>
-        <li><b>Stop the screen from turning off.</b> iPhone: open Settings › Display &amp; Brightness › Auto-Lock › Never. Also turn off Low Power Mode. Android: open Settings › Display › Screen timeout › pick the longest. Also turn off battery saver.</li>
-        <li><b>Turn the volume all the way up</b> and plug the phone in to charge.</li>
-        <li><b>Optional:</b> put yellow or orange tape over the flashlight for a warmer glow.</li>
-        <li><b>Tap Start,</b> allow the microphone when asked, and put the phone in the pumpkin with the screen facing out.</li>
-      </ol>
-      <p class="help">To mute it, tap the screen or say <b>"Mute on"</b> (or "Pumpkin, stop talking"). To unmute, tap again or say <b>"Mute off"</b> (or "Pumpkin, unmute"). Tap <b>Settings</b> in the corner to change things.</p>
+    <section id="streambox" style="display:none">
+      <h2>Stream mode</h2>
+      <p class="help" style="margin-top:0">The pumpkin answers your TikTok LIVE chat out loud instead of people in the room. Only this phone is affected.</p>
+      <label for="tiktok">Your TikTok LIVE link or @name</label>
+      <input id="tiktok" type="text" autocomplete="off" spellcheck="false" placeholder="tiktok.com/@you/live">
+      <label for="cohost">Co-hosts' TikToks (optional, while you're paired)</label>
+      <input id="cohost" type="text" autocomplete="off" spellcheck="false" placeholder="@anna, @bob">
+      <p class="help">Up to 3, separated by commas. The pumpkin answers their viewers and talks to them by name. Clear this when the pairing ends.</p>
+      <label class="check"><input type="checkbox" id="streamon"> Stream mode on (answer chat only, ignore the room)</label>
+      <p id="streamstatus" class="help" role="status">Not connected.</p>
     </section>
-
-    <button class="primary" id="start">Start</button>
-    <div id="err" role="alert"></div>
 
     <footer class="by">
       <p><b>Post your pumpkin</b> and tag <b>@davisdilanchian</b>.</p>
@@ -326,10 +364,38 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
 // ------------------------------------------------------------------ key handoff: a QR link with the key after "#".
 // The part after "#" is never sent to the server; we save it on this phone and wipe it from the address bar.
 (function importKeyFromLink() {
-  const m = location.hash.match(/^#k=([A-Za-z0-9._-]{20,300})(&|$)/);
-  if (!m) return;
-  try { localStorage.setItem("geminiKey", m[1]); } catch {}
+  const m = location.hash.match(/^#k=([A-Za-z0-9._-]{20,300})(&|$)/), p = location.hash.match(/[#&]p=(p[0-9a-f]{32})/);
+  if (!m && !p) return;
+  try { if (m) localStorage.setItem("geminiKey", m[1]); if (p) localStorage.setItem("passId", p[1]); } catch {}
   history.replaceState(null, "", location.pathname + location.search);
+})();
+
+// ------------------------------------------------------------------ Pumpkin Pass: we run the AI, paid up front, metered per reply
+// The pass id is a random secret kept on this phone; buying sends it to Stripe as the checkout reference,
+// and the worker credits it. Conversations then go through jack-o.io, which uses our key and charges
+// each reply's real cost against the balance.
+const PASS_URL = "https://buy.stripe.com/6oU14o7Hg3CVai5dgw8Zq02", REFILL_URL = "https://buy.stripe.com/6oUaEY7Hg1uN1Lz0tK8Zq03";
+const PASS_MICROS = 2500000, AVG_REPLY_MICROS = 6000;      // a pass carries $2.50 of AI; a reply averages ~$0.006
+const PASS = { id: (() => { try { return localStorage.getItem("passId") || ""; } catch { return ""; } })(), balance: +(localStorage.getItem("passBal") || 0), empty: false };
+function ensurePassId() {
+  if (!PASS.id) { const b = new Uint8Array(16); crypto.getRandomValues(b); PASS.id = "p" + [...b].map(x => x.toString(16).padStart(2, "0")).join(""); try { localStorage.setItem("passId", PASS.id); } catch {} }
+  return PASS.id;
+}
+const usingPass = () => !!PASS.id && PASS.balance > 0;
+const API_BASE = /(^|\.)jack-o\.io$|^localhost$/.test(location.hostname) ? "" : "https://jack-o.io";
+async function refreshPass() {
+  if (!PASS.id) return;
+  try { const j = await (await fetch(API_BASE + "/api/pass?pass=" + PASS.id)).json(); if (typeof j.balance === "number") setPassBalance(j.balance); } catch {}
+}
+function setPassBalance(b) {
+  PASS.balance = b; PASS.empty = b <= 0; try { localStorage.setItem("passBal", String(b)); } catch {}
+  if (typeof showPass === "function") showPass();
+}
+(function returnFromPassCheckout() {
+  const q = new URLSearchParams(location.search);
+  if (q.get("pass") !== "paid") return;
+  q.delete("pass"); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash);
+  try { localStorage.setItem("passJustPaid", String(Date.now())); } catch {}
 })();
 
 
@@ -344,7 +410,7 @@ let KEYHASH = "";
 const paidKeys = () => { try { return JSON.parse(localStorage.getItem("paidKeys") || "[]"); } catch { return []; } };
 const setPaid = (h, on) => { const l = paidKeys().filter(x => x !== h); if (on) l.push(h); try { localStorage.setItem("paidKeys", JSON.stringify(l.slice(-20))); } catch {} };
 const OWNER_PAGE = location.pathname.replace(/\/$/, "") === "/streaming";   // password-protected: it's the owner
-const unlocked = () => OWNER_PAGE || (!!KEYHASH && paidKeys().includes(KEYHASH));
+const unlocked = () => OWNER_PAGE || usingPass() || (!!KEYHASH && paidKeys().includes(KEYHASH));
 // A phone unlocked with a paid key switched to a new key: ask the server to unlock the new key too.
 async function linkKey(to) {
   for (const from of paidKeys().slice().reverse()) {
@@ -388,6 +454,7 @@ const LANGS = [
 ];
 const VOICES = ["Puck","Zephyr","Charon","Kore","Fenrir","Leda","Orus","Aoede","Callirrhoe","Autonoe","Enceladus","Iapetus","Umbriel","Algieba","Despina","Erinome","Algenib","Rasalgethi","Laomedeia","Achernar","Alnilam","Schedar","Gacrux","Pulcherrima","Achird","Zubenelgenubi","Vindemiatrix","Sadachbia","Sadaltager","Sulafat"];
 // OpenAI keys start with "sk-"; anything else is treated as a Google Gemini key.
+const effProvider = () => (typeof usingPass === "function" && usingPass()) ? "gemini" : providerOf($("key").value);
 const providerOf = k => /^sk-/.test((k || "").trim()) ? "openai" : "gemini";
 const OA_VOICES = { alloy:"neutral", ash:"confident", ballad:"expressive", coral:"warm", echo:"smooth", sage:"calm", shimmer:"bright", verse:"dynamic", marin:"natural", cedar:"deep" };
 const OA_PERSONA_VOICE = { jack:"ash", witch:"shimmer", count:"verse", grump:"echo", ghost:"coral", denial:"alloy", prof:"ballad", cabbie:"cedar", custom:"ash" };
@@ -439,11 +506,11 @@ const store = { get(k,d){ try { return localStorage.getItem(k) ?? d; } catch { r
 for (const [id,p] of Object.entries(PERSONAS)) $("persona").add(new Option(p.name,id));
 const VOICE_FEEL = {"Puck":"upbeat","Zephyr":"bright","Charon":"informative","Kore":"firm","Fenrir":"excitable","Leda":"youthful","Orus":"firm","Aoede":"breezy","Callirrhoe":"easy-going","Autonoe":"bright","Enceladus":"breathy","Iapetus":"clear","Umbriel":"easy-going","Algieba":"smooth","Despina":"smooth","Erinome":"clear","Algenib":"gravelly","Rasalgethi":"informative","Laomedeia":"upbeat","Achernar":"soft","Alnilam":"firm","Schedar":"even","Gacrux":"mature","Pulcherrima":"forward","Achird":"friendly","Zubenelgenubi":"casual","Vindemiatrix":"gentle","Sadachbia":"lively","Sadaltager":"knowledgeable","Sulafat":"warm"};
 const cap = w => w[0].toUpperCase() + w.slice(1);
-const voiceKey = () => providerOf($("key").value) === "openai" ? "voiceOA" : "voice";
-const personaVoice = () => providerOf($("key").value) === "openai" ? (OA_PERSONA_VOICE[$("persona").value] || "ash") : PERSONAS[$("persona").value].voice;
+const voiceKey = () => effProvider() === "openai" ? "voiceOA" : "voice";
+const personaVoice = () => effProvider() === "openai" ? (OA_PERSONA_VOICE[$("persona").value] || "ash") : PERSONAS[$("persona").value].voice;
 let shownProvider = "";
 function fillVoices() {
-  const prov = providerOf($("key").value);
+  const prov = effProvider();
   if (prov === shownProvider) return;
   shownProvider = prov; $("voice").length = 0;
   if (prov === "openai") for (const [v,f] of Object.entries(OA_VOICES)) $("voice").add(new Option(cap(v) + " (" + f + ")", v));
@@ -515,7 +582,7 @@ async function sampleVoice(v) {
   // Create/resume the audio context inside the tap (iPhones only allow sound that starts from a tap).
   const ctx = S.ctx || SAMPLE.ctx || (SAMPLE.ctx = new (window.AudioContext || window.webkitAudioContext)());
   try { ctx.resume(); } catch {}
-  const prov = providerOf($("key").value), persona = $("persona").value;
+  const prov = effProvider(), persona = $("persona").value;
   const id = prov === "openai" ? "oa:" + v + ":" + persona : "g:" + v;
   let buf = SAMPLE.cache[id];
   if (!buf) {
@@ -629,7 +696,7 @@ function personaText() {
 }
 function save() {
   store.set("geminiKey",$("key").value.trim()); store.set("persona",$("persona").value);
-  store.set("custom",$("custom").value); store.set(voiceKey(),$("voice").value); S.inRate = providerOf($("key").value) === "openai" ? 24000 : 16000; store.set("lang",$("lang").value); store.set("light",$("light").value);
+  store.set("custom",$("custom").value); store.set(voiceKey(),$("voice").value); S.inRate = effProvider() === "openai" ? 24000 : 16000; store.set("lang",$("lang").value); store.set("light",$("light").value);
 }
 
 // ------------------------------------------------------------------ state
@@ -925,13 +992,58 @@ async function syncUnlock() {
 refreshUnlock(); syncUnlock();
 setInterval(syncUnlock, 1500);   // cheap: only asks the server when the key actually changed
 
+// ------------------------------------------------------------------ pass box
+function showPass() {
+  const has = !!PASS.id && PASS.balance > 0;
+  $("nopass").style.display = has ? "none" : "block"; $("haspass").style.display = has ? "block" : "none";
+  const pct = Math.max(0, Math.min(100, Math.round(PASS.balance / PASS_MICROS * 100)));
+  $("batteryfill").style.width = pct + "%";
+  $("batterytext").textContent = "Pumpkin battery: " + pct + "% (about " + Math.floor(PASS.balance / AVG_REPLY_MICROS) + " replies left)";
+  if (PASS.id && PASS.balance <= 0 && localStorage.getItem("passBal") !== null && !has) { $("buypass").textContent = "🔋 Refill, $2.99 (about 250 replies)"; $("buypass").dataset.refill = "1"; }
+  $("unlockbox").style.display = has ? "none" : "";
+  if (typeof refreshUnlock === "function") try { refreshUnlock(); } catch {}
+}
+$("buypass").onclick = e => { e.preventDefault(); save(); location.href = ($("buypass").dataset.refill ? REFILL_URL : PASS_URL) + "?client_reference_id=" + ensurePassId(); };
+$("refill").onclick = e => { e.preventDefault(); save(); location.href = REFILL_URL + "?client_reference_id=" + ensurePassId(); };
+$("gofree").onclick = () => { $("ownkey").open = true; };
+$("hearchar").onclick = () => playCharSample($("persona").value);
+async function playCharSample(id) {
+  stopSample(); const mine = ++SAMPLE.n;
+  const ctx = S.ctx || SAMPLE.ctx || (SAMPLE.ctx = new (window.AudioContext || window.webkitAudioContext)());
+  try { ctx.resume(); } catch {}
+  if (id === "custom") return sampleVoice($("voice").value);
+  try {
+    const key = "char:" + id; let buf = SAMPLE.cache[key];
+    if (!buf) { const r = await fetch("voices/char/" + id + ".mp3"); if (!r.ok || !/audio/.test(r.headers.get("content-type") || "")) throw 0; const ab = await r.arrayBuffer(); buf = await new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej)); SAMPLE.cache[key] = buf; }
+    if (mine !== SAMPLE.n) return;
+    const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination); src.onended = () => { if (SAMPLE.src === src) stopSample(); }; src.start(); SAMPLE.src = src;
+  } catch { sampleVoice(personaVoice()); }   // no recording yet: play the voice sample instead
+}
+showPass();
+(async () => {                                              // just paid: wait for Stripe's notice, then show the battery
+  if (!PASS.id) return;
+  const paidAt = +(localStorage.getItem("passJustPaid") || 0), fresh = Date.now() - paidAt < 10 * 60000;
+  const before = PASS.balance;
+  if (fresh) { $("passmsg").textContent = "Confirming your payment…"; $("passbox").scrollIntoView(); }
+  for (let i = 0; i < (fresh ? 15 : 1); i++) {
+    await refreshPass();
+    if (!fresh || PASS.balance > before || (PASS.balance > 0 && i > 0)) break;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  if (fresh) { localStorage.removeItem("passJustPaid"); $("passmsg").textContent = PASS.balance > 0 ? "Payment confirmed. Your pumpkin is ready: tap Start! 🎃" : "We couldn't confirm the payment yet. Reload in a minute. Still stuck? Email ddilanchian@gmail.com with your receipt."; }
+})();
+setInterval(() => { if ($("setup").style.display !== "none") refreshPass(); }, 60000);
+
 // ------------------------------------------------------------------ start
 $("gear").onclick = e => { e.stopPropagation(); $("setup").style.display = "flex"; $("start").textContent = "Save and resume"; };
 // Settings changed: hang up any conversation in progress so the next one uses the new character, voice and language.
 function endVisitForNewSettings() { if (S.ctx && S.phase !== "idle") { stopPlayback(); closeVisit(); } }
 $("start").onclick = async () => {
   save(); stopSample(); endVisitForNewSettings();
-  if (!$("key").value.trim()) return showErr("Paste your key in step 1 first.");
+  if (!usingPass() && !$("key").value.trim()) {
+    $("passbox").scrollIntoView({ behavior:"smooth", block:"center" });
+    return showErr(PASS.id && PASS.balance <= 0 && localStorage.getItem("passBal") !== null ? "Your pumpkin's battery is empty. Refill it above, or use your own free key." : "Get a Pumpkin Pass above to start, or use your own free AI key at the bottom.");
+  }
   showErr("");
   try { await ensureAudio(); } catch (e) { return showErr(micHelp(e)); }
   $("setup").style.display = "none";
@@ -944,7 +1056,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015095725";
+const BUILD = "20261015100529";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -974,9 +1086,9 @@ setInterval(() => {
 function lightMode() { const m = store.get("light","both"); return (m === "torch" && S && S.ctx && !S.torchOK) ? "both" : m; }
 $("share").onclick = () => {
   const key = $("key").value.trim();
-  if (!key) return showErr("Paste a key on this phone first.");
+  if (!key && !PASS.id) return showErr("Paste a key on this phone first.");
   if (typeof qrcode !== "function") return showErr("Couldn't make the code. Check your internet and try again.");
-  const q = qrcode(0, "M"); q.addData(location.origin + location.pathname + "#k=" + key); q.make();
+  const q = qrcode(0, "M"); q.addData(location.origin + location.pathname + "#" + [key ? "k=" + key : "", PASS.id ? "p=" + PASS.id : ""].filter(Boolean).join("&")); q.make();
   $("qr").innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
   $("qrbox").style.display = "block"; $("share").style.display = "none";
 };
@@ -1010,6 +1122,8 @@ $("scan").onclick = async () => {
       const w = 400, h = Math.round(400 * v.videoHeight / v.videoWidth);
       c.width = w; c.height = h; g.drawImage(v, 0, 0, w, h);
       const code = jsQR(g.getImageData(0, 0, w, h).data, w, h, { inversionAttempts:"dontInvert" });
+      const pp = code && code.data.match(/[#&]p=(p[0-9a-f]{32})/);
+      if (pp) { PASS.id = pp[1]; try { localStorage.setItem("passId", PASS.id); } catch {} refreshPass(); if (!/#k=/.test(code.data)) { stopScan(); keyMsg("Pumpkin Pass added from the other phone."); return; } }
       const m = code && (code.data.match(/#k=([A-Za-z0-9._-]{20,300})(&|$)/) || code.data.match(/^([A-Za-z0-9._-]{20,300})$/));
       if (m) { $("key").value = m[1]; checkKey(); save(); stopScan(); keyMsg("Key added from the other phone."); return; }
     }
@@ -1187,10 +1301,13 @@ function runVisit(isPreview) {
   S.phase = "connecting"; S.start = now; S.lastAct = now; S.lastMsg = now; S.lastChunk = now; S.turn = false; S.greeting = false; S.said = "";
   status("Someone's here…"); $("caption").textContent = "";
   const key = store.get("geminiKey","");
-  S.provider = providerOf(key); S.inRate = S.provider === "openai" ? 24000 : 16000;
+  S.provider = usingPass() ? "gemini" : providerOf(key); S.inRate = S.provider === "openai" ? 24000 : 16000;
+  if (usingPass() && PASS.empty) { status("Pumpkin battery empty: refill in Settings"); S.phase = "idle"; return; }
   const id = ++S.visitId;
   if (S.provider === "openai") return openAIVisit(isPreview, key, id);
-  const ws = new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + encodeURIComponent(key));
+  const ws = usingPass()
+    ? new WebSocket((API_BASE ? "wss://jack-o.io" : (location.protocol === "https:" ? "wss://" : "ws://") + location.host) + "/api/live?pass=" + PASS.id)
+    : new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + encodeURIComponent(key));
   ws.binaryType = "arraybuffer"; S.ws = ws;
   ws.onopen = () => ws.send(JSON.stringify({ setup:{
     model: MODELS[modelIdx],
@@ -1308,6 +1425,12 @@ function send(o) { if (S.ws && S.ws.readyState === 1) S.ws.send(JSON.stringify(o
 
 function handle(text) {
   let m; try { m = JSON.parse(text); } catch { return; }
+  if (m.jacko) {
+    if (typeof m.jacko.balance === "number") setPassBalance(m.jacko.balance);
+    if (m.jacko.empty) { setPassBalance(0); closeVisit(); status("Pumpkin battery empty: refill in Settings"); }
+    if (m.jacko.error) showErr(m.jacko.error);
+    return;
+  }
   S.lastMsg = Date.now();
   if (m.setupComplete && streamOn()) { store.set("model", MODELS[modelIdx]); S.phase = "listening"; status("Live: waiting for chat"); return; }
   if (m.setupComplete) { store.set("model", MODELS[modelIdx]); S.phase = "talking"; S.greeting = true; status("Talking"); send({ realtimeInput:{ text: GREETING } }); return; }
