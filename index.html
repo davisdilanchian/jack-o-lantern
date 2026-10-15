@@ -632,7 +632,7 @@ const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, tor
   analyser:null, out:null, level:0, peak:0.05, said:"", wake:null, visitId:0, lastChunk:0, lastMsg:0, echo:0.02, couple:0.5, outHist:[], hold:[], barge:false, dbg:{ barge:0, interrupted:0, underrun:0, watchdog:0, torch:0 }, heard:"", cmd:null, pre:[], cmdBusy:false, cmdTimes:[], inRate: providerOf(store.get("geminiKey","")) === "openai" ? 24000 : 16000 };
 const TUNE = { ratio:2.5, min:0.01, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.6 };
 const status = t => $("status").textContent = t;
-const speaking = () => S.turn || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
+const speaking = () => S.turn || PLAY.queued > 0 || (S.player && S.pbuf > 0.01) || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
 
 // ------------------------------------------------------------------ stream mode (only at jack-o.io/streaming, which is password-protected)
 const STREAMING = location.pathname.replace(/\/$/, "") === "/streaming";
@@ -761,7 +761,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014220632";
+const BUILD = "20261014221028";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -867,6 +867,7 @@ async function ensureAudio() {
   S.out = S.ctx.createGain(); S.analyser = S.ctx.createAnalyser(); S.analyser.fftSize = 512;
   S.boostChain = makeBoost(S.ctx); S.boost = S.boostChain.input;
   S.out.connect(S.boost); S.boostChain.output.connect(S.analyser); S.analyser.connect(S.ctx.destination);
+  await startPlayer();
   // Flashlight: needs the back camera open; only Chrome on Android supports it.
   if (lightMode() !== "screen" && !IOS) try {
     const cam = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" } } });
@@ -919,7 +920,7 @@ async function reopenMic() {
   } catch {}
   S.micOpening = false;
 }
-const micBusy = () => S.turn || PLAY.queue.length > 0 || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + 0.15);
+const micBusy = () => S.turn || PLAY.queue.length > 0 || PLAY.queued > 0 || (S.player && S.pbuf > 0.01) || (S.ctx && S.ctx.currentTime < S.playEnd + 0.15);
 function micDuty() {
   freshOutput.pending && !micBusy() && freshOutput() && (freshOutput.pending = false);
   if (!IOS || !S.capNode) return;
@@ -1162,7 +1163,7 @@ function telReport() {
   TEL.on = false;
   const r = { ua:navigator.userAgent.slice(0, 120), provider:S.provider, rate:S.ctx && S.ctx.sampleRate, baseLatency:S.ctx && S.ctx.baseLatency, outputLatency:S.ctx && S.ctx.outputLatency,
     mic:!!S.mic, audioSec:+(TEL.samples / 24000).toFixed(2), arrivedOverSec:+((TEL.lastAt - TEL.t0) / 1000).toFixed(2), chunks:TEL.chunks,
-    maxChunkGapMs:Math.round(TEL.maxGap), underruns:S.dbg.underrun - TEL.under, minBufferAheadSec:+TEL.minAhead.toFixed(3), maxFreezeMs:Math.round(TEL.stall), cushion:PLAY.cushion, capture:S.capture || "none", light:lightMode(), boost:boostLevel(), attachedPieces:S.liveSrc || 0, torchToggles:S.dbg.torch, watchdogs:S.dbg.watchdog, stream:streamOn(), build:BUILD };
+    maxChunkGapMs:Math.round(TEL.maxGap), underruns:S.dbg.underrun - TEL.under, minBufferAheadSec:+TEL.minAhead.toFixed(3), maxFreezeMs:Math.round(TEL.stall), cushion:PLAY.cushion, capture:S.capture || "none", light:lightMode(), player:S.player ? "continuous" : "clips", attachedPieces:S.liveSrc || 0, torchToggles:S.dbg.torch, watchdogs:S.dbg.watchdog, stream:streamOn(), build:BUILD };
   fetch("/api/stream/report", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(r) }).catch(() => {});
 }
 function play(b64data) {
@@ -1185,10 +1186,17 @@ function play(b64data) {
     out[i] = s0 + (s1 - s0) * f;
   }
   PLAY.pos = q - n; PLAY.prev = inp[n - 1];
+  if (S.player) {
+    const piece = out.slice(0);
+    S.player.port.postMessage({ t:"d", b:piece }, [piece.buffer]);
+    S.pbuf += outLen / rate; S.playEnd = Math.max(S.playEnd, S.ctx.currentTime + S.pbuf);
+    return;
+  }
   PLAY.queue.push(buf); PLAY.queued += buf.duration;
   pumpAudio(false);
 }
 function pumpAudio(flush) {
+  if (S.player) { if (flush) S.player.port.postMessage({ t:"f" }); return; }   // end of an answer: play out the rest
   const now = S.ctx.currentTime;
   if (PLAY.started && S.playEnd < now - 0.02) {          // ran dry: rebuffer with a bigger cushion
     PLAY.started = false; PLAY.cushion = Math.min(1.2, PLAY.cushion + 0.2); S.dbg.underrun++;
@@ -1207,14 +1215,53 @@ function pumpAudio(flush) {
   }
   PLAY.queued = 0;                                          // queue is empty: clear rounding leftovers (they made it look like it was still talking)
 }
+// ---------- continuous player: one queue inside the audio system, played sample after sample in order.
+// Nothing is scheduled by time, so pieces can never overlap or cut each other off, and a frozen page
+// doesn't matter while the player has audio in its reserve. It waits for a 0.6 s reserve before it
+// starts each answer; if it ever runs dry mid-answer, the reserve grows.
+const PLAYER_JS = `class Player extends AudioWorkletProcessor {
+  constructor() { super(); this.q = []; this.off = 0; this.buf = 0; this.go = false; this.cush = 0.6 * sampleRate; this.end = false; this.under = 0; this.t = 0;
+    this.port.onmessage = e => { const m = e.data;
+      if (m.t === "d") { this.q.push(m.b); this.buf += m.b.length; }
+      else if (m.t === "f") this.end = true;
+      else if (m.t === "c") { this.q = []; this.off = 0; this.buf = 0; this.go = false; this.end = false; } }; }
+  process(inputs, outputs) {
+    const out = outputs[0][0]; let i = 0;
+    if (!this.go && this.buf > 0 && (this.buf >= this.cush || this.end)) this.go = true;
+    if (this.go) {
+      while (i < out.length && this.q.length) {
+        const a = this.q[0], n = Math.min(out.length - i, a.length - this.off);
+        out.set(a.subarray(this.off, this.off + n), i); i += n; this.off += n; this.buf -= n;
+        if (this.off >= a.length) { this.q.shift(); this.off = 0; }
+      }
+      if (i < out.length) { if (!this.end) { this.under++; this.cush = Math.min(1.2 * sampleRate, this.cush + 0.2 * sampleRate); } this.go = false; this.end = false; }
+    }
+    for (; i < out.length; i++) out[i] = 0;
+    if (++this.t % 6 === 0) this.port.postMessage({ buf: this.buf / sampleRate, under: this.under, go: this.go });
+    return true;
+  }
+}
+registerProcessor("player", Player);`;
+async function startPlayer() {
+  if (!(S.ctx.audioWorklet && window.AudioWorkletNode)) return;      // very old browsers: the timed-clip method below
+  try {
+    await S.ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([PLAYER_JS], { type:"application/javascript" })));
+    S.player = new AudioWorkletNode(S.ctx, "player", { numberOfInputs:0, outputChannelCount:[1] });
+    S.player.connect(S.out);
+    S.pbuf = 0;
+    S.player.port.onmessage = ({ data }) => { S.pbuf = data.buf; S.dbg.underrun = data.under; if (data.buf > 0) S.playEnd = S.ctx.currentTime + data.buf; };   // only move the end while audio remains
+  } catch { S.player = null; }
+}
 // Cut the voice off now, including audio already scheduled to play.
 function stopPlayback() {
+  if (S.player) { S.player.port.postMessage({ t:"c" }); resetPlayback(); S.pbuf = 0; S.playEnd = 0; return; }
   resetPlayback(); S.playEnd = 0;
   if (S.out && S.ctx) { try { S.out.disconnect(); } catch {} S.out = S.ctx.createGain(); S.out.connect(S.boost); }
 }
 // Replace the voice connector once an answer has fully played (what mute does), dropping anything an
 // older browser still has attached to it.
 function freshOutput() {
+  if (S.player) return false;                                  // the continuous player has no clips to clean up
   if (!S.ctx || !S.out || PLAY.queue.length || S.turn || S.ctx.currentTime < S.playEnd + 0.1) return false;
   try { S.out.disconnect(); } catch {}
   S.out = S.ctx.createGain(); S.out.connect(S.boost); S.liveSrc = 0; return true;
