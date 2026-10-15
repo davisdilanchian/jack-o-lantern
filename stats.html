@@ -56,6 +56,10 @@ const MODE = { "pass":"Pumpkin Pass", "pass+eleven":"Pass + own ElevenLabs voice
   "openai-free":"Own OpenAI key (free)", "openai-unlocked":"Own OpenAI key + $1.99 unlock",
   "google-key+pass":"Own Google key, has a pass", "openai-key+pass":"Own OpenAI key, has a pass" };
 let DATA = null, PERIOD = "today";
+const SEEN = { "video":"Saw the video", "setup":"Reached Set it up", "free key":"Saw the free key option", "more options":"Saw More options", "start button":"Saw the Start button",
+  "pumpkin pass":"Saw the Pumpkin Pass", "bottom":"Reached the bottom" };
+const OPENED = { ownkey:"Free option (own key)", moreopts:"More options", phonetips:"Phone tips", privacy:"Privacy", morevoices:"Try other voices", elbox:"ElevenLabs voice",
+  howgemini:"How do I get a key? (Google)", howopenai:"How do I get a key? (OpenAI)" };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 const pct = (a, b) => b ? (100 * a / b).toFixed(a / b < 0.1 ? 1 : 0) + "%" : "–";
 function days() {
@@ -101,6 +105,18 @@ function render() {
     <h2>Where people drop off (phones)</h2>
     ${bars(funnel, k => k, phones, true)}
     <p class="note">Percentages are of phones that visited. Buy taps: ${Object.entries(by(u, "buy")).map(([k, v]) => v + " " + k).join(", ") || "none"}. Sold: ${Object.entries(soldKinds).map(([k, v]) => v + " " + k).join(", ") || "none"}.</p>
+    <h2>How far down the page people get (phones)</h2>
+    ${bars(Object.fromEntries(["video","setup","free key","more options","start button","pumpkin pass","bottom"].map(k => [SEEN[k], (by(u, "seen")[k] || 0)])), k => k, phones, true)}
+    <p class="note">Scrolled at least: ${["25%","50%","75%","100%"].map(k => k + " " + pct(by(u, "scroll")[k] || 0, phones)).join(" · ")}. Stayed at least: ${["10s","30s","1m","3m"].map(k => k + " " + pct(by(u, "time")[k] || 0, phones)).join(" · ")}.</p>
+    <h2>The video (phones)</h2>
+    ${bars({ "Turned the sound on (our button)": by(u, "vid").sound_on || 0, "Turned the sound on (YouTube's controls)": by(u, "vid").yt_unmute || 0, "Paused it": by(u, "vid").paused || 0 }, k => k, phones, true)}
+    <h2>What people opened or tapped (phones)</h2>
+    ${bars(Object.assign({}, ...Object.entries(by(u, "open")).map(([k, v]) => ({ ["Opened: " + (OPENED[k] || k)]: v })),
+        ...Object.entries(by(u, "click")).map(([k, v]) => ({ ["Tapped: " + (k === "scan" ? "Scan code" : k === "enter_key" ? "Enter key" : k)]: v })),
+        ...Object.entries(by(u, "key")).map(([k, v]) => ({ ["Entered a " + (k === "openai" ? "OpenAI" : "Google") + " key"]: v })),
+        { "Showed a code": u.code_show || 0 }), k => k, phones)}
+    <h2>Characters (phones)</h2>
+    <div class="two"><div>${bars(by(u, "hear"))}<p class="note">Played its voice.</p></div><div>${bars(by(u, "persona"))}<p class="note">Picked it (not the default).</p></div></div>
     <h2>How pumpkins run (phones that tapped Start)</h2>
     ${bars(by(u, "start"), k => MODE[k] || k)}
     <h2>Conversations by mode</h2>

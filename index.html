@@ -1180,7 +1180,7 @@ if (OWNER_PAGE) demo(false);
 // The video is too small for YouTube to show its own speaker button, so this button turns the sound on and off.
 const ytCmd = (func, args = []) => { try { $("demovid").contentWindow.postMessage(JSON.stringify({ event:"command", func, args }), "*"); } catch {} };
 $("demosound").onclick = () => {
-  demoLoud = !demoLoud;
+  demoLoud = !demoLoud; track("vid", demoLoud ? "sound_on" : "sound_off");
   if (demoLoud) { ytCmd("unMute"); ytCmd("setVolume", [100]); ytCmd("playVideo"); } else ytCmd("mute");
   $("demosound").textContent = demoLoud ? "🔇 Sound off" : "🔊 Sound on";
 };
@@ -1211,7 +1211,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015151219";
+const BUILD = "20261015152219";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1570,6 +1570,44 @@ function handleOA(text) {
 
 // ------------------------------------------------------------------ battery drained: red screen until a refill shows up
 // A refill bought on any phone sharing this pass wakes it up: it checks the battery every minute while drained.
+// ------------------------------------------------------------------ more anonymous counts for /stats: how far people
+// scroll, what they open, the video, how long they stay. Each thing is counted once per visit.
+(function trackMore() {
+  if (OWNER_PAGE) return;
+  const done = new Set(), once = (e, k) => { if (done.has(e + ":" + k)) return; done.add(e + ":" + k); track(e, k); };
+  const root = $("setup");
+  // parts of the page that came into view, top to bottom
+  const PARTS = [[".introvid", "video"], ["#characters", "setup"], ["#ownkey", "free key"], ["#moreopts", "more options"], ["#start", "start button"],
+                 ["#passbox", "pumpkin pass"], ["#privacy", "bottom"]];
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver(list => { for (const x of list) if (x.isIntersecting) { once("seen", x.target.dataset.part); io.unobserve(x.target); } }, { root, threshold:0.3 });
+    for (const [sel, name] of PARTS) { const el = document.querySelector(sel); if (el) { el.dataset.part = name; io.observe(el); } }
+  }
+  root.addEventListener("scroll", () => {
+    const pct = (root.scrollTop + root.clientHeight) / Math.max(1, root.scrollHeight) * 100;
+    for (const b of [25, 50, 75, 100]) if (pct >= b - 2) once("scroll", b + "%");
+  }, { passive:true });
+  // fold-outs and buttons
+  root.querySelectorAll("details").forEach(d => d.addEventListener("toggle", () => { if (d.open) once("open", d.id || "details"); }));
+  $("scan").addEventListener("click", () => once("click", "scan"));
+  $("gofree").addEventListener("click", () => once("click", "enter_key"));
+  $("persona").addEventListener("change", () => once("persona", $("persona").value));
+  $("key").addEventListener("change", () => { if ($("key").value.trim()) once("key", providerOf($("key").value)); });
+  // time on the page (only while it's on screen)
+  for (const [ms, k] of [[10000, "10s"], [30000, "30s"], [60000, "1m"], [180000, "3m"]])
+    setTimeout(() => { if (document.visibilityState === "visible" && root.style.display !== "none") once("time", k); }, ms);
+  // the video: YouTube reports its state (paused, sound turned on with its own controls)
+  const f = $("demovid"), hello = () => { try { f.contentWindow.postMessage(JSON.stringify({ event:"listening", id:1, channel:"widget" }), "*"); } catch {} };
+  f.addEventListener("load", hello); setTimeout(hello, 1500); setTimeout(hello, 5000);
+  addEventListener("message", e => {
+    if (!/youtube/.test(e.origin || "")) return;
+    let d; try { d = JSON.parse(e.data); } catch { return; }
+    const i = d && d.info; if (!i) return;
+    if (i.muted === false && !demoLoud) once("vid", "yt_unmute");
+    if (i.playerState === 2) once("vid", "paused");
+  });
+})();
+
 // How this pumpkin runs, for /stats: on a pass (and with an ElevenLabs voice), or on its own Google/OpenAI key (free or unlocked).
 function modeName() { if (viaPass()) return elWanted() ? "pass+eleven" : "pass"; if (passPaid()) return (providerOf($("key").value) === "openai" ? "openai" : "google") + "-key+pass"; return (providerOf($("key").value) === "openai" ? "openai" : "google") + (unlocked() ? "-unlocked" : "-free"); }
 function passDrained() { return !!PASS.id && PASS.balance <= 0 && PASS.granted > 0 && !store.get("geminiKey", "").trim(); }
