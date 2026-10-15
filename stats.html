@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Jack-o stats</title>
+<style>
+  :root { --bg:#f6efe2; --surface:#fffaf1; --ink:#3a281a; --fg:#2b1d12; --muted:#6e5a48; --line:rgba(58,40,26,.22); --accent:#e5782a; --good:#2e7d32; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:880px; margin:0 auto; padding:20px 16px 48px; }
+  h1 { font-size:24px; margin:0 0 4px; color:var(--ink); }
+  h2 { font-size:16px; margin:26px 0 10px; color:var(--ink); }
+  .sub { color:var(--muted); margin:0 0 14px; font-size:13px; }
+  .seg { display:inline-flex; border:1.5px solid var(--ink); border-radius:10px; overflow:hidden; margin:6px 0 4px; }
+  .seg button { font:inherit; padding:7px 14px; border:0; background:var(--surface); color:var(--ink); cursor:pointer; }
+  .seg button + button { border-left:1.5px solid var(--ink); }
+  .seg button.on { background:var(--accent); color:#2b1d12; font-weight:600; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .card { background:var(--surface); border:1.5px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .card b { display:block; font-size:26px; color:var(--ink); line-height:1.1; }
+  .card span { color:var(--muted); font-size:13px; }
+  .bars { background:var(--surface); border:1.5px solid var(--line); border-radius:12px; padding:10px 14px; }
+  .bar { display:grid; grid-template-columns:minmax(120px,38%) 1fr auto; gap:10px; align-items:center; padding:5px 0; }
+  .bar + .bar { border-top:1px dashed var(--line); }
+  .bar .t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bar .track { height:10px; background:rgba(58,40,26,.08); border-radius:6px; overflow:hidden; }
+  .bar .fill { height:100%; background:var(--accent); border-radius:6px; }
+  .bar .v { font-variant-numeric:tabular-nums; color:var(--ink); min-width:76px; text-align:right; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:640px) { .two { grid-template-columns:1fr; } }
+  table { width:100%; border-collapse:collapse; background:var(--surface); border:1.5px solid var(--line); border-radius:12px; overflow:hidden; font-variant-numeric:tabular-nums; }
+  th, td { padding:7px 10px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th:first-child, td:first-child { text-align:left; }
+  th { color:var(--muted); font-weight:600; font-size:12px; }
+  .tablewrap { overflow-x:auto; }
+  .note { color:var(--muted); font-size:13px; }
+  .err { background:var(--surface); border:1.5px solid var(--ink); border-radius:12px; padding:16px; }
+  a { color:var(--ink); }
+</style>
+</head>
+<body>
+<main>
+  <h1>🎃 Jack-o stats</h1>
+  <p class="sub" id="asof">Loading…</p>
+  <div class="seg" role="radiogroup" aria-label="Period">
+    <button data-p="today" class="on">Today</button><button data-p="7">7 days</button><button data-p="all">All</button>
+  </div>
+  <div id="out"></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const DAY = t => new Date(t - 7 * 3600000).toISOString().slice(0, 10);       // same day boundary as the server
+const MODE = { "pass":"Pumpkin Pass", "pass+eleven":"Pass + own ElevenLabs voice", "google-free":"Own Google key (free)", "google-unlocked":"Own Google key + $1.99 unlock",
+  "openai-free":"Own OpenAI key (free)", "openai-unlocked":"Own OpenAI key + $1.99 unlock" };
+let DATA = null, PERIOD = "today";
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const pct = (a, b) => b ? (100 * a / b).toFixed(a / b < 0.1 ? 1 : 0) + "%" : "–";
+function days() {
+  const all = new Set([...Object.keys(DATA.events), ...Object.keys(DATA.loads), ...DATA.sales.map(s => DAY(s.at))]);
+  const list = [...all].sort();
+  if (PERIOD === "today") return [DAY(Date.now())];
+  if (PERIOD === "7") { const cut = DAY(Date.now() - 6 * 86400000); return list.filter(d => d >= cut); }
+  return list;
+}
+function sum(ds, pick) {      // add up per-day objects
+  const o = {};
+  for (const d of ds) { const v = pick(DATA.events[d]) || {}; for (const [k, n] of Object.entries(v)) o[k] = (o[k] || 0) + n; }
+  return o;
+}
+function bars(obj, label = k => k, total) {
+  const rows = Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, 12);
+  if (!rows.length) return '<div class="bars note">Nothing yet.</div>';
+  const max = rows[0][1], tot = total || rows.reduce((a, r) => a + r[1], 0);
+  return '<div class="bars">' + rows.map(([k, n]) => `<div class="bar"><div class="t" title="${esc(label(k))}">${esc(label(k))}</div>
+    <div class="track"><div class="fill" style="width:${(100 * n / max).toFixed(1)}%"></div></div><div class="v">${n} · ${pct(n, tot)}</div></div>`).join("") + "</div>";
+}
+function render() {
+  const ds = days(), set = new Set(ds);
+  const u = sum(ds, d => d && d.u), n = sum(ds, d => d && d.n);
+  const by = (obj, prefix) => Object.fromEntries(Object.entries(obj).filter(([k]) => k.startsWith(prefix + ":")).map(([k, v]) => [k.slice(prefix.length + 1), v]));
+  const sales = DATA.sales.filter(s => set.has(DAY(s.at)));
+  const rev = sales.reduce((a, s) => a + (s.amount || 0), 0) / 100;
+  const soldKinds = sales.reduce((o, s) => (o[s.kind] = (o[s.kind] || 0) + 1, o), {});
+  const phones = u.load || 0, loads = ds.reduce((a, d) => a + (DATA.loads[d] || 0), 0);
+  const multi = PERIOD !== "today" ? '<p class="note">Over several days, "phones" adds up each day\'s count, so a phone that came back on two days counts twice.</p>' : "";
+  const funnel = { "Visited the site": u.load || 0, "Played a character's voice": u.hear || 0, "Tapped a buy button": u.buy || 0,
+    "Came back from paying": u.paid_back || 0, "Tapped Start": u.start || 0, "Had a trick-or-treater (a conversation)": u.visit || 0 };
+  $("out").innerHTML = `
+    <div class="cards" style="margin-top:14px">
+      <div class="card"><b>${phones}</b><span>phones visited</span></div>
+      <div class="card"><b>${u.start || 0}</b><span>phones tapped Start</span></div>
+      <div class="card"><b>${sales.length}</b><span>purchases</span></div>
+      <div class="card"><b>$${rev.toFixed(2)}</b><span>revenue, before Stripe fees</span></div>
+      <div class="card"><b>${pct(sales.length, phones)}</b><span>of visiting phones bought</span></div>
+      <div class="card"><b>${n.visit || 0}</b><span>conversations with visitors</span></div>
+    </div>
+    ${multi}
+    <h2>Where people drop off (phones)</h2>
+    ${bars(funnel, k => k, phones)}
+    <p class="note">Percentages are of phones that visited. Buy taps: ${Object.entries(by(u, "buy")).map(([k, v]) => v + " " + k).join(", ") || "none"}. Sold: ${Object.entries(soldKinds).map(([k, v]) => v + " " + k).join(", ") || "none"}.</p>
+    <h2>How pumpkins run (phones that tapped Start)</h2>
+    ${bars(by(u, "start"), k => MODE[k] || k)}
+    <h2>Conversations by mode</h2>
+    ${bars(by(n, "visit"), k => MODE[k] || k)}
+    <p class="note">Battery ran out: ${u.drained || 0} phone(s). Showed the move-to-old-phone code: ${u.code_show || 0}. Scanned it: ${u.code_scan || 0}.</p>
+    <div class="two">
+      <div><h2>Where visitors came from</h2>${bars(sum(ds, d => d && d.src))}</div>
+      <div><h2>Devices</h2>${bars(sum(ds, d => d && d.dev))}<h2>Countries</h2>${bars(sum(ds, d => d && d.cc))}</div>
+    </div>
+    <h2>By day</h2>
+    <div class="tablewrap"><table><thead><tr><th>Day</th><th>Page loads</th><th>Phones</th><th>Heard</th><th>Buy taps</th><th>Sales</th><th>Revenue</th><th>Started</th><th>Conversations</th></tr></thead><tbody>
+    ${[...ds].reverse().map(d => { const e = DATA.events[d] || { u:{}, n:{} }, s = DATA.sales.filter(x => DAY(x.at) === d);
+      return `<tr><td>${d}</td><td>${DATA.loads[d] || 0}</td><td>${e.u.load || 0}</td><td>${e.u.hear || 0}</td><td>${e.u.buy || 0}</td><td>${s.length}</td><td>$${(s.reduce((a, x) => a + (x.amount || 0), 0) / 100).toFixed(2)}</td><td>${e.u.start || 0}</td><td>${e.n.visit || 0}</td></tr>`; }).join("")}
+    </tbody></table></div>
+    <p class="note">"Page loads" is the older raw count. It includes reloads, and before Oct 15 afternoon it included the automatic reload after each site update. "Phones" counts each phone once a day (a random number stored on the phone, no personal data). Phone counts start Oct 15, 2026. Sales come from the payment records.</p>`;
+}
+async function load() {
+  try {
+    const r = await fetch("/api/stats/summary", { cache:"no-store" });
+    if (r.status === 401) { $("asof").textContent = ""; $("out").innerHTML = '<div class="err">Sign in first: open <a href="/streaming">jack-o.io/streaming</a>, enter the password, then come back to <b>jack-o.io/stats</b>.</div>'; return; }
+    DATA = await r.json(); $("asof").textContent = "Updated " + new Date().toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }) + ". Refreshes every minute."; render();
+  } catch { $("asof").textContent = "Couldn't load the numbers. Check the connection."; }
+}
+document.querySelectorAll(".seg button").forEach(b => b.onclick = () => { PERIOD = b.dataset.p; document.querySelectorAll(".seg button").forEach(x => x.classList.toggle("on", x === b)); if (DATA) render(); });
+load(); setInterval(load, 60000);
+</script>
+</body>
+</html>
