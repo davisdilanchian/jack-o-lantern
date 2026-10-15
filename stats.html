@@ -52,7 +52,7 @@
 <script>
 const $ = id => document.getElementById(id);
 const DAY = t => new Date(t - 7 * 3600000).toISOString().slice(0, 10);       // same day boundary as the server
-const MODE = { "stream":"Stream mode", "pass":"Pumpkin Pass", "pass+eleven":"Pass + own ElevenLabs voice", "google-free":"Own Google key (free)", "google-unlocked":"Own Google key + $1.99 unlock",
+const MODE = { "demo":"Free demo", "stream":"Stream mode", "pass":"Pumpkin Pass", "pass+eleven":"Pass + own ElevenLabs voice", "google-free":"Own Google key (free)", "google-unlocked":"Own Google key + $1.99 unlock",
   "openai-free":"Own OpenAI key (free)", "openai-unlocked":"Own OpenAI key + $1.99 unlock",
   "google-key+pass":"Own Google key, has a pass", "openai-key+pass":"Own OpenAI key, has a pass" };
 let DATA = null, PERIOD = "today";
@@ -132,6 +132,10 @@ function render() {
     <p class="note">Scrolled at least: ${["25","50","75","100"].map(k => k + "% " + pct(by(u, "scroll")[k] || 0, phones)).join(" · ")}. Stayed at least: ${["10s","30s","1m","3m"].map(k => k + " " + pct(by(u, "time")[k] || 0, phones)).join(" · ")}.</p>
     <h2>The video (phones)</h2>
     ${bars({ "Turned the sound on (our button)": by(u, "vid").sound_on || 0, "Turned the sound on (YouTube's controls)": by(u, "vid").yt_unmute || 0, "Paused it": by(u, "vid").paused || 0 }, k => k, phones, true)}
+    <h2>Free demo (phones)</h2>
+    ${bars({ "Tapped Try a free demo": by(u, "demo").start || 0, "Said No (not ready)": by(u, "demo").no || 0, "Said Yes": by(u, "demo").yes || 0,
+      "Heard line 1": by(u, "demo").line1 || 0, "Heard line 2": by(u, "demo").line2 || 0, "Heard line 3": by(u, "demo").line3 || 0, "Heard line 4": by(u, "demo").line4 || 0,
+      "Finished": by(u, "demo").over || 0, "Tapped Get a Pumpkin Pass after": by(u, "demo").pass || 0 }, k => k, phones, true)}
     <h2>What people opened or tapped (phones)</h2>
     ${bars(Object.assign({}, ...Object.entries(by(u, "open")).map(([k, v]) => ({ ["Opened: " + (OPENED[k] || k)]: v })),
         ...Object.entries(by(u, "click")).map(([k, v]) => ({ ["Tapped: " + (k === "scan" ? "Scan code" : k === "enter_key" ? "Enter key" : k)]: v })),

@@ -48,6 +48,12 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   #drained small { display:block; margin-top:18px; font-size:16px; font-weight:500; opacity:.85; }
   #putin { position:fixed; inset:0; z-index:7; display:none; align-items:center; justify-content:center; text-align:center; padding:24px; background:#000; color:#fff;
     font:400 clamp(34px,10vw,64px)/1.15 "Patrick Hand", system-ui, sans-serif; transition:opacity .6s; }
+  #dm { position:fixed; inset:0; z-index:12; display:none; flex-direction:column; align-items:center; justify-content:center; gap:22px; text-align:center; padding:24px;
+    background:#000; color:#fff; font:400 clamp(30px,8.5vw,56px)/1.15 "Patrick Hand", system-ui, sans-serif; }
+  #dm p { margin:0; max-width:16ch; } #dm small { display:block; margin-top:10px; font:16px system-ui,-apple-system,sans-serif; opacity:.8; }
+  #dmbtns { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+  #dmbtns button { width:auto; min-width:120px; padding:10px 22px; font:400 26px "Patrick Hand", system-ui, sans-serif; border-radius:12px; border:2px solid #fff; background:#000; color:#fff; }
+  #dmbtns button.go { background:#e5782a; border-color:#e5782a; color:#2b1d12; }
   #muted { position:fixed; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; background:#050403; gap:12px; }
   #muted svg { width:42vw; max-width:240px; }
   #muted b { font-size:clamp(30px,9vw,52px); letter-spacing:.04em; }
@@ -90,6 +96,8 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   .overlay .help.small { font-size:14px; }
   .overlay details#privacy ul { margin-top:10px; }
   .overlay #characters #start { margin-top:14px; }
+  .overlay details.mini { padding:6px 12px; } .overlay details.mini > summary { font-size:17px; }
+  .overlay button.dmbtn { margin:4px 0 6px; font-size:20px; }
   .overlay .intro { display:grid; grid-template-columns:minmax(0,1fr) minmax(104px,32%); gap:10px 14px; align-items:center; margin-top:6px; }
   .overlay .intro ol.steps3 { margin-top:8px; }
   .overlay .introvid .help { font-size:13px; text-align:center; }
@@ -196,6 +204,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
   <b>MUTED</b><span>tap, or say "Mute off"</span>
 </div>
 <div id="putin" role="status">Put me inside a pumpkin now.</div>
+<div id="dm" role="dialog" aria-live="polite"><p id="dmtext"></p><div id="dmbtns"></div></div>
 <div id="drained" role="alert">Social battery drained, refill required.<small>Refill from any phone at jack-o.io. It wakes up by itself.</small></div>
 <button id="gear" aria-label="Settings">Settings</button>
 
@@ -214,10 +223,10 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       </ol>
       </div>
       <div class="introvid">
-      <div class="demo"><iframe id="demovid" title="Jack-o talking to trick-or-treaters" src="https://www.youtube-nocookie.com/embed/xMnbPGyVYps?autoplay=1&amp;mute=1&amp;loop=1&amp;playlist=xMnbPGyVYps&amp;playsinline=1&amp;rel=0&amp;modestbranding=1&amp;enablejsapi=1&amp;origin=https://jack-o.io" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+      <div class="demo"><iframe id="demovid" title="Jack-o talking to trick-or-treaters" src="https://www.youtube-nocookie.com/embed/xMnbPGyVYps?loop=1&amp;playlist=xMnbPGyVYps&amp;playsinline=1&amp;rel=0&amp;modestbranding=1&amp;enablejsapi=1&amp;origin=https://jack-o.io" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
       </div>
       <button id="hearchar" type="button" class="hearbtn">▶ Hear</button>
-      <button id="demosound" type="button" class="demosound">🔊 Sound on</button>
+      <button id="demosound" type="button" class="demosound">▶ Play video</button>
     </div>
     <div id="pickbox">
       <div class="field">
@@ -226,7 +235,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <textarea id="custom" placeholder="Describe your pumpkin: who it is, how it talks, what it likes. For example: a sleepy grandpa pumpkin who loves bad jokes." style="display:none"></textarea>
       </div>
       <div class="field">
-        <details class="steps" id="morevoices"><summary>Try other voices</summary>
+        <details class="steps mini" id="morevoices"><summary>Try other voices</summary>
         <select id="voice" hidden></select>
         <div id="voicechips" class="chips" role="radiogroup" aria-label="Voice"></div>
         <p id="voicemsg" class="help" role="status">Tap a voice to hear it and use it.</p>
@@ -236,7 +245,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
 
     <section id="characters">
       <h2>Set it up</h2>
-      <details id="ownkey" class="ownkey freeopt">
+      <details id="ownkey" class="ownkey freeopt mini">
       <summary>Free option: use your own Google key</summary>
       <p class="help">Free with your own Google (or OpenAI) key, in each character's own voice. A Pumpkin Pass adds every voice and color, and your key still does the talking.</p>
     <section id="key-section">
@@ -301,6 +310,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <div id="nopass">
           <a id="buypass" class="tipbtn" target="_self">🎃 Get a Pumpkin Pass, $4.99</a>
           <p class="help center">About 400 replies, every voice and color, and ElevenLabs voices.</p>
+          <button id="dmbtn" type="button" class="wide dmbtn">✨ Try a free demo</button>
       </div>
         <div id="haspass" style="display:none">
           <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked. Add your own key too and it talks on that, saving the battery.</p>
@@ -365,11 +375,11 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
 
       <button class="primary" id="start">Start</button>
       <div id="err" role="alert"></div>
-      <details class="steps" id="phonetips"><summary>Phone tips</summary>
+      <details class="steps mini" id="phonetips"><summary>Phone tips</summary>
         <ul class="help plain">
           <li><b>Brightness all the way up</b>, auto-brightness off.</li>
           <li><b>Keep the screen on.</b> iPhone: Settings › Display &amp; Brightness › Auto-Lock › Never, Low Power Mode off. Android: Settings › Display › Screen timeout › longest, battery saver off.</li>
-          <li><b>Volume all the way up</b>, and plug it in.</li>
+          <li><b>Volume all the way up.</b> Keep it plugged in, unless you don't mind it dying partway through the night.</li>
           <li><b>To mute:</b> tap the screen or say "Mute on". Say "Mute off" to unmute.</li>
         </ul>
       </details>
@@ -1173,21 +1183,94 @@ setInterval(() => { if ($("setup").style.display !== "none") refreshPass(); }, 6
 // ------------------------------------------------------------------ start
 // The how-it-works video (muted, looping) plays only while the setup page shows.
 let demoLoud = false;
-const DEMO = "https://www.youtube-nocookie.com/embed/xMnbPGyVYps?autoplay=1&mute=1&loop=1&playlist=xMnbPGyVYps&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=https://jack-o.io";
+const DEMO = "https://www.youtube-nocookie.com/embed/xMnbPGyVYps?loop=1&playlist=xMnbPGyVYps&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=https://jack-o.io";
 function demo(on) {
   const f = $("demovid"); if (OWNER_PAGE) { f.parentNode.style.display = "none"; return; }
   const want = on ? DEMO : "about:blank"; if ((f.getAttribute("src") || "about:blank") !== want) f.setAttribute("src", want);
-  demoLoud = false; $("demosound").textContent = "🔊 Sound on";
+  demoLoud = false; $("demosound").textContent = "▶ Play video";
 }
 if (OWNER_PAGE) demo(false);
 // The video is too small for YouTube to show its own speaker button, so this button turns the sound on and off.
 const ytCmd = (func, args = []) => { try { $("demovid").contentWindow.postMessage(JSON.stringify({ event:"command", func, args }), "*"); } catch {} };
 $("demosound").onclick = () => {
-  demoLoud = !demoLoud; track("vid", demoLoud ? "sound_on" : "sound_off");
-  if (demoLoud) { ytCmd("unMute"); ytCmd("setVolume", [100]); ytCmd("playVideo"); } else ytCmd("mute");
-  $("demosound").textContent = demoLoud ? "🔇 Sound off" : "🔊 Sound on";
+  demoLoud = !demoLoud; track("vid", demoLoud ? "play" : "pause");
+  if (demoLoud) { ytCmd("unMute"); ytCmd("setVolume", [100]); ytCmd("playVideo"); } else ytCmd("pauseVideo");
+  $("demosound").textContent = demoLoud ? "⏸ Pause" : "▶ Play video";
 };
-$("gear").onclick = e => { e.stopPropagation(); demo(true); $("setup").style.display = "flex"; $("start").textContent = "Save and resume"; };
+// ------------------------------------------------------------------ free demo: no key, no pass, nothing sent anywhere
+// Asks "Are you ready to put this phone inside a pumpkin?", then (yes) the 5-second put-me-in screen, then four pre-recorded
+// lines in the chosen pumpkin's voice. Each line waits for someone to talk and stop. Costs nothing per demo.
+const DM = { on:false, step:0, playing:false, heard:false, loudN:0, lastLoud:0, readyAt:0, bufs:{} };
+const DM_LINES = ["1", "2", "3", "4"];
+const dmChar = () => /^(jack|witch|count|grump|ghost|denial|prof|cabbie)$/.test($("persona").value) ? $("persona").value : "jack";
+async function dmClip(ctx, line) {
+  const k = dmChar() + "-" + line;
+  if (!DM.bufs[k]) { const ab = await (await fetch("voices/demo/" + k + ".mp3")).arrayBuffer(); DM.bufs[k] = await new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej)); }
+  return DM.bufs[k];
+}
+function dmPlay(ctx, dest, buf, onEnd) {
+  const src = ctx.createBufferSource(); src.buffer = buf; src.connect(dest);
+  src.onended = () => { try { src.disconnect(); } catch {} if (onEnd) onEnd(); };
+  src.start(); if (ctx === S.ctx) S.playEnd = ctx.currentTime + buf.duration;   // the glow and the mic treat it as talking
+}
+function dmScreen(html, buttons) {
+  $("dmtext").innerHTML = html; $("dmbtns").innerHTML = "";
+  for (const [label, cls, fn] of buttons || []) { const b = document.createElement("button"); b.type = "button"; b.textContent = label; b.className = cls || ""; b.onclick = fn; $("dmbtns").appendChild(b); }
+  $("dm").style.display = "flex";
+}
+const dmHide = () => { $("dm").style.display = "none"; };
+async function dmSay(line) {                                // play a line on the page's sample player (before Start)
+  stopSample(); const ctx = SAMPLE.ctx || (SAMPLE.ctx = new (window.AudioContext || window.webkitAudioContext)());
+  try { ctx.resume(); } catch {}
+  try { dmPlay(ctx, ctx.destination, await dmClip(ctx, line)); } catch {}
+}
+$("dmbtn").onclick = () => {
+  track("demo", "start");
+  dmSay("q");
+  dmScreen("Are you ready to put this phone inside a pumpkin?", [
+    ["No", "", () => { track("demo", "no"); dmSay("no"); dmScreen("Come back when you have a pumpkin ready. 🎃", [["Back", "", dmHide]]); }],
+    ["Yes", "go", dmGo],
+  ]);
+};
+async function dmGo() {
+  track("demo", "yes"); stopSample();
+  try { await ensureAudio(); } catch (e) { dmHide(); return showErr(micHelp(e)); }
+  dmHide(); stopSample(); endVisitForNewSettings();
+  $("setup").style.display = "none"; demo(false);
+  document.documentElement.requestFullscreen?.().catch(() => {});
+  keepAwake(); status("Demo");
+  S.armAt = Date.now() + 5000;
+  const el = $("putin"); el.style.opacity = "1"; el.style.display = "flex";
+  setTimeout(() => { el.style.opacity = "0"; setTimeout(() => { el.style.display = "none"; }, 600); }, 5000);
+  Object.assign(DM, { on:true, step:0, playing:false, heard:false, loudN:0, lastLoud:0, readyAt: Date.now() + 5000 });
+  try { await dmClip(S.ctx, "1"); } catch {}                // load the first line during the countdown
+}
+// Called with every mic chunk while the demo runs: wait for someone to talk and then pause, then say the next line.
+function dmMic(rms) {
+  const now = Date.now();
+  if (now < DM.readyAt || DM.playing) { DM.heard = false; DM.loudN = 0; return; }
+  if (rms > S.floor * TUNE.ratio && rms > TUNE.min) { if (++DM.loudN >= 2) { DM.heard = true; DM.lastLoud = now; } }
+  else { DM.loudN = 0; S.floor = S.floor * 0.97 + rms * 0.03; }
+  if ((DM.heard && now - DM.lastLoud > 900) || (DM.step === 0 && now - DM.readyAt > 6000)) dmNext();
+}
+async function dmNext() {
+  if (DM.playing || !DM.on) return;
+  DM.playing = true; DM.heard = false;
+  const line = DM_LINES[DM.step++]; track("demo", "line" + line);
+  try {
+    const buf = await dmClip(S.ctx, line);
+    if (IOS) releaseMic();
+    dmPlay(S.ctx, S.out, buf, () => setTimeout(() => { DM.playing = false; DM.lastLoud = Date.now(); if (DM.step >= DM_LINES.length) dmOver(); }, 700));
+  } catch { DM.playing = false; dmOver(); }
+}
+function dmOver() {
+  DM.on = false; track("demo", "over"); status("Demo over");
+  dmScreen("Demo over.<small>Like it? Get a Pumpkin Pass, or use your own free key, and it really talks back.</small>", [
+    ["Back", "", () => { dmHide(); $("setup").style.display = "flex"; demo(true); }],
+    ["Get a Pumpkin Pass", "go", () => { track("demo", "pass"); dmHide(); $("setup").style.display = "flex"; demo(true); $("passbox").scrollIntoView({ behavior:"smooth", block:"center" }); }],
+  ]);
+}
+$("gear").onclick = e => { e.stopPropagation(); if (DM.on) { DM.on = false; DM.playing = false; } demo(true); $("setup").style.display = "flex"; $("start").textContent = "Save and resume"; };
 // Settings changed: hang up any conversation in progress so the next one uses the new character, voice and language.
 function endVisitForNewSettings() { if (S.ctx && S.phase !== "idle") { stopPlayback(); closeVisit(); } }
 $("start").onclick = async () => {
@@ -1214,7 +1297,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015163037";
+const BUILD = "20261015165928";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1411,6 +1494,7 @@ function onMic(samples) {
   const rms = Math.sqrt(sum / samples.length);
   if (streamOn()) return;                                   // stream mode: chat only, the room mic is ignored
   if (S.muted) return listenWhileMuted(samples, rms);
+  if (DM.on) return dmMic(rms);                              // free demo: pre-recorded lines, no session
   if (S.phase === "idle") {
     if (speaking() || $("setup").style.display !== "none") return;
     if (rms > S.floor * TUNE.ratio && rms > TUNE.min) { if (++S.loud >= 2 && Date.now() - S.end > TUNE.cooldown && !(Date.now() < (S.armAt || 0))) runVisit(false); }
@@ -1624,7 +1708,7 @@ function handleOA(text) {
   const url = (/(^|\.)jack-o\.io$/.test(location.hostname) ? "" : "https://jack-o.io") + "/api/ping";
   const ping = () => {
     if (!S.ctx || $("setup").style.display !== "none" || !AID) return;              // only after Start, while it's out of the settings
-    const body = JSON.stringify({ aid:AID, mode: streamOn() ? "stream" : modeName(), talking: S.phase !== "idle" && S.phase !== "listening" });
+    const body = JSON.stringify({ aid:AID, mode: DM.on ? "demo" : streamOn() ? "stream" : modeName(), talking: S.phase !== "idle" && S.phase !== "listening" });
     try { if (!navigator.sendBeacon || !navigator.sendBeacon(url, body)) fetch(url, { method:"POST", body, keepalive:true }).catch(() => {}); } catch {}
   };
   setInterval(ping, 60000); $("start").addEventListener("click", () => setTimeout(ping, 6000));
