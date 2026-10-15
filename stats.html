@@ -13,9 +13,8 @@
   h1 { font-size:24px; margin:0 0 4px; color:var(--ink); }
   h2 { font-size:16px; margin:26px 0 10px; color:var(--ink); }
   .sub { color:var(--muted); margin:0 0 14px; font-size:13px; }
-  .seg { display:inline-flex; flex-wrap:wrap; border:1.5px solid var(--ink); border-radius:10px; overflow:hidden; margin:6px 0 4px; }
-  .seg button { font:inherit; padding:7px 14px; border:0; background:var(--surface); color:var(--ink); cursor:pointer; }
-  .seg button + button { border-left:1.5px solid var(--ink); }
+  .seg { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 4px; }
+  .seg button { font:inherit; padding:7px 12px; border:1.5px solid var(--ink); border-radius:999px; background:var(--surface); color:var(--ink); cursor:pointer; }
   .seg button.on { background:var(--accent); color:#2b1d12; font-weight:600; }
   .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
   .card { background:var(--surface); border:1.5px solid var(--line); border-radius:12px; padding:12px 14px; }
