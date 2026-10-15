@@ -767,7 +767,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014210459";
+const BUILD = "20261014210757";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -861,7 +861,8 @@ async function ensureAudio() {
   const ctx = SAMPLE.ctx || new (window.AudioContext || window.webkitAudioContext)();
   SAMPLE.ctx = null;
   // Ask for the microphone first, so its prompt appears before anything else can fail.
-  let mic;
+  let mic = null;
+  if (!streamOn()) {
   // echoCancellation "all" (Chrome 141+) removes everything this phone plays, including the pumpkin's own
   // voice, so it can listen while talking without hearing itself. Older browsers only accept true.
   // iPhones already cancel all of the phone's own sound.
@@ -875,6 +876,7 @@ async function ensureAudio() {
   catch (e) { try { ctx.close(); } catch {} throw e; }
   let ec; try { ec = mic.getAudioTracks()[0].getSettings().echoCancellation; } catch {}
   S.fullEcho = IOS || ec === "all";
+  }   // stream mode skips the mic: on Android an open mic switches the phone into call-audio mode, which plays sound worse
   try { await ctx.resume(); } catch {}
   S.ctx = ctx; S.mic = mic;
   // Output chain: voice -> analyser (for the light) -> speakers
@@ -892,6 +894,7 @@ async function ensureAudio() {
     S.camTrack = cam.getVideoTracks()[0];
     S.torchOK = !!(S.camTrack.getCapabilities && S.camTrack.getCapabilities().torch);
   } catch { S.torchOK = false; }
+  if (!S.mic) { requestAnimationFrame(frame); return; }      // no mic (stream mode): nothing to capture
   const src = S.ctx.createMediaStreamSource(S.mic);
   let acc = [], pos = 0;
   const feed = data => {
@@ -1088,7 +1091,7 @@ function handleOA(text) {
       voiceCommand(m.transcript || ""); S.heard = "";
       return;
     case "response.done": {
-      CHAT.waiting = false;
+      setTimeout(telReport, 4000); CHAT.waiting = false;
       pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now();
       const er = m.response && m.response.status === "failed" && m.response.status_details && m.response.status_details.error;
       if (er) { showErr(oaError(0, er.code, er.message || "")); closeVisit(); }
@@ -1123,7 +1126,7 @@ function handle(text) {
     S.phase = "talking"; status("Talking"); S.lastAct = Date.now();
   }
   if (c.interrupted) { S.dbg.interrupted++; stopPlayback(); S.turn = false; S.greeting = false; }
-  if (c.turnComplete) { CHAT.waiting = false; S.heard = ""; pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
+  if (c.turnComplete) { setTimeout(telReport, 4000); CHAT.waiting = false; S.heard = ""; pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
 }
 
 // Jack's voice arrives as 24 kHz chunks. Resample them to the output rate as one continuous
@@ -1131,9 +1134,28 @@ function handle(text) {
 // cushion so network jitter does not cause gaps.
 const LOUD = { target:0.14, avg:0, gain:1 };   // target speech level: about where Google's voices already are
 const PLAY = { pos:0, prev:0, cushion:0.25, pend:[], pendLen:0, queued:0, started:false, endFrame:0 };
+// Playback stats for one answer, sent to jack-o.io so problems on a phone can be measured, not guessed.
+const TEL = { on:false, t0:0, chunks:0, samples:0, maxGap:0, lastAt:0, under:0, stall:0, minAhead:9 };
+let tick = performance.now();
+setInterval(() => { const n = performance.now(); if (n - tick - 100 > TEL.stall) TEL.stall = n - tick - 100; tick = n; }, 100);   // longest main-thread freeze
+function telChunk(n) {
+  const now = performance.now();
+  if (!TEL.on) Object.assign(TEL, { on:true, t0:now, chunks:0, samples:0, maxGap:0, lastAt:now, under:S.dbg.underrun, stall:0, minAhead:9 });
+  TEL.maxGap = Math.max(TEL.maxGap, now - TEL.lastAt); TEL.lastAt = now; TEL.chunks++; TEL.samples += n;
+  if (PLAY.started && S.ctx) TEL.minAhead = Math.min(TEL.minAhead, S.playEnd - S.ctx.currentTime);
+}
+function telReport() {
+  if (!TEL.on || !(STREAMING || DEBUG)) return;
+  TEL.on = false;
+  const r = { ua:navigator.userAgent.slice(0, 120), provider:S.provider, rate:S.ctx && S.ctx.sampleRate, baseLatency:S.ctx && S.ctx.baseLatency, outputLatency:S.ctx && S.ctx.outputLatency,
+    mic:!!S.mic, audioSec:+(TEL.samples / 24000).toFixed(2), arrivedOverSec:+((TEL.lastAt - TEL.t0) / 1000).toFixed(2), chunks:TEL.chunks,
+    maxChunkGapMs:Math.round(TEL.maxGap), underruns:S.dbg.underrun - TEL.under, minBufferAheadSec:+TEL.minAhead.toFixed(3), maxFreezeMs:Math.round(TEL.stall), cushion:PLAY.cushion, build:BUILD };
+  fetch("/api/stream/report", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(r) }).catch(() => {});
+}
 function play(b64data) {
   const bin = atob(b64data), n = bin.length >> 1;
   if (!n) return;
+  telChunk(n);
   const inp = new Float32Array(n);
   for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if (v & 0x8000) v -= 0x10000; inp[i] = v / 32768; }
   const rate = S.ctx.sampleRate, step = 24000 / rate;
