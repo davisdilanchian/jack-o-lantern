@@ -89,6 +89,9 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   .overlay .help.small { font-size:14px; }
   .overlay details#privacy ul { margin-top:10px; }
   .overlay #characters #start { margin-top:14px; }
+  .overlay .demo { width:min(210px, 56vw); aspect-ratio:9/16; margin:18px auto 0; border-radius:16px; overflow:hidden; background:#000;
+    border:1.5px solid var(--ink); box-shadow:2px 3px 0 rgba(58,40,26,.85); }
+  .overlay .demo iframe { display:block; width:100%; height:100%; border:0; }
   /* Type scale: Patrick Hand for headings, buttons and every fold-out title; the system font for reading text. */
   .overlay h1 { font-size:34px; } .overlay h2 { font-size:24px; }
   .overlay summary, .overlay .steps summary, .overlay details.ownkey > summary, .overlay details.freeopt > summary {
@@ -198,6 +201,8 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <li><span class="num">2</span><span><b>Power it up:</b> enter a free key, scan a code from your other phone, or get a Pumpkin Pass.</span></li>
       <li><span class="num">3</span><span><b>Press Start</b> and put it in the pumpkin, screen facing out.</span></li>
     </ol>
+    <div class="demo"><iframe id="demovid" title="Jack-o talking to trick-or-treaters" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+    <p class="help center">See it in action. Tap the video for sound.</p>
 
     <section id="characters">
       <h2>Set it up</h2>
@@ -365,6 +370,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <li>This website doesn't record or keep anything. Your key and settings stay on this phone.</li>
         <li>With a free Google key, Google may use what it hears to improve its products.</li>
         <li>If you buy the unlock, Stripe handles the payment. We keep only a scrambled fingerprint of your key with it, so your phones unlock automatically. We can't turn it back into your key.</li>
+        <li>The how-it-works video plays from YouTube (privacy-enhanced mode).</li>
         <li>If you came here from a Google ad, Google's ad tag notes whether that visit led to a purchase, so we can tell which ads work. It doesn't see what the pumpkin hears.</li>
         <li>If you add an ElevenLabs key, the words the pumpkin says go to ElevenLabs so it can speak them in your voice.</li>
         <li>The site counts anonymous usage, like page views and which options are used, with a random number stored on your phone. No names, no accounts, nothing it hears.</li>
@@ -1146,7 +1152,14 @@ $("eltest").onclick = () => {
 setInterval(() => { if ($("setup").style.display !== "none") refreshPass(); }, 60000);
 
 // ------------------------------------------------------------------ start
-$("gear").onclick = e => { e.stopPropagation(); $("setup").style.display = "flex"; $("start").textContent = "Save and resume"; };
+// The how-it-works video (muted, looping) plays only while the setup page shows.
+const DEMO = "https://www.youtube-nocookie.com/embed/3MoDAMpuUsY?autoplay=1&mute=1&loop=1&playlist=3MoDAMpuUsY&playsinline=1&rel=0&modestbranding=1";
+function demo(on) {
+  const f = $("demovid"); if (OWNER_PAGE) { f.parentNode.style.display = "none"; return; }
+  const want = on ? DEMO : "about:blank"; if ((f.getAttribute("src") || "about:blank") !== want) f.setAttribute("src", want);
+}
+setTimeout(() => { if ($("setup").style.display !== "none") demo(true); }, 1200);
+$("gear").onclick = e => { e.stopPropagation(); demo(true); $("setup").style.display = "flex"; $("start").textContent = "Save and resume"; };
 // Settings changed: hang up any conversation in progress so the next one uses the new character, voice and language.
 function endVisitForNewSettings() { if (S.ctx && S.phase !== "idle") { stopPlayback(); closeVisit(); } }
 $("start").onclick = async () => {
@@ -1158,7 +1171,7 @@ $("start").onclick = async () => {
   showErr("");
   try { await ensureAudio(); } catch (e) { return showErr(micHelp(e)); }
   track("start", modeName());
-  $("setup").style.display = "none";
+  $("setup").style.display = "none"; demo(false);
   document.documentElement.requestFullscreen?.().catch(()=>{});
   keepAwake();
   status(streamOn() ? "Live: waiting for chat" : "Waiting for visitors");
@@ -1173,7 +1186,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015143930";
+const BUILD = "20261015144053";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
