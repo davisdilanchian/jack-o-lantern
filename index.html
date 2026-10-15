@@ -301,7 +301,18 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
 const PAY_URL = "https://buy.stripe.com/3cIeVe4v4ddv1Lz7Wc8Zq01";
 const API = /(^|\.)jack-o\.io$|^localhost$/.test(location.hostname) ? "/api" : "https://jack-o.io/api";
 let KEYHASH = "";
-const unlocked = () => { try { return !!KEYHASH && localStorage.getItem("unlockFor") === KEYHASH; } catch { return false; } };
+// Fingerprints of every key this phone has seen unlocked (switching back to an old key stays unlocked, even offline).
+const paidKeys = () => { try { return JSON.parse(localStorage.getItem("paidKeys") || "[]"); } catch { return []; } };
+const setPaid = (h, on) => { const l = paidKeys().filter(x => x !== h); if (on) l.push(h); try { localStorage.setItem("paidKeys", JSON.stringify(l.slice(-20))); } catch {} };
+const unlocked = () => !!KEYHASH && paidKeys().includes(KEYHASH);
+// A phone unlocked with a paid key switched to a new key: ask the server to unlock the new key too.
+async function linkKey(to) {
+  for (const from of paidKeys().slice().reverse()) {
+    if (from === to) continue;
+    try { const r = await fetch(API + "/link?from=" + from + "&to=" + to); if (r.status === 200) return "ok"; if (r.status === 429) return "limit"; } catch { return null; }
+  }
+  return null;
+}
 async function keyHash(key) {
   if (!key || !(window.crypto && crypto.subtle)) return "";
   const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("jack-o:" + key)));
@@ -583,8 +594,16 @@ async function syncUnlock() {
   for (let i = 0; i < (justPaid ? 12 : 1); i++) {               // Stripe's notice can take a few seconds to arrive
     const paid = await keyPaid(h);
     if (h !== checkingFor) return;                            // key changed meanwhile
-    if (paid) { localStorage.setItem("unlockFor", h); localStorage.removeItem("justPaid"); return refreshUnlock(justPaid ? "Payment confirmed. Everything is unlocked. Thank you! 🎃" : ""); }
-    if (paid === false && !justPaid && localStorage.getItem("unlockFor") === h) { localStorage.removeItem("unlockFor"); refreshUnlock(); }
+    if (paid) { setPaid(h, true); localStorage.removeItem("justPaid"); return refreshUnlock(justPaid ? "Payment confirmed. Everything is unlocked. Thank you! 🎃" : ""); }
+    if (paid === false && !justPaid) {
+      if (paidKeys().some(x => x !== h)) {                    // this phone was unlocked with another key: carry it over
+        const r = await linkKey(h);
+        if (h !== checkingFor) return;
+        if (r === "ok") { setPaid(h, true); return refreshUnlock("Your new key is unlocked too."); }
+        if (r === "limit") return refreshUnlock("Your purchase already covers 6 keys, so this new key isn't unlocked. Message @davisdilanchian if you need more.");
+      }
+      if (paidKeys().includes(h)) { setPaid(h, false); refreshUnlock(); }
+    }
     if (justPaid) await new Promise(r => setTimeout(r, 2000));
   }
   if (justPaid) refreshUnlock("We couldn't confirm the payment yet. Reload in a minute. Still stuck? Message @davisdilanchian with your receipt.");
