@@ -80,7 +80,8 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   #scanbox { display:none; margin-top:14px; }
   #scanbox video { width:100%; border-radius:8px; background:#000; aspect-ratio:1; object-fit:cover; }
   .btnrow { display:flex; gap:8px; margin-top:12px; } .btnrow button { flex:1; }
-  .btnrow.three button { padding-left:6px; padding-right:6px; white-space:nowrap; }
+  .btnrow.three button { padding:6px 4px; white-space:nowrap; line-height:1.1; min-height:54px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .overlay .btnrow.three button small { display:block; margin-top:2px; font:12px system-ui,-apple-system,sans-serif; color:var(--muted); }
   .overlay ol.steps3 { list-style:none; padding:0; margin:18px 0 6px; display:grid; gap:10px; }
   .overlay ol.steps3 li { display:flex; gap:12px; align-items:flex-start; font-size:18px; line-height:1.35; }
   .overlay ol.steps3 .num { flex:0 0 34px; height:34px; border-radius:50%; background:var(--accent); border:1.5px solid var(--ink); color:var(--accent-ink);
@@ -208,7 +209,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <div class="introtext">
       <ol class="steps3" id="how">
         <li><span class="num">1</span><span><b>Open jack-o.io on an old phone.</b></span></li>
-        <li><span class="num">2</span><span><b>Power it up:</b> enter a free key, scan a code from your other phone, or get a Pumpkin Pass.</span></li>
+        <li><span class="num">2</span><span><b>Power it up:</b> enter a free key, get a Pumpkin Pass, or scan one from your other phone.</span></li>
         <li><span class="num">3</span><span><b>Press Start</b> and put it in the pumpkin, screen facing out.</span></li>
       </ol>
       </div>
@@ -298,12 +299,25 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
     </section>
     </details>
 
-      <div class="btnrow three">
-        <button id="scan" type="button">Scan code</button>
-        <button id="share" type="button">Show code</button>
-        <button id="gofree" type="button">Enter key</button>
+      <div id="passbox">
+        <p class="help center" style="margin:14px 0 0">No key? We handle everything.</p>
+        <div id="nopass">
+          <a id="buypass" class="tipbtn" target="_self">🎃 Get a Pumpkin Pass, $4.99</a>
+          <p class="help center">About 400 replies, plus every character, voice, and color, and any ElevenLabs voice with your own ElevenLabs key.</p>
       </div>
-      <p class="help center">Pass or key on another phone? Tap <b>Show code</b> there and <b>Scan code</b> here.</p>
+        <div id="haspass" style="display:none">
+          <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked. If you also enter your own key, the pumpkin talks on your key and the battery is saved.</p>
+          <div class="battery"><div id="batteryfill"></div></div>
+          <p id="batterytext" class="help"></p>
+          <a id="refill" class="tipbtn" target="_self">🔋 Refill, $2.99 (about 250 replies)</a>
+      </div>
+        <p id="passmsg" class="help" role="status"></p>
+      </div>
+      <div class="btnrow three">
+        <button id="gofree" type="button">Enter Key</button>
+        <button id="share" type="button">Transfer Key<small>to old phone</small></button>
+        <button id="scan" type="button">Scan Key<small>from new phone</small></button>
+      </div>
       <p id="keymsg" class="help" role="status" style="color:var(--fg)"></p>
       <div id="scanbox">
         <video id="scanvid" playsinline muted></video>
@@ -312,7 +326,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       </div>
       <div id="qrbox" role="dialog" aria-label="QR code with your key">
         <div id="qr"></div>
-        <p>On the old phone, open jack-o.io, tap <b>Scan code</b>, and point it here. This code carries your pass or key, so hide it when you're done.</p>
+        <p>On the old phone, open jack-o.io, tap <b>Scan Key</b>, and point it here. This code carries your pass or key, so hide it when you're done.</p>
         <button id="hideqr" type="button" style="margin-top:10px;color:#1a1410;border-color:#d9cfc6">Hide code</button>
       </div>
       <details class="ownkey" id="moreopts">
@@ -362,22 +376,6 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
           <li><b>To mute:</b> tap the screen or say "Mute on". Say "Mute off" to unmute.</li>
         </ul>
       </details>
-    </section>
-
-    <section id="passbox">
-      <h2>Pumpkin Pass</h2>
-      <p class="help" style="margin-top:0">No key? We handle everything.</p>
-      <div id="nopass">
-        <a id="buypass" class="tipbtn" target="_self">🎃 Get a Pumpkin Pass, $4.99</a>
-        <p class="help center">About 400 replies, plus every character, voice, and color, and any ElevenLabs voice with your own ElevenLabs key.</p>
-      </div>
-      <div id="haspass" style="display:none">
-        <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked. If you also enter your own key, the pumpkin talks on your key and the battery is saved.</p>
-        <div class="battery"><div id="batteryfill"></div></div>
-        <p id="batterytext" class="help"></p>
-        <a id="refill" class="tipbtn" target="_self">🔋 Refill, $2.99 (about 250 replies)</a>
-      </div>
-      <p id="passmsg" class="help" role="status"></p>
     </section>
 
     <details id="privacy" class="ownkey">
@@ -499,7 +497,6 @@ function setPassBalance(b) {
   q.delete("pass"); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash);
   try { localStorage.setItem("passJustPaid", String(Date.now())); } catch {}
 })();
-
 
 // ------------------------------------------------------------------ retired $1.99 unlock, tied to the AI key (no longer sold; earlier buyers keep it)
 // The page sends Stripe a fingerprint of the key (SHA-256, can't be turned back into the key) as the
@@ -1201,7 +1198,7 @@ $("start").onclick = async () => {
   save(); stopSample(); endVisitForNewSettings();
   if (!usingPass() && !$("key").value.trim()) {
     $("passbox").scrollIntoView({ behavior:"smooth", block:"center" });
-    return showErr(PASS.id && PASS.balance <= 0 && PASS.granted > 0 ? "Your pumpkin's battery is empty. Refill it below, or enter a key." : "Power it up first: enter a free key, scan a code from your other phone, or get a Pumpkin Pass below.");
+    return showErr(PASS.id && PASS.balance <= 0 && PASS.granted > 0 ? "Your pumpkin's battery is empty. Refill it below, or enter a key." : "Power it up first: enter a free key, get a Pumpkin Pass, or scan a key from your other phone.");
   }
   showErr("");
   try { await ensureAudio(); } catch (e) { return showErr(micHelp(e)); }
@@ -1221,7 +1218,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015152925";
+const BUILD = "20261015153210";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
