@@ -96,6 +96,7 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   .overlay .demo { width:100%; aspect-ratio:9/16; margin:0; border-radius:16px; overflow:hidden; background:#000;
     border:1.5px solid var(--ink); box-shadow:2px 3px 0 rgba(58,40,26,.85); }
   .overlay .demo iframe { display:block; width:100%; height:100%; border:0; }
+  .overlay button.demosound { display:block; width:100%; margin:8px 0 0; padding:6px 4px; font-size:17px; white-space:nowrap; }
   /* Type scale: Patrick Hand for headings, buttons and every fold-out title; the system font for reading text. */
   .overlay h1 { font-size:34px; } .overlay h2 { font-size:24px; }
   .overlay summary, .overlay .steps summary, .overlay details.ownkey > summary, .overlay details.freeopt > summary {
@@ -209,8 +210,8 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       </ol>
       </div>
       <div class="introvid">
-      <div class="demo"><iframe id="demovid" title="Jack-o talking to trick-or-treaters" src="https://www.youtube-nocookie.com/embed/3MoDAMpuUsY?autoplay=1&amp;mute=1&amp;loop=1&amp;playlist=3MoDAMpuUsY&amp;playsinline=1&amp;rel=0&amp;modestbranding=1" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
-      <p class="help center">Tap for sound.</p>
+      <div class="demo"><iframe id="demovid" title="Jack-o talking to trick-or-treaters" src="https://www.youtube-nocookie.com/embed/3MoDAMpuUsY?autoplay=1&amp;mute=1&amp;loop=1&amp;playlist=3MoDAMpuUsY&amp;playsinline=1&amp;rel=0&amp;modestbranding=1&amp;enablejsapi=1&amp;origin=https://jack-o.io" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+      <button id="demosound" type="button" class="demosound">🔊 Sound on</button>
       </div>
     </div>
 
@@ -1163,12 +1164,21 @@ setInterval(() => { if ($("setup").style.display !== "none") refreshPass(); }, 6
 
 // ------------------------------------------------------------------ start
 // The how-it-works video (muted, looping) plays only while the setup page shows.
-const DEMO = "https://www.youtube-nocookie.com/embed/3MoDAMpuUsY?autoplay=1&mute=1&loop=1&playlist=3MoDAMpuUsY&playsinline=1&rel=0&modestbranding=1";
+let demoLoud = false;
+const DEMO = "https://www.youtube-nocookie.com/embed/3MoDAMpuUsY?autoplay=1&mute=1&loop=1&playlist=3MoDAMpuUsY&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=https://jack-o.io";
 function demo(on) {
   const f = $("demovid"); if (OWNER_PAGE) { f.parentNode.style.display = "none"; return; }
   const want = on ? DEMO : "about:blank"; if ((f.getAttribute("src") || "about:blank") !== want) f.setAttribute("src", want);
+  demoLoud = false; $("demosound").textContent = "🔊 Sound on";
 }
 if (OWNER_PAGE) demo(false);
+// The video is too small for YouTube to show its own speaker button, so this button turns the sound on and off.
+const ytCmd = (func, args = []) => { try { $("demovid").contentWindow.postMessage(JSON.stringify({ event:"command", func, args }), "*"); } catch {} };
+$("demosound").onclick = () => {
+  demoLoud = !demoLoud;
+  if (demoLoud) { ytCmd("unMute"); ytCmd("setVolume", [100]); ytCmd("playVideo"); } else ytCmd("mute");
+  $("demosound").textContent = demoLoud ? "🔇 Sound off" : "🔊 Sound on";
+};
 $("gear").onclick = e => { e.stopPropagation(); demo(true); $("setup").style.display = "flex"; $("start").textContent = "Save and resume"; };
 // Settings changed: hang up any conversation in progress so the next one uses the new character, voice and language.
 function endVisitForNewSettings() { if (S.ctx && S.phase !== "idle") { stopPlayback(); closeVisit(); } }
@@ -1196,7 +1206,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015144832";
+const BUILD = "20261015144955";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
