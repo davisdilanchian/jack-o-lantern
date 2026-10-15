@@ -118,6 +118,11 @@ input[type=range]#boost { width:100%; accent-color:var(--accent); height:32px; }
 .lockbadge { font-size:13px; }
 body.paid .lockbadge, body.paid [data-lock] { display:none; }
 #unlockbox .tipbtn { display:block; text-align:center; margin:12px 0 4px; }
+.seg { display:flex; gap:0; margin:6px 0 10px; border:1.5px solid var(--ink); border-radius:10px; overflow:hidden; }
+.overlay .seg button { flex:1; margin:0; border:0; border-radius:0; box-shadow:none; background:var(--surface); color:var(--fg); font-size:19px; padding:10px 6px; }
+.overlay .seg button + button { border-left:1.5px solid var(--ink); }
+.overlay .seg button.on { background:var(--accent); color:var(--accent-ink); }
+.overlay .seg small { font-family:system-ui,sans-serif; font-size:12px; opacity:.75; }
 </style>
 </head>
 <body>
@@ -145,11 +150,15 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
     </ol>
 
     <section>
-      <h2>1. Your free Google key</h2>
-      <p class="help" style="margin-top:0">The pumpkin's brain is an AI from Google. A "key" is a long code, like a password, that lets your pumpkin use it. Google's is free.</p>
-      <label for="key">Key</label>
+      <h2>1. Your AI key</h2>
+      <p class="help" style="margin-top:0">The pumpkin's brain is an AI from Google or OpenAI. A "key" is a long code, like a password, that lets your pumpkin use it. Google's is free.</p>
+      <div class="seg" role="radiogroup" aria-label="Which AI">
+        <button type="button" id="provgemini" role="radio">Google <small>free</small></button>
+        <button type="button" id="provopenai" role="radio">OpenAI <small>paid</small></button>
+      </div>
+      <label for="key" id="keylabel">Google key</label>
       <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your key here">
-      <details class="steps">
+      <details class="steps" id="howgemini">
         <summary>How do I get a key?</summary>
         <ol>
           <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> and sign in with any Google or Gmail account. Agree to the terms if it asks.</li>
@@ -158,8 +167,17 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
           <li>Come back here and paste it in the box above.</li>
         </ol>
       </details>
+      <details class="steps" id="howopenai" style="display:none">
+        <summary>How do I get a key?</summary>
+        <ol>
+          <li>Open <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">OpenAI's key page</a> and sign in.</li>
+          <li>Tap <b>Create new secret key</b>, then copy it. It starts with sk-.</li>
+          <li>Add a few dollars of credit under <b>Billing</b>. OpenAI isn't free: about a few cents per conversation.</li>
+          <li>Come back here and paste it in the box above.</li>
+        </ol>
+      </details>
       <p id="keykind" class="help" role="status"></p>
-      <p class="help"><b>Have an OpenAI key?</b> You can paste that instead (it starts with sk-). OpenAI isn't free. It costs a few cents per conversation, billed to your OpenAI account.</p>
+      <p class="help">You can save both a Google and an OpenAI key and switch between them with the buttons above.</p>
       <p class="help">Your key stays on this phone. It only goes to Google (or OpenAI). Don't share it with people you don't know.</p>
       <p class="help"><b>Using an old phone?</b> Get the key on your main phone first. Tap <b>Share my key</b> there, then tap <b>Scan a key</b> on the old phone and point it at the code.</p>
       <div class="btnrow">
@@ -240,11 +258,13 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
             <li><b>Changing keys is fine.</b> If an unlocked phone switches to a new key (or from Google to OpenAI), the new key unlocks too. One purchase covers up to 6 keys.</li>
             <li><b>No account, no sign-in.</b> We never see your key. Only a scrambled fingerprint of it, which can't be turned back into the key, is saved with your payment.</li>
             <li><b>Payment is handled by Stripe.</b> Your card details never touch this site.</li>
+            <li><b>Refunds:</b> email <a href="mailto:ddilanchian@gmail.com">ddilanchian@gmail.com</a> with your order number from the Stripe receipt.</li>
           </ul>
         </details>
       </div>
       <div id="unlocked" style="display:none">
         <p class="help" style="margin-top:0"><b>Unlocked. Thank you!</b> Every voice, your own characters, and lantern colors are yours.</p>
+        <p class="help">Need a refund? Email <a href="mailto:ddilanchian@gmail.com">ddilanchian@gmail.com</a> with your order number from the Stripe receipt.</p>
         <p class="help">It's tied to your AI key, so every phone using this key is unlocked too. If you switch this phone to a new key, that key unlocks as well (up to 6 keys in total).</p>
       </div>
       <p id="unlockmsg" class="help" role="status"></p>
@@ -527,9 +547,41 @@ async function sampleVoice(v) {
 
 // Notice the key however it arrives: typing, pasting, autofill, a scanned QR, or a saved key.
 // Also pull the key out if extra text came along with it (spaces, quotes, "OPENAI_API_KEY=").
+// One saved key per AI ("key_gemini", "key_openai"); "geminiKey" is always the key in use.
+// Pasting a key of the other kind switches to that AI by itself.
+let provChoice = store.get("provider", providerOf(store.get("geminiKey", "")));
+function showProvider() {
+  for (const p of ["gemini", "openai"]) {
+    const b = $("prov" + p), has = !!store.get("key_" + p, "");
+    b.classList.toggle("on", p === provChoice); b.setAttribute("aria-checked", p === provChoice);
+    b.querySelector("small").textContent = has ? "saved ✓" : (p === "gemini" ? "free" : "paid");
+  }
+  $("keylabel").textContent = provChoice === "openai" ? "OpenAI key" : "Google key";
+  $("howgemini").style.display = provChoice === "openai" ? "none" : "block";
+  $("howopenai").style.display = provChoice === "openai" ? "block" : "none";
+}
+function switchProvider(p) {
+  if (p === provChoice) return;
+  provChoice = p; store.set("provider", p);
+  $("key").value = store.get("key_" + p, ""); store.set("geminiKey", $("key").value);
+  showProvider(); checkKey(); endVisitForNewSettings();
+}
+$("provgemini").onclick = () => switchProvider("gemini");
+$("provopenai").onclick = () => switchProvider("openai");
+(function migrateKeys() {   // keys saved before the switch existed
+  const k = store.get("geminiKey", "");
+  if (k && !store.get("key_" + providerOf(k), "")) store.set("key_" + providerOf(k), k);
+})();
 function checkKey() {
   const raw = $("key").value, m = raw.match(/sk-[A-Za-z0-9_-]{20,}/) || raw.match(/AIza[A-Za-z0-9_-]{30,}/);
   if (m && m[0] !== raw) $("key").value = m[0];
+  const k = $("key").value.trim();
+  if (k) {
+    const p = providerOf(k);
+    if (store.get("key_" + p, "") !== k) store.set("key_" + p, k);
+    if (p !== provChoice) { provChoice = p; store.set("provider", p); }
+  } else if (document.activeElement === $("key")) store.set("key_" + provChoice, "");   // they cleared the box
+  showProvider();
   fillVoices();
 }
 checkKey();
