@@ -644,9 +644,9 @@ function save() {
 const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, torchAt:0, ws:null, phase:"idle",
   muted:false, turn:false, greeting:false, playEnd:0, floor:0.01, loud:0, lastAct:0, start:0, end:0, visits:[],
   analyser:null, out:null, level:0, peak:0.05, said:"", wake:null, visitId:0, lastChunk:0, lastMsg:0, echo:0.02, couple:0.5, outHist:[], hold:[], barge:false, dbg:{ barge:0, interrupted:0, underrun:0, watchdog:0, torch:0 }, heard:"", cmd:null, pre:[], cmdBusy:false, cmdTimes:[], inRate: providerOf(store.get("geminiKey","")) === "openai" ? 24000 : 16000 };
-const TUNE = { ratio:3.5, min:0.015, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.3 };
+const TUNE = { ratio:3.5, min:0.015, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.6 };
 const status = t => $("status").textContent = t;
-const speaking = () => S.turn || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + (ANDROID ? 0.6 : TUNE.tail));   // Android: longer, its mic has no echo cancellation
+const speaking = () => S.turn || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
 
 // ------------------------------------------------------------------ stream mode (only at jack-o.io/streaming, which is password-protected)
 const STREAMING = location.pathname.replace(/\/$/, "") === "/streaming";
@@ -671,8 +671,7 @@ function connectChat() {
   ws.onerror = () => {};
 }
 setInterval(() => { if (CHAT.ws && CHAT.ws.readyState === 1) CHAT.ws.send("ping"); }, 25000);
-setInterval(() => { try { pumpChat(); } catch {} }, 400);
-setInterval(() => { try { if (S.ctx) micDuty(); } catch {} }, 250);   // also when the screen-refresh loop is paused   // also runs when the screen-refresh loop is paused
+setInterval(() => { try { pumpChat(); } catch {} }, 400);   // also runs when the screen-refresh loop is paused
 // Busy handling: answer everything while calm; when chat outpaces speech, only messages that mention
 // the pumpkin (and gifts); when swamped, gifts only. Messages older than 30 s are dropped.
 function onChat(m) {
@@ -775,7 +774,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014212831";
+const BUILD = "20261014213108";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -871,9 +870,8 @@ async function ensureAudio() {
   // Ask for the microphone first, so its prompt appears before anything else can fail.
   let mic = null;
   if (!streamOn()) {
-    try { mic = await navigator.mediaDevices.getUserMedia(MIC_PLAIN); }
+    try { mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); }
     catch (e) { try { ctx.close(); } catch {} throw e; }
-    S.fullEcho = false;
   }
   try { await ctx.resume(); } catch {}
   S.ctx = ctx; S.mic = mic;
@@ -882,10 +880,6 @@ async function ensureAudio() {
   S.out = S.ctx.createGain(); S.analyser = S.ctx.createAnalyser(); S.analyser.fftSize = 512;
   S.boostChain = makeBoost(S.ctx); S.boost = S.boostChain.input;
   S.out.connect(S.boost); S.boostChain.output.connect(S.analyser); S.analyser.connect(S.ctx.destination);
-  // Keep the speaker awake: phones (older Androids especially) power the speaker down after silence and
-  // clip the first syllable when it wakes. A constant, inaudible hum (about -70 dB at 30 Hz) prevents that.
-  const hum = S.ctx.createOscillator(), humGain = S.ctx.createGain();
-  hum.frequency.value = 30; humGain.gain.value = 0.0003; hum.connect(humGain); humGain.connect(S.ctx.destination); hum.start();
   // Flashlight: needs the back camera open; only Chrome on Android supports it.
   if (lightMode() !== "screen" && !IOS) try {
     const cam = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" } } });
@@ -895,7 +889,7 @@ async function ensureAudio() {
   let acc = [], pos = 0;
   const feed = data => {
     if (streamOn()) return;                                  // stream mode never uses the mic
-    const ratio = S.ctx.sampleRate / S.inRate, chunk = S.inRate / 10;   // 100 ms chunks: 10 sends a second, light enough for old phones
+    const ratio = S.ctx.sampleRate / S.inRate, chunk = S.inRate / 10;   // 100 ms chunks, as in the 10-13 version
     for (; pos < data.length; pos += ratio) acc.push(data[Math.floor(pos)]);
     pos -= data.length;
     while (acc.length >= chunk) onMic(acc.splice(0, chunk));
@@ -921,33 +915,10 @@ async function ensureAudio() {
   requestAnimationFrame(frame);
 }
 
-// ------------------------------------------------------------------ mic only while listening
-// While a phone holds the microphone, it plays sound through its "phone call" audio path, which clips
-// word endings on many Androids and adds gain and peaks on iPhones. So the pumpkin closes the mic
-// completely while it talks and reopens it (no prompt; permission is already granted) when it's done.
-const MIC_PLAIN = { audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } };
 function attachMic(stream) {
   try { S.micSrc && S.micSrc.disconnect(); } catch {}
   S.micSrc = null;
   if (stream && S.capNode) { S.micSrc = S.ctx.createMediaStreamSource(stream); S.micSrc.connect(S.capNode); }
-}
-function releaseMic() {
-  if (!S.mic) return;
-  try { S.mic.getTracks().forEach(t => t.stop()); } catch {}
-  attachMic(null); S.mic = null; S.micClosedAt = Date.now();
-}
-async function reopenMic() {
-  if (S.mic || S.micOpening || !S.ctx || streamOn()) return;
-  S.micOpening = true;
-  try { const m = await navigator.mediaDevices.getUserMedia(MIC_PLAIN); if (wantMicClosed()) m.getTracks().forEach(t => t.stop()); else { S.mic = m; attachMic(m); } }
-  catch {}
-  S.micOpening = false;
-}
-const wantMicClosed = () => S.turn || PLAY.queued > 0 || PLAY.pendLen > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + 0.35);
-function micDuty() {
-  if (streamOn()) return releaseMic();
-  if (wantMicClosed()) releaseMic();
-  else if (!S.mic && S.capNode) reopenMic();
 }
 
 // Keep the screen on and undimmed. Newer browsers: the Screen Wake Lock API (re-requested if the
@@ -983,7 +954,7 @@ function onMic(samples) {
     // With them on, compare the mic with what the speaker is playing right now (loud syllables make
     // loud echo), learn how much of the speaker leaks into the mic, and only pass on sound that is
     // clearly more than that leak for at least 120 ms. Everything else is sent as silence.
-    return;   // the mic is closed while it talks; nothing to pass on
+    return;   // never send its own voice back while it talks (no interruptions)
     if (!S.barge) {
       const now = performance.now();
       let outMax = 0.005; for (const h of S.outHist) if (now - h.t < 400 && h.v > outMax) outMax = h.v;
@@ -1162,7 +1133,10 @@ function handle(text) {
 // stream (carrying the position across chunks) so chunk joins do not click, and keep a small
 // cushion so network jitter does not cause gaps.
 const LOUD = { target:0.14, avg:0, gain:1 };   // target speech level: about where Google's voices already are
-const PLAY = { pos:0, prev:0, cushion:0.35, pend:[], pendLen:0, queued:0, started:false, endFrame:0 };
+// Playback engine from the 10-13 version that played cleanly on old Android phones (do not "improve" it
+// without testing on the S5): each piece is converted to the phone's rate here, continuously across
+// pieces, and queued back to back after a 0.6 s cushion that grows if playback ever runs dry.
+const PLAY = { pos:0, prev:0, cushion:0.6, queue:[], queued:0, started:false };
 // Playback stats for one answer, sent to jack-o.io so problems on a phone can be measured, not guessed.
 const TEL = { on:false, t0:0, chunks:0, samples:0, maxGap:0, lastAt:0, under:0, stall:0, minAhead:9 };
 let tick = performance.now();
@@ -1184,42 +1158,48 @@ function telReport() {
 function play(b64data) {
   const bin = atob(b64data), n = bin.length >> 1;
   if (!n) return;
-  telChunk(n); S.lastChunk = Date.now(); releaseMic();
-  // Keep the voice as it arrives (24 kHz). The only change is a fixed level match: OpenAI's voices are
-  // about 1.5x quieter than Google's. The browser converts to the speaker's rate itself.
-  const g = S.provider === "openai" ? 1.5 : 1, out = new Float32Array(n);
-  for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if (v & 0x8000) v -= 0x10000; out[i] = Math.max(-1, Math.min(1, v / 32768 * g)); }
-  PLAY.pend.push(out); PLAY.pendLen += n; PLAY.queued += n / 24000;
+  telChunk(n); S.lastChunk = Date.now();
+  const g = S.provider === "openai" ? 1.5 : 1;            // OpenAI's voices are about 1.5x quieter than Google's
+  const inp = new Float32Array(n);
+  for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if (v & 0x8000) v -= 0x10000; inp[i] = Math.max(-1, Math.min(1, v / 32768 * g)); }
+  const rate = S.ctx.sampleRate, step = 24000 / rate;
+  const outLen = Math.max(0, Math.ceil((n - 1 - PLAY.pos) / step));   // stop before the last input sample; the next chunk finishes the gap
+  if (outLen <= 0) return;
+  const buf = S.ctx.createBuffer(1, outLen, rate), out = buf.getChannelData(0);
+  // simple linear interpolation between neighbouring samples, continuous across chunks
+  let q = PLAY.pos;
+  for (let i = 0; i < outLen; i++, q += step) {
+    const k = Math.floor(q), f = q - k;
+    const s0 = k <= 0 ? (k === 0 ? inp[0] : PLAY.prev) : inp[k];
+    const s1 = k + 1 < n ? inp[k + 1] : inp[n - 1];
+    out[i] = s0 + (s1 - s0) * f;
+  }
+  PLAY.pos = q - n; PLAY.prev = inp[n - 1];
+  PLAY.queue.push(buf); PLAY.queued += buf.duration;
   pumpAudio(false);
 }
-// Schedule buffered audio in blocks of at least 0.25 s, each starting on the exact sample where the last
-// one ended. Playback waits until PLAY.cushion seconds are buffered; if it ever runs dry, the cushion grows.
 function pumpAudio(flush) {
-  const now = S.ctx.currentTime, R = 24000;
+  const now = S.ctx.currentTime;
   if (PLAY.started && S.playEnd < now - 0.02) {          // ran dry: rebuffer with a bigger cushion
-    PLAY.started = false; PLAY.cushion = Math.min(1.5, PLAY.cushion + 0.2); S.dbg.underrun++;
+    PLAY.started = false; PLAY.cushion = Math.min(1.2, PLAY.cushion + 0.2); S.dbg.underrun++;
   }
   if (!PLAY.started) {
-    if (!flush && PLAY.queued < (streamOn() ? Math.max(0.6, PLAY.cushion) : PLAY.cushion)) return;
-    if (!PLAY.pendLen) return;
-    PLAY.started = true; PLAY.endFrame = Math.max(PLAY.endFrame, Math.ceil((now + 0.05) * R));   // continue after anything still scheduled; never on top of it
+    if (!flush && PLAY.queued < PLAY.cushion) return;
+    PLAY.started = true; S.playEnd = Math.max(S.playEnd, now + 0.05);
   }
-  const ahead = PLAY.endFrame / R - now;
-  if (!PLAY.pendLen || (!flush && PLAY.pendLen < R * 0.25 && ahead > 0.3)) return;
-  const buf = S.ctx.createBuffer(1, PLAY.pendLen, R), d = buf.getChannelData(0); let o = 0;
-  for (const a of PLAY.pend) { d.set(a, o); o += a.length; }
-  PLAY.queued -= PLAY.pendLen / R; PLAY.pend = []; PLAY.pendLen = 0;
-  const src = S.ctx.createBufferSource(); src.buffer = buf; src.connect(S.out);
-  if (PLAY.endFrame / R < now + 0.01) PLAY.endFrame = Math.ceil((now + 0.02) * R);
-  src.start(PLAY.endFrame / R);
-  PLAY.endFrame += buf.length; S.playEnd = PLAY.endFrame / R;
+  while (PLAY.queue.length) {
+    const buf = PLAY.queue.shift(); PLAY.queued -= buf.duration;
+    const src = S.ctx.createBufferSource(); src.buffer = buf; src.connect(S.out);
+    const at = Math.max(S.playEnd, now + 0.02);
+    src.start(at); S.playEnd = at + buf.duration;
+  }
 }
 // Cut the voice off now, including audio already scheduled to play.
 function stopPlayback() {
-  resetPlayback(); S.playEnd = 0; PLAY.endFrame = 0;
+  resetPlayback(); S.playEnd = 0;
   if (S.out && S.ctx) { try { S.out.disconnect(); } catch {} S.out = S.ctx.createGain(); S.out.connect(S.boost); }
 }
-function resetPlayback() { PLAY.pend = []; PLAY.pendLen = 0; PLAY.queued = 0; PLAY.started = false; }
+function resetPlayback() { PLAY.queue = []; PLAY.queued = 0; PLAY.started = false; }
 
 // ------------------------------------------------------------------ light: screen + flashlight follow the voice
 const td = new Float32Array(512);
@@ -1237,15 +1217,14 @@ function frame() {
   $("glow").style.opacity = screenOn ? Math.min(1, S.level * 1.6).toFixed(3) : 0;          // black -> orange
   $("white").style.opacity = screenOn ? Math.max(0, (S.level - 0.6) / 0.4).toFixed(3) : 0; // orange -> white at his loudest
   setTorch(mode !== "screen" && S.level > 0.3);
-  if (PLAY.pendLen) pumpAudio(false);
-  micDuty();
+
   // timeouts
   const now = Date.now();
   if (S.phase === "talking" && !speaking() && !S.greeting) { S.phase = "listening"; status("Listening"); }
   if (S.phase === "connecting" && now - S.start > 10000) closeVisit();
   // Watchdogs, so a lost message can never leave it stuck in "Talking" with the mic gated:
   if (S.turn && now - S.lastChunk > 8000) { pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; CHAT.waiting = false; S.dbg.watchdog++; }   // reply never finished
-  if (!S.turn && PLAY.queued > 0 && now - S.lastChunk > 1500) pumpAudio(true);                                   // leftover audio below the cushion
+  if (!S.turn && PLAY.queue.length && now - S.lastChunk > 1500) pumpAudio(true);                                  // leftover audio below the cushion
   if (S.phase !== "idle" && S.phase !== "connecting" && now - S.lastMsg > 90000 && !speaking()) closeVisit();   // dead connection
   if (S.phase === "talking" && now - S.lastAct > 45000 && !speaking()) closeVisit();
   if (S.phase === "listening" && now - S.lastAct > (streamOn() ? 300000 : TUNE.idle)) closeVisit();
