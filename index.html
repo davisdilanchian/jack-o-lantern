@@ -3,6 +3,16 @@
 <head>
 <meta charset="utf-8">
 <script>if (location.protocol === "http:" && location.hostname !== "localhost") location.replace("https://" + location.host + location.pathname + location.search + location.hash);</script>
+<script>
+// Google Ads measurement: notes which ad click led to a purchase. Not loaded on the owner's stream page.
+window.dataLayer = window.dataLayer || []; function gtag(){ dataLayer.push(arguments); }
+const AD_TAG = "AW-11003790813", AD_PURCHASE = AD_TAG + "/S1jbCKbNjp4dEN2Lgv8o";
+if (location.pathname.replace(/\/$/, "") !== "/streaming") {
+  const s = document.createElement("script"); s.async = true; s.src = "https://www.googletagmanager.com/gtag/js?id=" + AD_TAG; document.head.appendChild(s);
+  gtag("js", new Date()); gtag("config", AD_TAG);
+}
+function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD_PURCHASE, value, currency: "USD", transaction_id: id }); } catch {} }
+</script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#f6efe2">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -328,6 +338,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <li>This website doesn't record or keep anything. Your key and settings stay on this phone.</li>
         <li>With a free Google key, Google may use what it hears to improve its products.</li>
         <li>If you buy the unlock, Stripe handles the payment. We keep only a scrambled fingerprint of your key with it, so your phones unlock automatically. We can't turn it back into your key.</li>
+        <li>If you came here from a Google ad, Google's ad tag notes whether that visit led to a purchase, so we can tell which ads work. It doesn't see what the pumpkin hears.</li>
         <li>Put a small "talking pumpkin" sign nearby so people know it's listening.</li>
       </ul>
     </section>
@@ -431,7 +442,7 @@ async function keyPaid(h) {
 }
 (function importPaidReturn() {
   const q = new URLSearchParams(location.search);
-  if (q.has("paid")) { try { localStorage.setItem("justPaid", "1"); } catch {} q.delete("paid"); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash); }
+  if (q.has("paid")) { try { localStorage.setItem("justPaid", "1"); localStorage.setItem("paidSession", q.get("paid")); } catch {} q.delete("paid"); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash); }
 })();
 
 // ------------------------------------------------------------------ personalities
@@ -975,7 +986,7 @@ async function syncUnlock() {
   for (let i = 0; i < (justPaid ? 12 : 1); i++) {               // Stripe's notice can take a few seconds to arrive
     const paid = await keyPaid(h);
     if (h !== checkingFor) return;                            // key changed meanwhile
-    if (paid) { setPaid(h, true); localStorage.removeItem("justPaid"); return refreshUnlock(justPaid ? "Payment confirmed. Everything is unlocked. Thank you! 🎃" : ""); }
+    if (paid) { setPaid(h, true); localStorage.removeItem("justPaid"); if (justPaid) adPurchase(1.99, localStorage.getItem("paidSession") || h); return refreshUnlock(justPaid ? "Payment confirmed. Everything is unlocked. Thank you! 🎃" : ""); }
     if (paid === false && !justPaid) {
       if (paidKeys().some(x => x !== h)) {                    // this phone was unlocked with another key: carry it over
         const r = await linkKey(h);
@@ -1030,6 +1041,7 @@ showPass();
     if (!fresh || PASS.balance > before || (PASS.balance > 0 && i > 0)) break;
     await new Promise(r => setTimeout(r, 2000));
   }
+  if (fresh && PASS.balance > before) adPurchase(PASS.balance - before >= 2000000 ? 4.99 : 2.99, PASS.id + "-" + paidAt);   // a pass adds $2.50, a refill $1.50
   if (fresh) { localStorage.removeItem("passJustPaid"); $("passmsg").textContent = PASS.balance > 0 ? "Payment confirmed. Your pumpkin is ready: tap Start! 🎃" : "We couldn't confirm the payment yet. Reload in a minute. Still stuck? Email ddilanchian@gmail.com with your receipt."; }
 })();
 setInterval(() => { if ($("setup").style.display !== "none") refreshPass(); }, 60000);
@@ -1056,7 +1068,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015101146";
+const BUILD = "20261015110731";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
