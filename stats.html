@@ -20,6 +20,7 @@
   .card { background:var(--surface); border:1.5px solid var(--line); border-radius:12px; padding:12px 14px; }
   .card b { display:block; font-size:26px; color:var(--ink); line-height:1.1; }
   .card span { color:var(--muted); font-size:13px; }
+  .card.live { border-color:var(--accent); } .card.live b { font-size:30px; }
   .bars { background:var(--surface); border:1.5px solid var(--line); border-radius:12px; padding:10px 14px; }
   .bar { display:grid; grid-template-columns:minmax(120px,38%) 1fr auto; gap:10px; align-items:center; padding:5px 0; }
   .bar + .bar { border-top:1px dashed var(--line); }
@@ -51,7 +52,7 @@
 <script>
 const $ = id => document.getElementById(id);
 const DAY = t => new Date(t - 7 * 3600000).toISOString().slice(0, 10);       // same day boundary as the server
-const MODE = { "pass":"Pumpkin Pass", "pass+eleven":"Pass + own ElevenLabs voice", "google-free":"Own Google key (free)", "google-unlocked":"Own Google key + $1.99 unlock",
+const MODE = { "stream":"Stream mode", "pass":"Pumpkin Pass", "pass+eleven":"Pass + own ElevenLabs voice", "google-free":"Own Google key (free)", "google-unlocked":"Own Google key + $1.99 unlock",
   "openai-free":"Own OpenAI key (free)", "openai-unlocked":"Own OpenAI key + $1.99 unlock",
   "google-key+pass":"Own Google key, has a pass", "openai-key+pass":"Own OpenAI key, has a pass" };
 let DATA = null, PERIOD = "today";
@@ -112,6 +113,8 @@ function render() {
   const funnel = { "Visited the site": u.load || 0, "Played a character's voice": u.hear || 0, "Tapped a buy button": u.buy || 0,
     "Came back from paying": u.paid_back || 0, "Tapped Start": u.start || 0, "Had a trick-or-treater (a conversation)": u.visit || 0 };
   $("out").innerHTML = `
+    ${DATA.live ? `<div class="card live" style="margin-top:14px"><b>🎃 ${DATA.live.running}</b><span>pumpkins running right now${DATA.live.running ? ", " + DATA.live.talking + " talking to someone" : ""}.
+      ${Object.entries(DATA.live.modes || {}).map(([k, v]) => v + " " + (MODE[k] || k)).join(" · ")} ${DATA.live.peakToday ? "<br>Today's peak: " + DATA.live.peakToday.running + " running, " + DATA.live.peakToday.talking + " talking at once." : ""}</span></div>` : ""}
     <div class="cards" style="margin-top:14px">
       <div class="card"><b>${phones}</b><span>phones visited</span></div>
       <div class="card"><b>${u.start || 0}</b><span>phones tapped Start</span></div>

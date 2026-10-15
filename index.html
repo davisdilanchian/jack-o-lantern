@@ -1213,7 +1213,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015154153";
+const BUILD = "20261015154446";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1608,6 +1608,18 @@ function handleOA(text) {
     if (i.muted === false && !demoLoud) once("vid", "yt_unmute");
     if (i.playerState === 2) once("vid", "paused");
   });
+})();
+
+// ------------------------------------------------------------------ live count for /stats: while running, say "still on" once a minute
+(function livePing() {
+  if (/^(localhost|127\.)/.test(location.hostname)) return;
+  const url = (/(^|\.)jack-o\.io$/.test(location.hostname) ? "" : "https://jack-o.io") + "/api/ping";
+  const ping = () => {
+    if (!S.ctx || $("setup").style.display !== "none" || !AID) return;              // only after Start, while it's out of the settings
+    const body = JSON.stringify({ aid:AID, mode: streamOn() ? "stream" : modeName(), talking: S.phase !== "idle" && S.phase !== "listening" });
+    try { if (!navigator.sendBeacon || !navigator.sendBeacon(url, body)) fetch(url, { method:"POST", body, keepalive:true }).catch(() => {}); } catch {}
+  };
+  setInterval(ping, 60000); $("start").addEventListener("click", () => setTimeout(ping, 6000));
 })();
 
 // How this pumpkin runs, for /stats: on a pass (and with an ElevenLabs voice), or on its own Google/OpenAI key (free or unlocked).
