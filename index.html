@@ -678,6 +678,12 @@ const STREAM_RULES = " You are live on a stream, the star of the show. Viewers' 
 const PLUG_EVERY = 6, PLUG_ASK = /what (are|is) (you|this)|how (do|does|can) (i|this|you)|get (one|this)|make (one|my own)|website|site|link|app|jack-o|bio/i;
 let chatsAnswered = 0;
 // Usernames read aloud as short, natural names: candy_crusher99 -> "Candy Crusher", xX_DarkLord_Xx -> "Dark Lord".
+// The name to say out loud: the TikTok display name when it reads like a name, else the cleaned handle.
+function sayName(m) {
+  const nick = (m && m.nick || "").trim(), words = nick.split(/\s+/).filter(w => /\p{L}/u.test(w));
+  if (words.length && !/^user\d+$/i.test(nick.replace(/\s/g, ""))) return words.slice(0, 2).join(" ");
+  return spokenName(m && m.user);
+}
 function spokenName(u) {
   const words = String(u || "").replace(/^@/, "").replace(/^x+(?=[A-Z_])|(?<=[a-z_])x+$/gi, "").replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/[\d_.\-]+/g, " ").trim().split(/\s+/).filter(w => w.length > 1 && !/^x+$/i.test(w)).slice(0, 2);
@@ -736,13 +742,13 @@ const JOINS = { names: [], lastGreet: 0 };
 // roughly 10-15 minutes, which wipes the AI's memory, so recent chat is handed back to it from here.
 const CHATLOG = [];
 function logChat(m) {
-  CHATLOG.push(spokenName(m.user) + (m.type === "gift" ? " sent a gift (" + (m.gift || "a gift") + ")" : ": " + m.text));
+  CHATLOG.push(sayName(m) + (m.type === "gift" ? " sent a gift (" + (m.gift || "a gift") + ")" : ": " + m.text));
   if (CHATLOG.length > 20) CHATLOG.shift();
 }
 const chatRecap = n => CHATLOG.length ? " Recent chat in this stream, oldest first: " + CHATLOG.slice(-n).join(" | ") + "." : " Nobody has chatted yet this stream.";
 function onChat(m) {
   if (!["chat", "gift", "join"].includes(m.type)) return;     // only real comments, gifts, and joins reach the pumpkin
-  if (m.type === "join") { if (m.user) { if (!JOINS.names.includes(m.user)) JOINS.names.push(m.user); JOINS.names = JOINS.names.slice(-10); } else JOINS.anon = Math.min(5, (JOINS.anon || 0) + (m.n || 1)); return; }
+  if (m.type === "join") { if (m.user) { const n = sayName(m); if (!JOINS.names.includes(n)) JOINS.names.push(n); JOINS.names = JOINS.names.slice(-10); } else JOINS.anon = Math.min(5, (JOINS.anon || 0) + (m.n || 1)); return; }
   m.got = Date.now(); IDLE.last = Date.now();
   CHAT.q.push(m);
   CHAT.q = CHAT.q.filter(x => Date.now() - x.got < 60000);
@@ -764,7 +770,7 @@ function pumpChat() {
   // newcomers at once share one welcome. At most one welcome every 8 s.
   if (streamOn() && S.ctx && !S.muted && $("setup").style.display === "none" && (JOINS.names.length || JOINS.anon) && Date.now() - JOINS.lastGreet > 8000
       && !CHAT.q.some(m => m.type === "idle" && /^New viewers/.test(m.text))) {
-    const names = JOINS.names.slice(-3).map(spokenName), anon = JOINS.anon || 0; JOINS.names = []; JOINS.anon = 0; JOINS.lastGreet = Date.now(); IDLE.last = Date.now();
+    const names = JOINS.names.slice(-3), anon = JOINS.anon || 0; JOINS.names = []; JOINS.anon = 0; JOINS.lastGreet = Date.now(); IDLE.last = Date.now();
     const who = names.length ? names.join(", ") : (anon > 1 ? anon + " people (names unknown)" : "someone (name unknown)");
     const welcome = { type:"idle", user:"", got:Date.now(), text:"New viewers just joined: " + who + ". Welcome " + (names.length ? (names.length > 1 ? "each of them by name" : "them by name") : "whoever just walked in, without inventing a name") + " right away, then ask " + (names.length > 1 || anon > 1 ? "them" : "them") + " one genuine, friendly question about themselves, like where they're watching from, what they're up to tonight, or what made them stop scrolling. Dry delivery but warm: no insults, no assumptions about them, no accusations. Two short sentences total. When they answer in chat, remember it." };
     const firstNonGift = CHAT.q.findIndex(m => m.type !== "gift");
@@ -797,9 +803,10 @@ function pumpChat() {
     return;
   }
   logChat(m);
-  const who = spokenName(m.user) + (m.room === "cohost" ? " (watching from your co-host " + spokenName(m.host) + "'s stream)" : "");
+  const who = sayName(m) + (m.room === "cohost" ? " (watching from your co-host " + spokenName(m.host) + "'s stream)" : "");
   let line = m.type === "gift" ? "Live chat from " + who + ": (sent you a gift: " + (m.gift || "a gift") + ") " + m.text : "Live chat from " + who + ": " + m.text;
   chatsAnswered++;
+  line += " (Start your reply by saying " + sayName(m) + ".)";
   if (chatsAnswered % PLUG_EVERY === 0 || PLUG_ASK.test(m.text || "")) line += " (Work in a dry, quick plug: tell them to check out the bio and follow.)";
   $("question").textContent = "@" + m.user + (m.room === "cohost" ? " (co-host chat)" : "") + ": " + (m.text || "sent " + (m.gift || "a gift")); $("caption").textContent = "";
   CHAT.waiting = true; S.lastAct = Date.now(); S.said = "";
@@ -878,7 +885,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014235158";
+const BUILD = "20261014235245";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
