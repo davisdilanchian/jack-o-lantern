@@ -771,6 +771,7 @@ const saidRecap = () => SAIDLOG.length ? " Things you already said this stream; 
 const chatRecap = n => CHATLOG.length ? " Recent chat in this stream, oldest first: " + CHATLOG.slice(-n).join(" | ") + "." : " Nobody has chatted yet this stream.";
 function onChat(m) {
   if (!["chat", "gift", "join", "like", "social"].includes(m.type)) return;   // only real viewer events reach the pumpkin
+  DIR.activeAt = Date.now();
   if (m.type === "like") {                                    // a named viewer: welcome them by name if we haven't yet
     const w = seenWatcher(m);
     if (!w.greeted) { w.greeted = true; if (!JOINS.names.includes(w.name)) JOINS.names.push(w.name); DIR.streak = 0; }
@@ -790,11 +791,15 @@ function onChat(m) {
 // 1. gifts and comments (several waiting are answered together, by name), 2. welcomes for newcomers,
 // 3. dead air, only while someone is watching, backing off (10 s, 20 s, 40 s, 80 s, then silence)
 // until someone comments, gifts, or arrives.
-const DIR = { quietSince: Date.now(), streak: 0, welcomeAt: 0, welcomes: 0, lastViewers: null, trigger: "" };
+const DIR = { quietSince: Date.now(), streak: 0, welcomeAt: 0, welcomes: 0, lastViewers: null, trigger: "", activeAt: 0 };
+// TikTok's viewer count lags (it can show 1 for minutes after someone leaves), so dead air also needs real
+// viewer activity in the last 3 minutes: a comment, like, gift, follow, share, or the count going up.
+const ACTIVE_FOR = 3 * 60000;
+const activeRecently = () => Date.now() - DIR.activeAt < ACTIVE_FOR;
 const BACKOFF = [10000, 20000, 30000, 40000];   // then keeps chatting every 40 s while anyone is watching
 function onViewers(n) {
   const prev = DIR.lastViewers; CHAT.viewers = n; DIR.lastViewers = n;
-  if (prev != null && n > prev) { DIR.welcomes = Math.min(3, DIR.welcomes + (n - prev)); DIR.streak = 0; }   // someone new arrived
+  if (prev != null && n > prev) { DIR.welcomes = Math.min(3, DIR.welcomes + (n - prev)); DIR.streak = 0; DIR.activeAt = Date.now(); }   // someone new arrived
 }
 function say(line, trigger, question) {
   $("question").textContent = question || ""; $("caption").textContent = "";
@@ -808,7 +813,7 @@ function pumpChat() {
   const now = Date.now();
   CHAT.q = CHAT.q.filter(x => now - x.got < 60000);
   const pending = CHAT.q.length || JOINS.names.length || DIR.welcomes;
-  const wantFiller = !pending && (CHAT.viewers || 0) > 0 && now - DIR.quietSince > BACKOFF[Math.min(DIR.streak, BACKOFF.length - 1)];
+  const wantFiller = !pending && (CHAT.viewers || 0) > 0 && activeRecently() && now - DIR.quietSince > BACKOFF[Math.min(DIR.streak, BACKOFF.length - 1)];
   if (!pending && !wantFiller) return;
   if (S.phase === "idle") return runVisit(true);
   if (S.phase === "connecting" || CHAT.waiting || S.turn || S.greeting || speaking()) return;
@@ -939,7 +944,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015001501";
+const BUILD = "20261015001548";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
