@@ -659,6 +659,23 @@ const STREAM_RULES = " You are live on a stream, the star of the show. Viewers' 
 // Plug jack-o.io on a steady rhythm (counted here; the AI can't count reliably), and whenever someone asks about it.
 const PLUG_EVERY = 6, PLUG_ASK = /what (are|is) (you|this)|how (do|does|can) (i|this|you)|get (one|this)|make (one|my own)|website|site|link|app|jack-o|bio/i;
 let chatsAnswered = 0;
+// Dead air: when chat has been quiet for a while, the pumpkin fills the silence on its own. The filler
+// kinds rotate (shuffled, never the same twice in a row) so it doesn't repeat itself.
+const FILLERS = [
+  "Nobody is chatting right now. Fill the silence: roast the quiet chat and the people watching without typing, dryly, in one or two sentences.",
+  "Nobody is chatting right now. Fill the silence with a short, dry musing about your life as a pumpkin on a porch, two or three sentences.",
+  "Nobody is chatting right now. Ask the viewers one specific, slightly provocative question they'll want to answer in chat, in your dry way.",
+  "Nobody is chatting right now. Share one surprising Halloween or pumpkin fact, deadpan, with a sarcastic twist, in two sentences.",
+  "Nobody is chatting right now. Give a dry hot take about candy, costumes, or trick-or-treaters, in two sentences, then dare chat to disagree.",
+  "Nobody is chatting right now. Tell a very short, dry story about the strangest trick-or-treater you've ever seen, three sentences at most.",
+  "Nobody is chatting right now. Grudgingly suggest people check out the bio and follow, in one dry sentence, as if it pains you to ask."
+];
+const IDLE = { last: Date.now(), next: 45000, order: [], prev: -1 };
+const idleWait = () => 35000 + Math.random() * 20000;
+function nextFiller() {
+  if (!IDLE.order.length) { IDLE.order = FILLERS.map((_, i) => i).sort(() => Math.random() - 0.5); if (IDLE.order[0] === IDLE.prev) IDLE.order.push(IDLE.order.shift()); }
+  IDLE.prev = IDLE.order.shift(); return FILLERS[IDLE.prev];
+}
 const streamOn = () => STREAMING && store.get("streamon", "1") === "1";
 const CHAT = { q:[], ws:null, retry:0, waiting:false, level:"calm" };
 const chatStatus = t => { if ($("streamstatus")) $("streamstatus").textContent = t; };
@@ -677,7 +694,7 @@ setInterval(() => { try { if (S.ctx) micDuty(); } catch {} }, 250);
 // Busy handling: answer everything while calm; when chat outpaces speech, only messages that mention
 // the pumpkin (and gifts); when swamped, gifts only. Messages older than 30 s are dropped.
 function onChat(m) {
-  m.got = Date.now();
+  m.got = Date.now(); IDLE.last = Date.now();
   CHAT.q.push(m);
   CHAT.q = CHAT.q.filter(x => Date.now() - x.got < 30000);
   const n = CHAT.q.length;
@@ -686,7 +703,7 @@ function onChat(m) {
 }
 function nextChat() {
   CHAT.q = CHAT.q.filter(x => Date.now() - x.got < 30000);
-  const ok = m => m.type === "gift" || CHAT.level === "calm" || (CHAT.level === "busy" && /pumpkin|jack/i.test(m.text));
+  const ok = m => m.type === "gift" || m.type === "idle" || CHAT.level === "calm" || (CHAT.level === "busy" && /pumpkin|jack/i.test(m.text));
   const gift = CHAT.q.findIndex(m => m.type === "gift");
   const i = gift >= 0 ? gift : CHAT.q.findIndex(ok);
   if (i < 0) { CHAT.q = []; return null; }
@@ -694,10 +711,24 @@ function nextChat() {
 }
 // Called every frame: when the pumpkin is free, hand it the next message.
 function pumpChat() {
+  if (streamOn() && S.ctx && !S.muted && !CHAT.q.length && $("setup").style.display === "none" && !CHAT.waiting && !S.turn && !speaking()
+      && Date.now() - IDLE.last > IDLE.next) {
+    IDLE.last = Date.now(); IDLE.next = idleWait();
+    CHAT.q.push({ type:"idle", user:"", text:nextFiller(), got:Date.now() });
+  }
   if (!streamOn() || !S.ctx || S.muted || !CHAT.q.length || $("setup").style.display !== "none") return;
   if (S.phase === "idle") return runVisit(true);
   if (S.phase === "connecting" || CHAT.waiting || S.turn || S.greeting || speaking()) return;
   const m = nextChat(); if (!m) return;
+  if (m.type === "idle") {
+    $("question").textContent = ""; $("caption").textContent = "";
+    CHAT.waiting = true; S.lastAct = Date.now(); S.said = "";
+    const line = "(" + m.text + ")";
+    if (S.provider === "openai") { send({ type:"conversation.item.create", item:{ type:"message", role:"user", content:[{ type:"input_text", text: line }] } }); send({ type:"response.create" }); }
+    else send({ realtimeInput:{ text: line } });
+    setTimeout(() => { CHAT.waiting = false; }, 15000);
+    return;
+  }
   let line = m.type === "gift" ? "Live chat from @" + m.user + ": (sent you a gift: " + (m.gift || "a gift") + ") " + m.text : "Live chat from @" + m.user + ": " + m.text;
   chatsAnswered++;
   if (chatsAnswered % PLUG_EVERY === 0 || PLUG_ASK.test(m.text || "")) line += " (Work in a dry, quick plug: tell them to check out the bio and follow.)";
@@ -778,7 +809,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014224930";
+const BUILD = "20261014225327";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1118,7 +1149,7 @@ function handleOA(text) {
       voiceCommand(m.transcript || ""); S.heard = "";
       return;
     case "response.done": {
-      freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false;
+      IDLE.last = Date.now(); freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false;
       pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now();
       const er = m.response && m.response.status === "failed" && m.response.status_details && m.response.status_details.error;
       if (er) { showErr(oaError(0, er.code, er.message || "")); closeVisit(); }
@@ -1154,7 +1185,7 @@ function handle(text) {
     S.phase = "talking"; status("Talking"); S.lastAct = Date.now();
   }
   if (c.interrupted) { S.dbg.interrupted++; stopPlayback(); S.turn = false; S.greeting = false; }
-  if (c.turnComplete) { freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false; S.heard = ""; pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
+  if (c.turnComplete) { IDLE.last = Date.now(); freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false; S.heard = ""; pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now(); }
 }
 
 // Jack's voice arrives as 24 kHz chunks. Resample them to the output rate as one continuous
