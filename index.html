@@ -647,7 +647,7 @@ function save() {
 // ------------------------------------------------------------------ state
 const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, torchAt:0, ws:null, phase:"idle",
   muted:false, turn:false, greeting:false, playEnd:0, floor:0.01, loud:0, lastAct:0, start:0, end:0, visits:[],
-  analyser:null, out:null, level:0, peak:0.05, said:"", wake:null, visitId:0, echo:0.02, couple:0.5, outHist:[], hold:[], barge:false, dbg:{ barge:0, interrupted:0, underrun:0 }, heard:"", cmd:null, pre:[], cmdBusy:false, cmdTimes:[], inRate: providerOf(store.get("geminiKey","")) === "openai" ? 24000 : 16000 };
+  analyser:null, out:null, level:0, peak:0.05, said:"", wake:null, visitId:0, lastChunk:0, lastMsg:0, echo:0.02, couple:0.5, outHist:[], hold:[], barge:false, dbg:{ barge:0, interrupted:0, underrun:0, watchdog:0, torch:0 }, heard:"", cmd:null, pre:[], cmdBusy:false, cmdTimes:[], inRate: providerOf(store.get("geminiKey","")) === "openai" ? 24000 : 16000 };
 const TUNE = { ratio:3.5, min:0.015, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.3 };
 const status = t => $("status").textContent = t;
 const speaking = () => S.turn || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + (ANDROID ? 0.6 : TUNE.tail));   // Android: longer, its mic has no echo cancellation
@@ -778,7 +778,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014212311";
+const BUILD = "20261014212441";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -913,7 +913,7 @@ async function ensureAudio() {
   let acc = [], pos = 0;
   const feed = data => {
     if (streamOn()) return;                                  // stream mode never uses the mic
-    const ratio = S.ctx.sampleRate / S.inRate, chunk = S.inRate / 25;   // 40 ms chunks, so the AI hears speech sooner
+    const ratio = S.ctx.sampleRate / S.inRate, chunk = S.inRate / 10;   // 100 ms chunks: 10 sends a second, light enough for old phones
     for (; pos < data.length; pos += ratio) acc.push(data[Math.floor(pos)]);
     pos -= data.length;
     while (acc.length >= chunk) onMic(acc.splice(0, chunk));
@@ -926,10 +926,11 @@ async function ensureAudio() {
     const node = new AudioWorkletNode(S.ctx, "cap");
     src.connect(node);
     node.port.onmessage = ({ data }) => feed(data);
-    captured = true;
+    captured = true; S.capture = "worklet";
   } catch {}
   if (!captured) {
-    const sp = S.ctx.createScriptProcessor(4096, 1, 1);
+    S.capture = "scriptprocessor";
+    const sp = S.ctx.createScriptProcessor(8192, 1, 1);
     const sink = S.ctx.createGain(); sink.gain.value = 0;   // keeps the processor running without echoing the mic
     sp.onaudioprocess = ev => feed(ev.inputBuffer.getChannelData(0).slice(0));
     src.connect(sp); sp.connect(sink); sink.connect(S.ctx.destination);
@@ -977,7 +978,7 @@ function onMic(samples) {
       const thresh = Math.max(S.floor * 4, S.fullEcho ? 0.02 : 0.04, S.couple * outMax * (S.fullEcho ? 3 : 5));
       if (rms > thresh) {
         S.hold.push(samples);
-        if (S.hold.length < 3) return;
+        if (S.hold.length < 2) return;
         S.barge = true; S.dbg.barge++;                  // someone is really talking over it
         for (const h of S.hold.splice(0)) sendAudio(h);
         S.lastAct = Date.now();
@@ -1006,7 +1007,7 @@ function runVisit(isPreview) {
   if (!isPreview && S.visits.length >= TUNE.perHour) return status("Taking a short break (lots of visitors this hour)");
   S.visits.push(now);
   closeVisit();
-  S.phase = "connecting"; S.start = now; S.lastAct = now; S.turn = false; S.greeting = false; S.said = "";
+  S.phase = "connecting"; S.start = now; S.lastAct = now; S.lastMsg = now; S.lastChunk = now; S.turn = false; S.greeting = false; S.said = "";
   status("Someone's here…"); $("caption").textContent = "";
   const key = store.get("geminiKey","");
   S.provider = providerOf(key); S.inRate = S.provider === "openai" ? 24000 : 16000;
@@ -1071,6 +1072,7 @@ function oaError(status, code, msg) {
 function failConnect(msg) { showErr(msg); status("Can't connect. Check Wi-Fi, then tap Settings."); closeVisit(); }
 function handleOA(text) {
   let m; try { m = JSON.parse(text); } catch { return; }
+  S.lastMsg = Date.now();
   switch (m.type) {
     case "session.created":
       if (streamOn()) { S.phase = "listening"; status("Live: waiting for chat"); return; }
@@ -1128,6 +1130,7 @@ function send(o) { if (S.ws && S.ws.readyState === 1) S.ws.send(JSON.stringify(o
 
 function handle(text) {
   let m; try { m = JSON.parse(text); } catch { return; }
+  S.lastMsg = Date.now();
   if (m.setupComplete && streamOn()) { store.set("model", MODELS[modelIdx]); S.phase = "listening"; status("Live: waiting for chat"); return; }
   if (m.setupComplete) { store.set("model", MODELS[modelIdx]); S.phase = "talking"; S.greeting = true; status("Talking"); send({ realtimeInput:{ text: GREETING } }); return; }
   if (m.goAway) return closeVisit();
@@ -1147,7 +1150,7 @@ function handle(text) {
 // stream (carrying the position across chunks) so chunk joins do not click, and keep a small
 // cushion so network jitter does not cause gaps.
 const LOUD = { target:0.14, avg:0, gain:1 };   // target speech level: about where Google's voices already are
-const PLAY = { pos:0, prev:0, cushion:0.25, pend:[], pendLen:0, queued:0, started:false, endFrame:0 };
+const PLAY = { pos:0, prev:0, cushion:0.35, pend:[], pendLen:0, queued:0, started:false, endFrame:0 };
 // Playback stats for one answer, sent to jack-o.io so problems on a phone can be measured, not guessed.
 const TEL = { on:false, t0:0, chunks:0, samples:0, maxGap:0, lastAt:0, under:0, stall:0, minAhead:9 };
 let tick = performance.now();
@@ -1159,17 +1162,17 @@ function telChunk(n) {
   if (PLAY.started && S.ctx) TEL.minAhead = Math.min(TEL.minAhead, S.playEnd - S.ctx.currentTime);
 }
 function telReport() {
-  if (!TEL.on || !(STREAMING || DEBUG)) return;
+  if (!TEL.on) return;
   TEL.on = false;
   const r = { ua:navigator.userAgent.slice(0, 120), provider:S.provider, rate:S.ctx && S.ctx.sampleRate, baseLatency:S.ctx && S.ctx.baseLatency, outputLatency:S.ctx && S.ctx.outputLatency,
     mic:!!S.mic, audioSec:+(TEL.samples / 24000).toFixed(2), arrivedOverSec:+((TEL.lastAt - TEL.t0) / 1000).toFixed(2), chunks:TEL.chunks,
-    maxChunkGapMs:Math.round(TEL.maxGap), underruns:S.dbg.underrun - TEL.under, minBufferAheadSec:+TEL.minAhead.toFixed(3), maxFreezeMs:Math.round(TEL.stall), cushion:PLAY.cushion, build:BUILD };
+    maxChunkGapMs:Math.round(TEL.maxGap), underruns:S.dbg.underrun - TEL.under, minBufferAheadSec:+TEL.minAhead.toFixed(3), maxFreezeMs:Math.round(TEL.stall), cushion:PLAY.cushion, capture:S.capture || "none", light:lightMode(), torchToggles:S.dbg.torch, watchdogs:S.dbg.watchdog, stream:streamOn(), build:BUILD };
   fetch("/api/stream/report", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(r) }).catch(() => {});
 }
 function play(b64data) {
   const bin = atob(b64data), n = bin.length >> 1;
   if (!n) return;
-  telChunk(n);
+  telChunk(n); S.lastChunk = Date.now();
   // Keep the voice as it arrives (24 kHz). The only change is a fixed level match: OpenAI's voices are
   // about 1.5x quieter than Google's. The browser converts to the speaker's rate itself.
   const g = S.provider === "openai" ? 1.5 : 1, out = new Float32Array(n);
@@ -1187,7 +1190,7 @@ function pumpAudio(flush) {
   if (!PLAY.started) {
     if (!flush && PLAY.queued < (streamOn() ? Math.max(0.6, PLAY.cushion) : PLAY.cushion)) return;
     if (!PLAY.pendLen) return;
-    PLAY.started = true; PLAY.endFrame = Math.ceil((now + 0.05) * R);
+    PLAY.started = true; PLAY.endFrame = Math.max(PLAY.endFrame, Math.ceil((now + 0.05) * R));   // continue after anything still scheduled; never on top of it
   }
   const ahead = PLAY.endFrame / R - now;
   if (!PLAY.pendLen || (!flush && PLAY.pendLen < R * 0.25 && ahead > 0.3)) return;
@@ -1198,6 +1201,11 @@ function pumpAudio(flush) {
   if (PLAY.endFrame / R < now + 0.01) PLAY.endFrame = Math.ceil((now + 0.02) * R);
   src.start(PLAY.endFrame / R);
   PLAY.endFrame += buf.length; S.playEnd = PLAY.endFrame / R;
+}
+// Cut the voice off now, including audio already scheduled to play.
+function stopPlayback() {
+  resetPlayback(); S.playEnd = 0; PLAY.endFrame = 0;
+  if (S.out && S.ctx) { try { S.out.disconnect(); } catch {} S.out = S.ctx.createGain(); S.out.connect(S.boost); }
 }
 function resetPlayback() { PLAY.pend = []; PLAY.pendLen = 0; PLAY.queued = 0; PLAY.started = false; }
 
@@ -1222,14 +1230,19 @@ function frame() {
   const now = Date.now();
   if (S.phase === "talking" && !speaking() && !S.greeting) { S.phase = "listening"; status("Listening"); }
   if (S.phase === "connecting" && now - S.start > 10000) closeVisit();
+  // Watchdogs, so a lost message can never leave it stuck in "Talking" with the mic gated:
+  if (S.turn && now - S.lastChunk > 8000) { pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; CHAT.waiting = false; S.dbg.watchdog++; }   // reply never finished
+  if (!S.turn && PLAY.queued > 0 && now - S.lastChunk > 1500) pumpAudio(true);                                   // leftover audio below the cushion
+  if (S.phase !== "idle" && S.phase !== "connecting" && now - S.lastMsg > 90000 && !speaking()) closeVisit();   // dead connection
+  if (S.phase === "talking" && now - S.lastAct > 45000 && !speaking()) closeVisit();
   if (S.phase === "listening" && now - S.lastAct > (streamOn() ? 300000 : TUNE.idle)) closeVisit();
   if (!streamOn() && S.phase !== "idle" && now - S.start > TUNE.maxVisit && !speaking()) closeVisit();
   pumpChat();
 }
 function setTorch(on) {
-  if (!S.torchOK || on === S.torchOn || Date.now() - S.torchAt < 60) return;
-  S.torchOn = on; S.torchAt = Date.now();
-  S.camTrack.applyConstraints({ advanced:[{ torch: on }] }).catch(() => { S.torchOK = false; });
+  if (!S.torchOK || on === S.torchOn || S.torchBusy || Date.now() - S.torchAt < 150) return;
+  S.torchOn = on; S.torchAt = Date.now(); S.torchBusy = true; S.dbg.torch++;
+  S.camTrack.applyConstraints({ advanced:[{ torch: on }] }).catch(() => { S.torchOK = false; }).then(() => { S.torchBusy = false; }, () => { S.torchBusy = false; });
 }
 
 // ------------------------------------------------------------------ voice commands: "Pumpkin, stop talking" / "mute" / "Pumpkin, unmute"
