@@ -775,7 +775,7 @@ function onChat(m) {
 // 3. dead air, only while someone is watching, backing off (10 s, 20 s, 40 s, 80 s, then silence)
 // until someone comments, gifts, or arrives.
 const DIR = { quietSince: Date.now(), streak: 0, welcomeAt: 0, welcomes: 0, lastViewers: null, trigger: "" };
-const BACKOFF = [10000, 20000, 40000, 80000];
+const BACKOFF = [10000, 20000, 30000, 40000];   // then keeps chatting every 40 s while anyone is watching
 function onViewers(n) {
   const prev = DIR.lastViewers; CHAT.viewers = n; DIR.lastViewers = n;
   if (prev != null && n > prev) { DIR.welcomes = Math.min(3, DIR.welcomes + (n - prev)); DIR.streak = 0; }   // someone new arrived
@@ -792,7 +792,7 @@ function pumpChat() {
   const now = Date.now();
   CHAT.q = CHAT.q.filter(x => now - x.got < 60000);
   const pending = CHAT.q.length || JOINS.names.length || DIR.welcomes;
-  const wantFiller = !pending && (CHAT.viewers || 0) > 0 && DIR.streak < BACKOFF.length && now - DIR.quietSince > BACKOFF[DIR.streak];
+  const wantFiller = !pending && (CHAT.viewers || 0) > 0 && now - DIR.quietSince > BACKOFF[Math.min(DIR.streak, BACKOFF.length - 1)];
   if (!pending && !wantFiller) return;
   if (S.phase === "idle") return runVisit(true);
   if (S.phase === "connecting" || CHAT.waiting || S.turn || S.greeting || speaking()) return;
@@ -913,7 +913,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014235826";
+const BUILD = "20261015000701";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
