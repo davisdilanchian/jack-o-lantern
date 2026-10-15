@@ -19,7 +19,7 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
 <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
 <link rel="canonical" href="https://jack-o.io/">
 <meta property="og:title" content="Jack-o: turn an old phone into a talking jack-o'-lantern">
-<meta property="og:description" content="It hears trick-or-treaters, talks back in character, and flickers its flashlight as it speaks. Free, runs in the browser.">
+<meta property="og:description" content="It hears trick-or-treaters, talks back in character, and glows as it speaks. Runs in the browser.">
 <meta property="og:url" content="https://jack-o.io/">
 <meta name="twitter:card" content="summary_large_image">
 <meta property="og:image" content="https://jack-o.io/og.jpg?v=2">
@@ -28,7 +28,7 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
 <meta property="og:image:alt" content="Watercolor of a hand dropping a phone into a pumpkin, which then glows as a jack-o'-lantern. jack-o.io">
 <meta name="twitter:image" content="https://jack-o.io/og.jpg?v=2">
 <title>Jack-o: Talking Jack-o'-Lantern</title>
-<meta name="description" content="Turn an old phone into a talking jack-o'-lantern: it hears visitors, talks back in character, and flickers its flashlight with its voice.">
+<meta name="description" content="Turn an old phone into a talking jack-o'-lantern: it hears visitors, talks back in character, and its screen glows with its voice.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎃</text></svg>">
 <style>
   :root { --bg:#0e0c0b; --surface:#171412; --line:#2c2622; --fg:#f3ece6; --muted:#a39a92; --accent:#f07a1c; --accent-ink:#1a0d03; --amber:#ffc65a; --orange:#ff7a00; }
@@ -78,6 +78,15 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   #scanbox { display:none; margin-top:14px; }
   #scanbox video { width:100%; border-radius:8px; background:#000; aspect-ratio:1; object-fit:cover; }
   .btnrow { display:flex; gap:8px; margin-top:12px; } .btnrow button { flex:1; }
+  .btnrow.three button { padding-left:6px; padding-right:6px; white-space:nowrap; }
+  .overlay ol.steps3 { list-style:none; padding:0; margin:18px 0 6px; display:grid; gap:10px; }
+  .overlay ol.steps3 li { display:flex; gap:12px; align-items:flex-start; font-size:18px; line-height:1.35; }
+  .overlay ol.steps3 .num { flex:0 0 34px; height:34px; border-radius:50%; background:var(--accent); border:1.5px solid var(--ink); color:var(--accent-ink);
+    display:grid; place-items:center; font:22px "Patrick Hand", system-ui, sans-serif; }
+  .overlay .help.center { text-align:center; margin-top:4px; }
+  .overlay .help.small { font-size:14px; }
+  .overlay details#privacy ul { margin-top:10px; }
+  .overlay #characters #start { margin-top:14px; }
   .by { margin-top:28px; padding-top:20px; border-top:1px solid var(--line); font-size:14px; color:var(--muted); }
   .by p { margin:0 0 10px; } .by b { color:var(--fg); font-weight:600; }
   .by .links { display:flex; flex-wrap:wrap; gap:8px; }
@@ -171,64 +180,25 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
     <p id="version" class="version"></p>
     <img class="hero" src="og.jpg" width="1200" height="630" alt="Watercolor of a hand dropping a phone into a pumpkin, which then glows as a jack-o'-lantern.">
     <h1>Talking Jack-o'-Lantern</h1>
-    <p class="lede">Put an old phone inside a pumpkin and it talks to trick-or-treaters. It hears them, answers out loud in character, and glows as it speaks.</p>
-    <ol class="how" id="how">
-      <li><b>Pick a pumpkin</b> and hear its voice.</li>
-      <li><b>Tap Start.</b> We handle the rest.</li>
-      <li><b>Put the phone in your pumpkin.</b> That's it.</li>
+    <p class="lede">Put an old phone in a pumpkin. It hears trick-or-treaters and talks back in character.</p>
+    <ol class="steps3" id="how">
+      <li><span class="num">1</span><span><b>Open jack-o.io on an old phone.</b></span></li>
+      <li><span class="num">2</span><span><b>Power it up:</b> get a Pumpkin Pass, scan a code from your other phone, or enter a key.</span></li>
+      <li><span class="num">3</span><span><b>Press Start</b> and put it in the pumpkin, screen facing out.</span></li>
     </ol>
 
-    <section id="characters">
-      <h2>1. Meet the pumpkins</h2>
-      <p class="help" style="margin-top:0">Pick a character and hear it. Tap any voice to hear it too.</p>
-      <div class="field">
-        <label for="persona">Personality</label>
-        <div class="row"><select id="persona"></select><button id="hearchar" type="button">▶ Hear</button></div>
-        <textarea id="custom" placeholder="Describe your pumpkin: who it is, how it talks, what it likes. For example: a sleepy grandpa pumpkin who loves bad jokes." style="display:none"></textarea>
-      </div>
-      <div class="field">
-        <details class="steps" id="morevoices"><summary>Try other voices</summary>
-        <select id="voice" hidden></select>
-        <div id="voicechips" class="chips" role="radiogroup" aria-label="Voice"></div>
-        <p id="voicemsg" class="help" role="status">Tap a voice to hear it. The one you tap is the one it uses.</p>
-        </details>
-      </div>
-      <div class="field">
-        <label for="lang">Language</label>
-        <select id="lang"></select>
-        <p class="help"><b>Match the visitor</b> answers in the language people speak to it. If it switches languages by mistake, pick one language.</p>
-      </div>
-
-    </section>
-
-    <section id="light-section">
-      <h2>Lantern</h2>
-      <label>Lantern color <span class="lockbadge" data-lock>🔒</span></label>
-      <div id="colors" class="swatches" role="radiogroup" aria-label="Lantern color"></div>
-      <p id="colormsg" class="help" role="status"></p>
-      <label for="light">What lights up</label>
-      <select id="light">
-        <option value="both">Screen and flashlight</option>
-        <option value="screen">Screen only</option>
-        <option value="torch">Flashlight only</option>
-      </select>
-      <p class="help">The screen glows in the lantern color and gets brighter as it talks. The flashlight can flicker too (always white), but only on Android phones in Chrome. iPhones use the screen.</p>
-    </section>
-
     <section id="passbox">
-      <h2>2. Start your pumpkin</h2>
+      <h2>2. Power it up</h2>
       <div id="nopass">
         <a id="buypass" class="tipbtn" target="_self">🎃 Get a Pumpkin Pass, $4.99</a>
-        <p class="help">We handle everything: every character, voice, and color, plus about <b>400 replies</b> of talk time, enough for a whole Halloween night. Top up anytime. No account, no key, nothing to set up.</p>
+        <p class="help center">About 400 replies, plus every character, voice, and color.</p>
         <p class="help" id="elbonus" hidden><b>Pass bonus:</b> have an ElevenLabs account? Give your pumpkin <b>any ElevenLabs voice</b>, even one you designed or cloned yourself. Just paste your ElevenLabs key and a voice ID.</p>
-        <p class="help">Rather not pay? <a href="#ownkey" id="gofree">Use your own free Google key</a> for the basic pumpkin.</p>
       </div>
       <div id="haspass" style="display:none">
-        <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked and we handle the rest.</p>
+        <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked.</p>
         <div class="battery"><div id="batteryfill"></div></div>
         <p id="batterytext" class="help"></p>
         <a id="refill" class="tipbtn" target="_self">🔋 Refill, $2.99 (about 250 replies)</a>
-        <p class="help">Moving to another phone? Tap <b>Share my key</b> under "Your own key" below: the code carries your pass too.</p>
         <details class="steps" id="elbox" hidden>
           <summary>Pass bonus: use any ElevenLabs voice</summary>
           <p class="help">Give your pumpkin any voice from your ElevenLabs account, including one you designed or cloned. Your pumpkin still thinks and talks the same way. ElevenLabs just speaks its words. Your ElevenLabs account pays for the voice, and your pass covers the rest.</p>
@@ -249,37 +219,70 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
           <p class="help">While this is on, the voice picker above isn't used. The character's personality still is. Your ElevenLabs key stays on this phone.</p>
         </details>
       </div>
+      <div class="btnrow three">
+        <button id="scan" type="button">Scan code</button>
+        <button id="share" type="button">Show code</button>
+        <button id="gofree" type="button">Enter key</button>
+      </div>
+      <p class="help center small">Pass or key on another phone? Tap <b>Show code</b> there and <b>Scan code</b> here.</p>
+      <p id="keymsg" class="help" role="status" style="color:var(--fg)"></p>
+      <div id="scanbox">
+        <video id="scanvid" playsinline muted></video>
+        <p class="help">Point this camera at the square code on the other phone.</p>
+        <button id="stopscan" type="button" style="margin-top:8px">Cancel</button>
+      </div>
+      <div id="qrbox" role="dialog" aria-label="QR code with your key">
+        <div id="qr"></div>
+        <p>On the old phone, open jack-o.io, tap <b>Scan code</b>, and point it here. This code carries your pass or key, so hide it when you're done.</p>
+        <button id="hideqr" type="button" style="margin-top:10px;color:#1a1410;border-color:#d9cfc6">Hide code</button>
+      </div>
       <p id="passmsg" class="help" role="status"></p>
     </section>
 
-    <section>
-      <h2>3. Set up the phone</h2>
-      <ol>
-        <li><b>Turn brightness all the way up.</b> Turn off auto-brightness.</li>
-        <li><b>Stop the screen from turning off.</b> iPhone: open Settings › Display &amp; Brightness › Auto-Lock › Never. Also turn off Low Power Mode. Android: open Settings › Display › Screen timeout › pick the longest. Also turn off battery saver.</li>
-        <li><b>Turn the volume all the way up</b> and plug the phone in to charge.</li>
-        <li><b>Optional:</b> put yellow or orange tape over the flashlight for a warmer glow.</li>
-        <li><b>Tap Start,</b> allow the microphone when asked, and put the phone in the pumpkin with the screen facing out.</li>
-      </ol>
-      <p class="help">To mute it, tap the screen or say <b>"Mute on"</b> (or "Pumpkin, stop talking"). To unmute, tap again or say <b>"Mute off"</b> (or "Pumpkin, unmute"). Tap <b>Settings</b> in the corner to change things.</p>
+    <section id="characters">
+      <h2>3. Press Start</h2>
+      <div class="field">
+        <label for="persona">Personality</label>
+        <div class="row"><select id="persona"></select><button id="hearchar" type="button">▶ Hear</button></div>
+        <textarea id="custom" placeholder="Describe your pumpkin: who it is, how it talks, what it likes. For example: a sleepy grandpa pumpkin who loves bad jokes." style="display:none"></textarea>
+      </div>
+      <button class="primary" id="start">Start</button>
+      <div id="err" role="alert"></div>
+      <details class="steps" id="phonetips"><summary>Phone tips</summary>
+        <ul class="help plain">
+          <li><b>Brightness all the way up</b>, auto-brightness off.</li>
+          <li><b>Keep the screen on.</b> iPhone: Settings › Display &amp; Brightness › Auto-Lock › Never, Low Power Mode off. Android: Settings › Display › Screen timeout › longest, battery saver off.</li>
+          <li><b>Volume all the way up</b>, and plug it in.</li>
+          <li><b>To mute:</b> tap the screen or say "Mute on". Say "Mute off" to unmute.</li>
+        </ul>
+      </details>
     </section>
 
-
-
-
-    
-
-
-
-
-
-
-    <button class="primary" id="start">Start</button>
-    <div id="err" role="alert"></div>
+    <details class="ownkey" id="moreopts">
+      <summary>More options: voices, language, lantern color</summary>
+      <div class="field">
+        <details class="steps" id="morevoices"><summary>Try other voices</summary>
+        <select id="voice" hidden></select>
+        <div id="voicechips" class="chips" role="radiogroup" aria-label="Voice"></div>
+        <p id="voicemsg" class="help" role="status">Tap a voice to hear it. The one you tap is the one it uses.</p>
+        </details>
+      </div>
+      <div class="field">
+        <label for="lang">Language</label>
+        <select id="lang"></select>
+        <p class="help"><b>Match the visitor</b> answers in the language people speak to it. If it switches languages by mistake, pick one language.</p>
+      </div>
+      <div id="light-section" class="field">
+      <label>Lantern color <span class="lockbadge" data-lock>🔒</span></label>
+      <div id="colors" class="swatches" role="radiogroup" aria-label="Lantern color"></div>
+      <p id="colormsg" class="help" role="status"></p>
+        <p class="help">The screen glows in this color as it talks.</p>
+      </div>
+    </details>
 
     <details id="ownkey" class="ownkey">
       <summary>Free option: use your own Google key</summary>
-      <p class="help">Bring a free Google key (or an OpenAI key) and the basic pumpkin is free forever. The $1.99 unlock below adds every character, voice, and color.</p>
+      <p class="help">Bring a free Google key (or an OpenAI key) and the basic pumpkin is free. The $1.99 unlock adds every voice and color.</p>
     <section id="key-section">
       <h2>Your own key</h2>
       <p class="help" style="margin-top:0">The pumpkin's voice and wit come from Google (or OpenAI). A "key" is a long code, like a password, that lets your pumpkin use them. Google's is free.</p>
@@ -310,22 +313,6 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <p id="keykind" class="help" role="status"></p>
       <p class="help">You can save both a Google and an OpenAI key and switch between them with the buttons above.</p>
       <p class="help">Your key stays on this phone. It only goes to Google (or OpenAI). Don't share it with people you don't know.</p>
-      <p class="help"><b>Using an old phone?</b> Get the key on your main phone first. Tap <b>Share my key</b> there, then tap <b>Scan a key</b> on the old phone and point it at the code.</p>
-      <div class="btnrow">
-        <button id="scan" type="button">Scan a key</button>
-        <button id="share" type="button">Share my key</button>
-      </div>
-      <p id="keymsg" class="help" role="status" style="color:var(--fg)"></p>
-      <div id="scanbox">
-        <video id="scanvid" playsinline muted></video>
-        <p class="help">Point this camera at the square code on the other phone.</p>
-        <button id="stopscan" type="button" style="margin-top:8px">Cancel</button>
-      </div>
-      <div id="qrbox" role="dialog" aria-label="QR code with your key">
-        <div id="qr"></div>
-        <p>On the other phone, tap <b>Scan a key</b> and point it here. You can also use its camera app and open the link. Anyone who scans this gets your key, so hide it when you're done.</p>
-        <button id="hideqr" type="button" style="margin-top:10px;color:#1a1410;border-color:#d9cfc6">Hide code</button>
-      </div>
     </section>
     <section id="unlockbox">
       <h2>Unlock everything</h2>
@@ -356,8 +343,8 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
     </section>
     </details>
 
-    <section id="privacy">
-      <h2>Privacy</h2>
+    <details id="privacy" class="ownkey">
+      <summary>Privacy</summary>
       <ul class="help plain">
         <li>When someone talks to the pumpkin, what they say goes to Google (or OpenAI, if you use an OpenAI key) so it can answer.</li>
         <li>This website doesn't record or keep anything. Your key and settings stay on this phone.</li>
@@ -368,7 +355,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <li>The site counts anonymous usage, like page views and which options are used, with a random number stored on your phone. No names, no accounts, nothing it hears.</li>
         <li>Put a small "talking pumpkin" sign nearby so people know it's listening.</li>
       </ul>
-    </section>
+    </details>
 
     <section id="streambox" style="display:none">
       <h2>Stream mode</h2>
@@ -535,7 +522,7 @@ let modelIdx = 0;
 try { modelIdx = Math.max(0, MODELS.indexOf(localStorage.getItem("model") || MODELS[0])); } catch {}
 const GREETING = "(You just heard someone approach the porch. Greet them in character, briefly.)";
 
-// ------------------------------------------------------------------ lantern color (screen glow; a flashlight can only be white)
+// ------------------------------------------------------------------ lantern color (the screen glow)
 const COLORS = [["#ff7a00","Orange"],["#e3121b","Red"],["#2fe04a","Green"],["#9b30ff","Purple"],["#1f6bff","Blue"],["#ff3fa4","Pink"],["#cfe3ff","Ghost white"]];
 const mix = (hex, to, t) => { const a = parseInt(hex.slice(1), 16), b = parseInt(to.slice(1), 16), c = k => Math.round(((a >> k) & 255) * (1 - t) + ((b >> k) & 255) * t);
   return "#" + ((1 << 24) | (c(16) << 16) | (c(8) << 8) | c(0)).toString(16).slice(1); };
@@ -595,7 +582,6 @@ $("custom").value = store.get("custom","");
 $("custom").addEventListener("change", () => { store.set("custom", $("custom").value); endVisitForNewSettings(); });   // next answer uses the new character
 const ANDROID = /Android/i.test(navigator.userAgent);
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-$("light").value = store.get("light", IOS ? "screen" : "both");
 $("lang").value = store.get("lang", "auto");
 // Volume boost (1x-3x) for quiet phones, followed by a limiter so loud peaks are squashed instead of crackling.
 const boostLevel = () => 1;   // volume boost removed
@@ -764,7 +750,7 @@ function personaText() {
 }
 function save() {
   store.set("geminiKey",$("key").value.trim()); store.set("persona",$("persona").value);
-  store.set("custom",$("custom").value); store.set(voiceKey(),$("voice").value); S.inRate = effProvider() === "openai" ? 24000 : 16000; store.set("lang",$("lang").value); store.set("light",$("light").value);
+  store.set("custom",$("custom").value); store.set(voiceKey(),$("voice").value); S.inRate = effProvider() === "openai" ? 24000 : 16000; store.set("lang",$("lang").value);
 }
 
 // ------------------------------------------------------------------ state
@@ -1075,7 +1061,9 @@ function showPass() {
 }
 $("buypass").onclick = e => { e.preventDefault(); save(); track("buy", $("buypass").dataset.refill ? "refill" : "pass"); location.href = ($("buypass").dataset.refill ? REFILL_URL : PASS_URL) + "?client_reference_id=" + ensurePassId(); };
 $("refill").onclick = e => { e.preventDefault(); save(); track("buy", "refill"); location.href = REFILL_URL + "?client_reference_id=" + ensurePassId(); };
-$("gofree").onclick = () => { $("ownkey").open = true; };
+$("gofree").onclick = () => { $("ownkey").open = true; $("key-section").scrollIntoView({ behavior:"smooth", block:"start" }); setTimeout(() => $("key").focus(), 400); };
+// A link to a part of the page that sits in a folded section (for example #light-section) opens that section.
+(function openFolded() { const id = location.hash.slice(1); if (!id || /=/.test(id)) return; const t = document.getElementById(id), d = t && t.closest("details"); if (d) { d.open = true; setTimeout(() => t.scrollIntoView(), 200); } })();
 $("hearchar").onclick = () => { track("hear", $("persona").value); playCharSample($("persona").value); };
 async function playCharSample(id) {
   stopSample(); const mine = ++SAMPLE.n;
@@ -1144,7 +1132,7 @@ $("start").onclick = async () => {
   save(); stopSample(); endVisitForNewSettings();
   if (!usingPass() && !$("key").value.trim()) {
     $("passbox").scrollIntoView({ behavior:"smooth", block:"center" });
-    return showErr(PASS.id && PASS.balance <= 0 && localStorage.getItem("passBal") !== null ? "Your pumpkin's battery is empty. Refill it above, or use your own free key." : "Get a Pumpkin Pass above to start, or use your own free Google key at the bottom.");
+    return showErr(PASS.id && PASS.balance <= 0 && localStorage.getItem("passBal") !== null ? "Your pumpkin's battery is empty. Refill it in step 2, or enter a key." : "Do step 2 first: get a Pumpkin Pass, scan a code from your other phone, or enter a key.");
   }
   showErr("");
   try { await ensureAudio(); } catch (e) { return showErr(micHelp(e)); }
@@ -1152,14 +1140,14 @@ $("start").onclick = async () => {
   $("setup").style.display = "none";
   document.documentElement.requestFullscreen?.().catch(()=>{});
   keepAwake();
-  status(streamOn() ? "Live: waiting for chat" : lightMode() === "screen" || S.torchOK ? "Waiting for visitors" : "Waiting for visitors (using the screen to glow)");
+  status(streamOn() ? "Live: waiting for chat" : "Waiting for visitors");
   store.set("running", "1");
 };
 
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015140752";
+const BUILD = "20261015142214";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1186,11 +1174,11 @@ setInterval(() => {
     }
   }, 300);
 })();
-function lightMode() { const m = store.get("light","both"); return (m === "torch" && S && S.ctx && !S.torchOK) ? "both" : m; }
+function lightMode() { return "screen"; }                       // the screen is the lantern
 $("share").onclick = () => {
   track("code_show");
   const key = $("key").value.trim();
-  if (!key && !PASS.id) return showErr("Paste a key on this phone first.");
+  if (!key && !(PASS.id && PASS.balance > 0)) return keyMsg("Nothing to share yet. Get a Pumpkin Pass or enter a key on this phone first.");
   if (typeof qrcode !== "function") return showErr("Couldn't make the code. Check your internet and try again.");
   const q = qrcode(0, "M"); q.addData(location.origin + location.pathname + "#" + [key ? "k=" + key : "", PASS.id ? "p=" + PASS.id : ""].filter(Boolean).join("&")); q.make();
   $("qr").innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
@@ -1270,12 +1258,6 @@ async function ensureAudio() {
   S.boostChain = makeBoost(S.ctx); S.boost = S.boostChain.input;
   S.out.connect(S.boost); S.boostChain.output.connect(S.analyser); S.analyser.connect(S.ctx.destination);
   await startPlayer();
-  // Flashlight: needs the back camera open; only Chrome on Android supports it.
-  if (lightMode() !== "screen" && !IOS) try {
-    const cam = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" } } });
-    S.camTrack = cam.getVideoTracks()[0];
-    S.torchOK = !!(S.camTrack.getCapabilities && S.camTrack.getCapabilities().torch);
-  } catch { S.torchOK = false; }
   let acc = [], pos = 0;
   const feed = data => {
     if (streamOn()) return;                                  // stream mode never uses the mic
@@ -1544,7 +1526,7 @@ function closeVisit() {
   if (S.ws) { const w = S.ws; S.ws = null; try { w.close(); } catch {} }
   if (S.phase !== "idle") S.end = Date.now();
   S.phase = "idle"; S.turn = false; S.greeting = false;
-  if (!S.muted && $("setup").style.display === "none") status(streamOn() ? "Live: waiting for chat" : S.torchOK ? "Waiting for visitors" : "Waiting for visitors (using the screen to glow)");
+  if (!S.muted && $("setup").style.display === "none") status(streamOn() ? "Live: waiting for chat" : "Waiting for visitors");
 }
 function send(o) { if (S.ws && S.ws.readyState === 1) S.ws.send(JSON.stringify(o)); }
 
@@ -1758,7 +1740,7 @@ function freshOutput() {
 }
 function resetPlayback() { PLAY.queue = []; PLAY.queued = 0; PLAY.started = false; }
 
-// ------------------------------------------------------------------ light: screen + flashlight follow the voice
+// ------------------------------------------------------------------ light: the screen follows the voice
 const td = new Float32Array(512);
 function frame() {
   requestAnimationFrame(frame);
