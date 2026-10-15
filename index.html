@@ -1049,6 +1049,8 @@ function refreshUnlock(msg) {
   $("locked").style.display = on ? "none" : "block"; $("unlocked").style.display = on ? "block" : "none";
   $("persona").options[[...$("persona").options].findIndex(o => o.value === "custom")].text = on ? "Write your own…" : "Write your own… 🔒";
   renderChips(); renderColors(); applyColor(activeColor());
+  for (const id of ["elkey", "elvoice", "eluse", "eltest"]) $(id).disabled = !on;      // the ElevenLabs voice comes with it too
+  $("ellock").style.display = on ? "none" : "block"; $("ellockbadge").style.display = on ? "none" : "";
   if (msg !== undefined) $("unlockmsg").textContent = msg;
 }
 $("buy").href = PAY_URL;
@@ -1092,7 +1094,7 @@ setInterval(syncUnlock, 1500);   // cheap: only asks the server when the key act
 function showPass() {
   const has = !!PASS.id && PASS.balance > 0;
   $("nopass").style.display = has ? "none" : "block";
-  const paid = passPaid();
+  const paid = unlocked();                                     // a Pumpkin Pass, or a key that bought the earlier $1.99 unlock
   for (const id of ["elkey", "elvoice", "eluse", "eltest"]) $(id).disabled = !paid;
   $("ellock").style.display = paid ? "none" : "block"; $("ellockbadge").style.display = paid ? "none" : ""; $("haspass").style.display = has ? "block" : "none";
   const pct = Math.max(0, Math.min(100, Math.round(PASS.balance / PASS_MICROS * 100)));
@@ -1211,7 +1213,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015153334";
+const BUILD = "20261015154153";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1637,7 +1639,7 @@ function send(o) { if (S.ws && S.ws.readyState === 1) S.ws.send(JSON.stringify(o
 // arrives, and ElevenLabs' audio (24 kHz, same as Google's) plays through the same player, so the lantern still
 // follows the voice. Google's own audio is held back; if ElevenLabs fails before any audio arrives, it plays instead.
 const elKey = () => store.get("elKey", "").trim(), elVoice = () => store.get("elVoice", "").trim();
-const elWanted = () => passPaid() && store.get("elUse", "1") === "1" && !!elKey() && /^[A-Za-z0-9]{10,40}$/.test(elVoice());
+const elWanted = () => unlocked() && store.get("elUse", "1") === "1" && !!elKey() && /^[A-Za-z0-9]{10,40}$/.test(elVoice());
 const elURL = () => "wss://api.elevenlabs.io/v1/text-to-speech/" + elVoice() + "/stream-input?model_id=eleven_flash_v2_5&output_format=pcm_24000&inactivity_timeout=60";
 const elBOS = () => JSON.stringify({ text:" ", xi_api_key:elKey(), voice_settings:{ stability:0.4, similarity_boost:0.8 }, generation_config:{ chunk_length_schedule:[50, 90, 120, 160] } });
 function elBegin() {
