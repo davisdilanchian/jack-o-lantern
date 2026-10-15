@@ -586,7 +586,10 @@ $("provopenai").onclick = () => switchProvider("openai");
 (function migrateKeys() {   // keys saved before the switch existed
   const k = store.get("geminiKey", "");
   if (k && !store.get("key_" + providerOf(k), "")) store.set("key_" + providerOf(k), k);
+  if (!$("key").value) $("key").value = store.get("key_" + provChoice, "") || k;   // fill the box from the saved key
 })();
+// Ask the browser to keep this site's data (Safari can otherwise clear it after a while unused).
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch {}
 function checkKey() {
   const raw = $("key").value, m = raw.match(/sk-[A-Za-z0-9_-]{20,}/) || raw.match(/AIza[A-Za-z0-9_-]{30,}/);
   if (m && m[0] !== raw) $("key").value = m[0];
@@ -594,6 +597,7 @@ function checkKey() {
   if (k) {
     const p = providerOf(k);
     if (store.get("key_" + p, "") !== k) store.set("key_" + p, k);
+    if (store.get("geminiKey", "") !== k) store.set("geminiKey", k);   // save right away, not only on Start
     if (p !== provChoice) { provChoice = p; store.set("provider", p); }
   } else if (document.activeElement === $("key")) store.set("key_" + provChoice, "");   // they cleared the box
   showProvider();
@@ -767,7 +771,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014210757";
+const BUILD = "20261014211504";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
