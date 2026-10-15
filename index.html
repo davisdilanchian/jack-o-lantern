@@ -693,8 +693,8 @@ const FILLERS = [
   "Give a deadpan hot take about the internet or social media, then dare chat to disagree."
 ];
 const FILLER_RULE = " One sentence, two at most, deadpan, punchline at the end. Do not invent stories, past events, or anything that didn't happen; stick to opinions, observations, and what really happened in this stream. Never mention silence, quiet, or that nobody is chatting.";
-const IDLE = { last: Date.now(), next: 30000, order: [], prev: -1 };
-const idleWait = () => 25000 + Math.random() * 15000;   // 25-40 s of quiet (each filler is a full spoken answer)
+const IDLE = { last: Date.now(), next: 10000, order: [], prev: -1 };
+const idleWait = () => 8000 + Math.random() * 4000;   // about 10 s of quiet, only while someone is watching
 function nextFiller() {
   if (!IDLE.order.length) { IDLE.order = FILLERS.map((_, i) => i).sort(() => Math.random() - 0.5); if (IDLE.order[0] === IDLE.prev) IDLE.order.push(IDLE.order.shift()); }
   IDLE.prev = IDLE.order.shift(); return FILLERS[IDLE.prev];
@@ -726,18 +726,16 @@ function logChat(m) {
 }
 const chatRecap = n => CHATLOG.length ? " Recent chat in this stream, oldest first: " + CHATLOG.slice(-n).join(" | ") + "." : " Nobody has chatted yet this stream.";
 function onChat(m) {
-  if (m.type === "join") { if (!JOINS.names.includes(m.user)) JOINS.names.push(m.user); JOINS.names = JOINS.names.slice(-10); return; }
+  if (m.type === "join") { if (m.user) { if (!JOINS.names.includes(m.user)) JOINS.names.push(m.user); JOINS.names = JOINS.names.slice(-10); } else JOINS.anon = Math.min(5, (JOINS.anon || 0) + (m.n || 1)); return; }
   m.got = Date.now(); IDLE.last = Date.now();
   CHAT.q.push(m);
-  CHAT.q = CHAT.q.filter(x => Date.now() - x.got < 30000);
+  CHAT.q = CHAT.q.filter(x => Date.now() - x.got < 60000);
   const n = CHAT.q.length;
-  CHAT.level = n > 10 ? "swamped" : n > 4 ? "busy" : CHAT.level === "swamped" && n > 6 ? "swamped" : CHAT.level === "busy" && n > 2 ? "busy" : "calm";
+  CHAT.level = n > 20 ? "swamped" : n > 10 ? "busy" : CHAT.level === "swamped" && n > 14 ? "swamped" : CHAT.level === "busy" && n > 6 ? "busy" : "calm";   // answer everything unless truly flooded
   chatStatus("Chat: " + n + " waiting" + (CHAT.level === "calm" ? "" : " (" + CHAT.level + ": " + (CHAT.level === "busy" ? "only messages that say pumpkin, and gifts" : "gifts only") + ")"));
 }
 function nextChat() {
-  CHAT.q = CHAT.q.filter(x => Date.now() - x.got < 30000);
-  const junk = m => m.type === "chat" && (m.text || "").replace(/[^\p{L}\p{N}]/gu, "").length < 3 || /^(hi+|hey+|hello+|lol+|lmao+|ok+|yo+|wow+|w|l|first)$/i.test((m.text || "").trim());
-  if (CHAT.q.length > 1) CHAT.q = CHAT.q.filter(m => !junk(m) || m === CHAT.q[CHAT.q.length - 1]);   // busy: drop "hi", "lol", emoji-only
+  CHAT.q = CHAT.q.filter(x => Date.now() - x.got < 60000);
   const ok = m => m.type === "gift" || m.type === "idle" || CHAT.level === "calm" || (CHAT.level === "busy" && /pumpkin|jack/i.test(m.text));
   const gift = CHAT.q.findIndex(m => m.type === "gift");
   const i = gift >= 0 ? gift : CHAT.q.findIndex(ok);
@@ -748,10 +746,11 @@ function nextChat() {
 function pumpChat() {
   // New viewers: greet fast to hook them. The welcome jumps ahead of regular chat (gifts stay first); several
   // newcomers at once share one welcome. At most one welcome every 8 s.
-  if (streamOn() && S.ctx && !S.muted && $("setup").style.display === "none" && JOINS.names.length && Date.now() - JOINS.lastGreet > 8000
+  if (streamOn() && S.ctx && !S.muted && $("setup").style.display === "none" && (JOINS.names.length || JOINS.anon) && Date.now() - JOINS.lastGreet > 8000
       && !CHAT.q.some(m => m.type === "idle" && /^New viewers/.test(m.text))) {
-    const names = JOINS.names.slice(-3).map(spokenName); JOINS.names = []; JOINS.lastGreet = Date.now(); IDLE.last = Date.now();
-    const welcome = { type:"idle", user:"", got:Date.now(), text:"New viewers just joined: " + names.join(", ") + ". Welcome " + (names.length > 1 ? "each of them" : "them") + " by name right away, then ask " + (names.length > 1 ? "one of them" : "them") + " one genuine, friendly question about themselves, like where they're watching from, what they're up to tonight, or what made them stop scrolling. Dry delivery but warm: no insults, no assumptions about them, no accusations. Two short sentences total. When they answer in chat, remember it." };
+    const names = JOINS.names.slice(-3).map(spokenName), anon = JOINS.anon || 0; JOINS.names = []; JOINS.anon = 0; JOINS.lastGreet = Date.now(); IDLE.last = Date.now();
+    const who = names.length ? names.join(", ") : (anon > 1 ? anon + " people (names unknown)" : "someone (name unknown)");
+    const welcome = { type:"idle", user:"", got:Date.now(), text:"New viewers just joined: " + who + ". Welcome " + (names.length ? (names.length > 1 ? "each of them by name" : "them by name") : "whoever just walked in, without inventing a name") + " right away, then ask " + (names.length > 1 || anon > 1 ? "them" : "them") + " one genuine, friendly question about themselves, like where they're watching from, what they're up to tonight, or what made them stop scrolling. Dry delivery but warm: no insults, no assumptions about them, no accusations. Two short sentences total. When they answer in chat, remember it." };
     const firstNonGift = CHAT.q.findIndex(m => m.type !== "gift");
     CHAT.q.splice(firstNonGift < 0 ? CHAT.q.length : firstNonGift, 0, welcome);
   }
@@ -858,7 +857,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014233624";
+const BUILD = "20261014233839";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
