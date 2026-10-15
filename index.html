@@ -708,7 +708,9 @@ setInterval(() => { try { pumpChat(); } catch {} }, 400);   // also runs when th
 setInterval(() => { try { if (S.ctx) micDuty(); } catch {} }, 250);
 // Busy handling: answer everything while calm; when chat outpaces speech, only messages that mention
 // the pumpkin (and gifts); when swamped, gifts only. Messages older than 30 s are dropped.
+const JOINS = { names: [], lastGreet: 0 };
 function onChat(m) {
+  if (m.type === "join") { if (!JOINS.names.includes(m.user)) JOINS.names.push(m.user); JOINS.names = JOINS.names.slice(-10); return; }
   m.got = Date.now(); IDLE.last = Date.now();
   CHAT.q.push(m);
   CHAT.q = CHAT.q.filter(x => Date.now() - x.got < 30000);
@@ -727,6 +729,11 @@ function nextChat() {
 // Called every frame: when the pumpkin is free, hand it the next message.
 function pumpChat() {
   if (streamOn() && S.ctx && !S.muted && !CHAT.q.length && $("setup").style.display === "none" && !CHAT.waiting && !S.turn && !speaking()
+      && JOINS.names.length && Date.now() - JOINS.lastGreet > 15000) {
+    const names = JOINS.names.slice(-3); JOINS.names = []; JOINS.lastGreet = Date.now(); IDLE.last = Date.now();
+    CHAT.q.push({ type:"idle", user:"", text:"Viewers just joined the stream: " + names.map(n => "@" + n).join(", ") + ". Greet them by name in one dry, funny sentence, the way you'd greet people walking into your room uninvited.", got:Date.now() });
+  }
+  if (streamOn() && S.ctx && !S.muted && !CHAT.q.length && $("setup").style.display === "none" && !CHAT.waiting && !S.turn && !speaking()
       && Date.now() - IDLE.last > IDLE.next) {
     IDLE.last = Date.now(); IDLE.next = idleWait();
     CHAT.q.push({ type:"idle", user:"", text:nextFiller(), got:Date.now() });
@@ -738,7 +745,7 @@ function pumpChat() {
   if (m.type === "idle") {
     $("question").textContent = ""; $("caption").textContent = "";
     CHAT.waiting = true; S.lastAct = Date.now(); S.said = "";
-    const line = "(" + m.text + FILLER_RULE + ")";
+    const line = "(" + m.text + (/^Viewers just joined/.test(m.text) ? "" : FILLER_RULE) + ")";
     if (S.provider === "openai") { send({ type:"conversation.item.create", item:{ type:"message", role:"user", content:[{ type:"input_text", text: line }] } }); send({ type:"response.create" }); }
     else send({ realtimeInput:{ text: line } });
     setTimeout(() => { CHAT.waiting = false; }, 15000);
@@ -824,7 +831,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014230200";
+const BUILD = "20261014230710";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
