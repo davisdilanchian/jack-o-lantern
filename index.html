@@ -149,13 +149,13 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
     <img class="hero" src="og.jpg" width="1200" height="630" alt="Watercolor of a hand dropping a phone into a pumpkin, which then glows as a jack-o'-lantern.">
     <h1>Talking Jack-o'-Lantern</h1>
     <p class="lede">Put a phone inside a pumpkin and it talks to trick-or-treaters. It hears them, answers out loud, and glows as it speaks. No app to install.</p>
-    <ol class="how">
+    <ol class="how" id="how">
       <li><b>Get a free key from Google.</b> About 2 minutes.</li>
       <li><b>Pick a character</b> and a voice.</li>
       <li><b>Tap Start</b> and put the phone in your pumpkin.</li>
     </ol>
 
-    <section>
+    <section id="key-section">
       <h2>1. Your AI key</h2>
       <p class="help" style="margin-top:0">The pumpkin's brain is an AI from Google or OpenAI. A "key" is a long code, like a password, that lets your pumpkin use it. Google's is free.</p>
       <div class="seg" role="radiogroup" aria-label="Which AI">
@@ -203,7 +203,7 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
       </div>
     </section>
 
-    <section>
+    <section id="characters">
       <h2>2. Pick a character</h2>
       <div class="field">
         <label for="persona">Personality</label>
@@ -226,7 +226,7 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
 
     
 
-    <section>
+    <section id="light-section">
       <h2>Light</h2>
       <label>Lantern color <span class="lockbadge" data-lock>🔒</span></label>
       <div id="colors" class="swatches" role="radiogroup" aria-label="Lantern color"></div>
@@ -280,7 +280,7 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
       <p id="unlockmsg" class="help" role="status"></p>
     </section>
 
-    <section>
+    <section id="privacy">
       <h2>Privacy</h2>
       <ul class="help plain">
         <li>When someone talks to the pumpkin, what they say goes to Google (or OpenAI, if you use an OpenAI key) so it can answer.</li>
@@ -944,7 +944,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015001548";
+const BUILD = "20261015092506";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
