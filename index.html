@@ -460,6 +460,7 @@ for (const [code,name] of LANGS) $("lang").add(new Option(name,code));
 $("key").value = store.get("geminiKey","");
 $("persona").value = store.get("persona","jack");
 $("custom").value = store.get("custom","");
+const ANDROID = /Android/i.test(navigator.userAgent);
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 $("light").value = store.get("light", IOS ? "screen" : "both");
 $("lang").value = store.get("lang", "auto");
@@ -472,10 +473,18 @@ const CLIP_CURVE = (() => { const n = 2048, c = new Float32Array(n); for (let i 
 function makeBoost(ctx) {
   const comp = ctx.createDynamicsCompressor(), gain = ctx.createGain(), clip = ctx.createWaveShaper();
   comp.knee.value = 12; comp.attack.value = 0.003; comp.release.value = 0.2; clip.curve = CLIP_CURVE;
-  comp.connect(gain); gain.connect(clip);
-  const set = b => { comp.threshold.value = -8 - 7 * (b - 1); comp.ratio.value = 1 + 4 * (b - 1); gain.gain.value = 0.75 * b; };
+  const input = ctx.createGain(), output = ctx.createGain();
+  comp.connect(gain); gain.connect(clip); clip.connect(output);
+  let on = null;
+  const set = b => {
+    comp.threshold.value = -8 - 7 * (b - 1); comp.ratio.value = 1 + 4 * (b - 1); gain.gain.value = 0.75 * b;
+    const want = b > 1.001;                                  // at 100% the sound goes straight through, untouched
+    if (want === on) return; on = want;
+    try { input.disconnect(); } catch {}
+    input.connect(want ? comp : output);
+  };
   set(boostLevel());
-  return { input:comp, output:clip, set };
+  return { input, output, set };
 }
 $("boost").value = store.get("boost", "100"); $("boostval").textContent = $("boost").value + "%";
 $("boost").oninput = () => {
@@ -548,10 +557,8 @@ async function sampleVoice(v) {
     }
   }
   if (mine !== SAMPLE.n) return;
-  // Match the loudness of every sample, like the live voice.
-  const d = buf.getChannelData(0); let sum = 0, cnt = 0;
-  for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i]) > 0.01) { sum += d[i] * d[i]; cnt++; }
-  const g = ctx.createGain(); g.gain.value = cnt ? Math.min(4, Math.max(0.5, LOUD.target / Math.sqrt(sum / cnt))) : 1;
+  // Sample files are already loudness-matched when they're recorded; play them as they are.
+  const g = ctx.createGain();
   const bc = makeBoost(ctx); g.connect(bc.input); bc.output.connect(ctx.destination);
   const src = ctx.createBufferSource(); src.buffer = buf; src.connect(g);
   src.onended = () => { if (SAMPLE.src === src) stopSample(); };
@@ -643,7 +650,7 @@ const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, tor
   analyser:null, out:null, level:0, peak:0.05, said:"", wake:null, visitId:0, echo:0.02, couple:0.5, outHist:[], hold:[], barge:false, dbg:{ barge:0, interrupted:0, underrun:0 }, heard:"", cmd:null, pre:[], cmdBusy:false, cmdTimes:[], inRate: providerOf(store.get("geminiKey","")) === "openai" ? 24000 : 16000 };
 const TUNE = { ratio:3.5, min:0.015, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.3 };
 const status = t => $("status").textContent = t;
-const speaking = () => S.turn || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
+const speaking = () => S.turn || PLAY.queued > 0 || (S.ctx && S.ctx.currentTime < S.playEnd + (ANDROID ? 0.6 : TUNE.tail));   // Android: longer, its mic has no echo cancellation
 
 // ------------------------------------------------------------------ stream mode (only at jack-o.io/streaming, which is password-protected)
 const STREAMING = location.pathname.replace(/\/$/, "") === "/streaming";
@@ -771,7 +778,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014211504";
+const BUILD = "20261014211755";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -871,7 +878,10 @@ async function ensureAudio() {
   // voice, so it can listen while talking without hearing itself. Older browsers only accept true.
   // iPhones already cancel all of the phone's own sound.
   try {
-    try { mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:"all", noiseSuppression:true, autoGainControl:true } }); }
+    // Android: echo cancellation switches the phone into call-audio mode, which makes playback stutter on
+    // many phones. Use a plain mic there; the pumpkin simply stops listening while it talks.
+    if (ANDROID) mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
+    else try { mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:"all", noiseSuppression:true, autoGainControl:true } }); }
     catch (e) {
       if (e.name === "NotAllowedError" || e.name === "SecurityError") throw e;
       mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
@@ -960,7 +970,7 @@ function onMic(samples) {
     // With them on, compare the mic with what the speaker is playing right now (loud syllables make
     // loud echo), learn how much of the speaker leaks into the mic, and only pass on sound that is
     // clearly more than that leak for at least 120 ms. Everything else is sent as silence.
-    if (store.get("interrupt", "1") !== "1") return;
+    if (store.get("interrupt", "1") !== "1" || ANDROID) return;   // no talking over it on Android (no echo cancellation there)
     if (!S.barge) {
       const now = performance.now();
       let outMax = 0.005; for (const h of S.outHist) if (now - h.t < 400 && h.v > outMax) outMax = h.v;
@@ -1008,7 +1018,7 @@ function runVisit(isPreview) {
     model: MODELS[modelIdx],
     generationConfig:{ responseModalities:["AUDIO"], speechConfig: Object.assign(store.get("lang","auto") === "auto" ? {} : { languageCode: store.get("lang","auto") }, { voiceConfig:{ prebuiltVoiceConfig:{ voiceName: activeVoice() } } }) },
     systemInstruction:{ parts:[{ text: personaText() }] },
-    realtimeInputConfig:{ activityHandling: store.get("interrupt","1") === "1" ? "START_OF_ACTIVITY_INTERRUPTS" : "NO_INTERRUPTION",
+    realtimeInputConfig:{ activityHandling: store.get("interrupt","1") === "1" && !ANDROID ? "START_OF_ACTIVITY_INTERRUPTS" : "NO_INTERRUPTION",
       automaticActivityDetection:{ endOfSpeechSensitivity:"END_SENSITIVITY_HIGH", silenceDurationMs:500 } },
     outputAudioTranscription:{}, inputAudioTranscription:{}
   }}));
@@ -1028,7 +1038,7 @@ async function openAIVisit(isPreview, key, id) {
   const session = { type:"realtime", model: OA_MODELS[oaIdx], instructions: personaText(),
     audio:{ input:{ format:{ type:"audio/pcm", rate:24000 },
                     transcription:{ model:"gpt-4o-mini-transcribe" },
-                    turn_detection:{ type:"server_vad", threshold:0.55, silence_duration_ms:450, prefix_padding_ms:250, create_response:true, interrupt_response: store.get("interrupt","1") === "1" } },
+                    turn_detection:{ type:"server_vad", threshold:0.55, silence_duration_ms:450, prefix_padding_ms:250, create_response:true, interrupt_response: store.get("interrupt","1") === "1" && !ANDROID } },
             output:{ format:{ type:"audio/pcm", rate:24000 }, voice: activeVoice() } } };
   let r, j = {};
   try {
@@ -1160,65 +1170,34 @@ function play(b64data) {
   const bin = atob(b64data), n = bin.length >> 1;
   if (!n) return;
   telChunk(n);
-  const inp = new Float32Array(n);
-  for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if (v & 0x8000) v -= 0x10000; inp[i] = v / 32768; }
-  const rate = S.ctx.sampleRate, step = 24000 / rate;
-  const outLen = Math.max(0, Math.ceil((n - 1 - PLAY.pos) / step));   // stop before the last input sample; the next chunk finishes the gap
-  if (outLen <= 0) { PLAY.pos -= n; PLAY.prev = inp[n - 1]; return; }
-  const out = new Float32Array(outLen);
-  // simple linear interpolation between neighbouring samples, continuous across chunks
-  let q = PLAY.pos;
-  for (let i = 0; i < outLen; i++, q += step) {
-    const k = Math.floor(q), f = q - k;
-    const s0 = k <= 0 ? (k === 0 ? inp[0] : PLAY.prev) : inp[k];
-    const s1 = k + 1 < n ? inp[k + 1] : inp[n - 1];
-    out[i] = s0 + (s1 - s0) * f;
-  }
-  PLAY.pos = q - n; PLAY.prev = inp[n - 1];
-  // Loudness matching: OpenAI's voices come out quieter than Google's. Track how loud the speech
-  // is and scale it to the same level, easing between gains and softly limiting peaks.
-  let ss = 0; for (let i = 0; i < n; i++) ss += inp[i] * inp[i];
-  const crms = Math.sqrt(ss / n);
-  if (crms > 0.01) LOUD.avg = LOUD.avg ? LOUD.avg * 0.92 + crms * 0.08 : crms;
-  const g1 = LOUD.avg ? Math.min(4, Math.max(1, LOUD.target / LOUD.avg)) : 1, g0 = LOUD.gain;
-  for (let i = 0; i < outLen; i++) {
-    let x = out[i] * (g0 + (g1 - g0) * i / outLen);
-    const a = Math.abs(x); if (a > 0.85) x = Math.sign(x) * (0.85 + 0.15 * Math.tanh((a - 0.85) / 0.15));
-    out[i] = x;
-  }
-  LOUD.gain = g1;
-  PLAY.pend.push(out); PLAY.pendLen += outLen; PLAY.queued += outLen / rate;
+  // Keep the voice as it arrives (24 kHz). The only change is a fixed level match: OpenAI's voices are
+  // about 1.5x quieter than Google's. The browser converts to the speaker's rate itself.
+  const g = S.provider === "openai" ? 1.5 : 1, out = new Float32Array(n);
+  for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if (v & 0x8000) v -= 0x10000; out[i] = Math.max(-1, Math.min(1, v / 32768 * g)); }
+  PLAY.pend.push(out); PLAY.pendLen += n; PLAY.queued += n / 24000;
   pumpAudio(false);
 }
-// Schedule buffered audio. Small network pieces (OpenAI sends many tiny ones) are joined into
-// blocks of about 0.25 s, and every block starts on the exact sample where the last one ended,
-// so there are few joins and no gaps or overlaps at them. Playback waits for about PLAY.cushion
-// seconds before starting so uneven delivery does not cause gaps; if it ever runs dry, the cushion grows.
+// Schedule buffered audio in blocks of at least 0.25 s, each starting on the exact sample where the last
+// one ended. Playback waits until PLAY.cushion seconds are buffered; if it ever runs dry, the cushion grows.
 function pumpAudio(flush) {
-  const now = S.ctx.currentTime, rate = S.ctx.sampleRate;
+  const now = S.ctx.currentTime, R = 24000;
   if (PLAY.started && S.playEnd < now - 0.02) {          // ran dry: rebuffer with a bigger cushion
     PLAY.started = false; PLAY.cushion = Math.min(1.5, PLAY.cushion + 0.2); S.dbg.underrun++;
   }
   if (!PLAY.started) {
     if (!flush && PLAY.queued < (streamOn() ? Math.max(0.6, PLAY.cushion) : PLAY.cushion)) return;
     if (!PLAY.pendLen) return;
-    PLAY.started = true; PLAY.endFrame = Math.ceil((now + 0.05) * rate);
+    PLAY.started = true; PLAY.endFrame = Math.ceil((now + 0.05) * R);
   }
-  const ahead = PLAY.endFrame / rate - now;
-  if (!PLAY.pendLen || (!flush && PLAY.pendLen < rate * 0.25 && ahead > 0.3)) return;
-  const block = new Float32Array(PLAY.pendLen); let o = 0;
-  for (const a of PLAY.pend) { block.set(a, o); o += a.length; }
-  PLAY.pend = []; PLAY.pendLen = 0; PLAY.queued -= block.length / rate;
-  const buf = S.ctx.createBuffer(1, block.length, rate); buf.getChannelData(0).set(block);
+  const ahead = PLAY.endFrame / R - now;
+  if (!PLAY.pendLen || (!flush && PLAY.pendLen < R * 0.25 && ahead > 0.3)) return;
+  const buf = S.ctx.createBuffer(1, PLAY.pendLen, R), d = buf.getChannelData(0); let o = 0;
+  for (const a of PLAY.pend) { d.set(a, o); o += a.length; }
+  PLAY.queued -= PLAY.pendLen / R; PLAY.pend = []; PLAY.pendLen = 0;
   const src = S.ctx.createBufferSource(); src.buffer = buf; src.connect(S.out);
-  if (PLAY.endFrame / rate < now + 0.01) PLAY.endFrame = Math.ceil((now + 0.02) * rate);
-  src.start(PLAY.endFrame / rate);
-  PLAY.endFrame += block.length; S.playEnd = PLAY.endFrame / rate;
-}
-// Cut the voice off now, including audio already scheduled to play.
-function stopPlayback() {
-  resetPlayback(); S.playEnd = 0; PLAY.pos = 0;
-  if (S.out) { try { S.out.disconnect(); } catch {} S.out = S.ctx.createGain(); S.out.connect(S.boost); }
+  if (PLAY.endFrame / R < now + 0.01) PLAY.endFrame = Math.ceil((now + 0.02) * R);
+  src.start(PLAY.endFrame / R);
+  PLAY.endFrame += buf.length; S.playEnd = PLAY.endFrame / R;
 }
 function resetPlayback() { PLAY.pend = []; PLAY.pendLen = 0; PLAY.queued = 0; PLAY.started = false; }
 
