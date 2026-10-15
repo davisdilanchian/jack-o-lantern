@@ -245,6 +245,9 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
       <p class="help" style="margin-top:0">The pumpkin answers your TikTok LIVE chat out loud instead of people in the room. Only this phone is affected.</p>
       <label for="tiktok">Your TikTok LIVE link or @name</label>
       <input id="tiktok" type="text" autocomplete="off" spellcheck="false" placeholder="tiktok.com/@you/live">
+      <label for="cohost">Co-host's TikTok (optional, while you're paired)</label>
+      <input id="cohost" type="text" autocomplete="off" spellcheck="false" placeholder="@their_name">
+      <p class="help">The pumpkin answers their viewers too. Clear this when the pairing ends.</p>
       <label class="check"><input type="checkbox" id="streamon"> Stream mode on (answer chat only, ignore the room)</label>
       <p id="streamstatus" class="help" role="status">Not connected.</p>
     </section>
@@ -643,6 +646,9 @@ const STREAMING = location.pathname.replace(/\/$/, "") === "/streaming";
 if (STREAMING) {
   $("streambox").style.display = "block";
   $("tiktok").value = store.get("tiktok", "");
+  $("cohost").value = store.get("cohost", "");
+  $("cohost").oninput = () => store.set("cohost", $("cohost").value.trim());
+  $("cohost").onchange = () => { try { CHAT.ws && CHAT.ws.close(); } catch {} CHAT.ws = null; setTimeout(connectChat, 300); };
   $("tiktok").oninput = () => store.set("tiktok", $("tiktok").value.trim());
   $("tiktok").onchange = () => { try { CHAT.ws && CHAT.ws.close(); } catch {} CHAT.ws = null; setTimeout(connectChat, 300); };
 }
@@ -679,18 +685,14 @@ function spokenName(u) {
 // Dead air: when chat has been quiet for a while, the pumpkin fills the silence on its own. The filler
 // kinds rotate (shuffled, never the same twice in a row) so it doesn't repeat itself.
 const FILLERS = [
-  "Tell a short, funny story about something that happened to you before you ended up inside this pumpkin, back when you were just a phone.",
-  "Tell a short, funny story about the person who stuffed you into this squash and the questionable decisions that led here.",
-  "Tell a short, funny story about the strangest group chat or app notification you ever received as a phone.",
-  "Tell a short, funny story about a neighbor, a delivery driver, or a passerby you've been quietly watching from the porch.",
-  "Tell a short, funny story about a petty feud you have with another object in the house.",
-  "Tell a short, funny story about your one brief moment of fame.",
-  "Tell a short, funny story about a terrible job you once had, delivered completely straight.",
-  "Tell a short, funny story about the worst advice you ever followed.",
-  "Continue a story you told earlier in this stream with a new, escalating detail; if you haven't told one yet, start one about your previous owner.",
-  "Tell a short, funny story about something that went wrong on a perfectly ordinary Tuesday."
+  "Call back to something a specific viewer actually said earlier in this stream and riff on it with a new angle. If nobody has said anything yet, give a dry opinion on something mundane instead.",
+  "VIEWERS: Make one dry, specific observation about the number of people currently watching.",
+  "Pick a viewer who chatted earlier in this stream and ask them one specific follow-up about what they told you. If nobody has chatted yet, give a dry hot take about something everyday instead.",
+  "Give one dry, oddly specific opinion about something completely ordinary (a food, a household object, a habit, a day of the week).",
+  "Make one dry observation about your actual situation: you are an old phone inside a pumpkin, plugged into the wall, on a live stream.",
+  "Give a deadpan hot take about the internet or social media, then dare chat to disagree."
 ];
-const FILLER_RULE = " Three or four sentences at most, deadpan, with one oddly specific detail and the punchline at the end. Make it up, never mention silence, quiet, or that nobody is chatting, and don't ask viewers a question.";
+const FILLER_RULE = " One or two sentences, deadpan, punchline at the end. Do not invent stories, past events, or anything that didn't happen; stick to opinions, observations, and what really happened in this stream. Never mention silence, quiet, or that nobody is chatting.";
 const IDLE = { last: Date.now(), next: 8000, order: [], prev: -1 };
 const idleWait = () => 5000 + Math.random() * 5000;   // 5-10 s of quiet
 function nextFiller() {
@@ -702,10 +704,10 @@ const CHAT = { q:[], ws:null, retry:0, waiting:false, level:"calm" };
 const chatStatus = t => { if ($("streamstatus")) $("streamstatus").textContent = t; };
 function connectChat() {
   if (!streamOn() || (CHAT.ws && CHAT.ws.readyState < 2)) return;
-  const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/api/stream/connect?tiktok=" + encodeURIComponent(store.get("tiktok", "")));
+  const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/api/stream/connect?tiktok=" + encodeURIComponent(store.get("tiktok", "")) + "&cohost=" + encodeURIComponent(store.get("cohost", "")));
   CHAT.ws = ws;
   ws.onopen = () => { CHAT.retry = 0; chatStatus("Connected. Waiting for chat."); };
-  ws.onmessage = e => { if (e.data === "pong") return; try { const m = JSON.parse(e.data); if (m.type === "status") chatStatus(m.text); else onChat(m); } catch {} };
+  ws.onmessage = e => { if (e.data === "pong") return; try { const m = JSON.parse(e.data); if (m.type === "status") chatStatus(m.text); else if (m.type === "viewers") CHAT.viewers = m.count; else onChat(m); } catch {} };
   ws.onclose = () => { if (CHAT.ws !== ws) return; CHAT.ws = null; chatStatus("Reconnecting…"); if (streamOn()) setTimeout(connectChat, Math.min(15000, 1000 * 2 ** CHAT.retry++)); };
   ws.onerror = () => {};
 }
@@ -752,17 +754,19 @@ function pumpChat() {
   if (m.type === "idle") {
     $("question").textContent = ""; $("caption").textContent = "";
     CHAT.waiting = true; S.lastAct = Date.now(); S.said = "";
-    const line = "(" + m.text + (/^Viewers just joined/.test(m.text) ? "" : FILLER_RULE) + ")";
+    let text = m.text;
+    if (text.startsWith("VIEWERS: ")) text = CHAT.viewers ? text.slice(9) + " Right now " + CHAT.viewers + " people are watching." : FILLERS[3];
+    const line = "(" + text + (/^Viewers just joined/.test(text) ? "" : FILLER_RULE) + ")";
     if (S.provider === "openai") { send({ type:"conversation.item.create", item:{ type:"message", role:"user", content:[{ type:"input_text", text: line }] } }); send({ type:"response.create" }); }
     else send({ realtimeInput:{ text: line } });
     setTimeout(() => { CHAT.waiting = false; }, 15000);
     return;
   }
-  const who = spokenName(m.user);
+  const who = spokenName(m.user) + (m.room === "cohost" ? " (watching from your co-host @" + m.host + "'s stream)" : "");
   let line = m.type === "gift" ? "Live chat from " + who + ": (sent you a gift: " + (m.gift || "a gift") + ") " + m.text : "Live chat from " + who + ": " + m.text;
   chatsAnswered++;
   if (chatsAnswered % PLUG_EVERY === 0 || PLUG_ASK.test(m.text || "")) line += " (Work in a dry, quick plug: tell them to check out the bio and follow.)";
-  $("question").textContent = "@" + m.user + ": " + (m.text || "sent " + (m.gift || "a gift")); $("caption").textContent = "";
+  $("question").textContent = "@" + m.user + (m.room === "cohost" ? " (co-host chat)" : "") + ": " + (m.text || "sent " + (m.gift || "a gift")); $("caption").textContent = "";
   CHAT.waiting = true; S.lastAct = Date.now(); S.said = "";
   if (S.provider === "openai") { send({ type:"conversation.item.create", item:{ type:"message", role:"user", content:[{ type:"input_text", text: line }] } }); send({ type:"response.create" }); }
   else send({ realtimeInput:{ text: line } });
@@ -839,7 +843,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014231613";
+const BUILD = "20261014232023";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
