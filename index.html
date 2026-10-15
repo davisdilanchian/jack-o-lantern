@@ -696,6 +696,16 @@ const FILLERS = [
   "Rank three ordinary things from worst to best in one dry sentence.",
   "Give one piece of dry, sensible-but-odd advice about everyday life."
 ];
+// One viewer: casual one-on-one chat with that person, like hanging out.
+const CHITCHAT = [
+  "Ask the viewer a casual, friendly question about their day, like you're hanging out.",
+  "Follow up on something the viewer told you earlier in this stream, like a friend would. If they haven't said anything yet, ask what they're up to tonight.",
+  "Ask the viewer what they're eating, drinking, or doing right now, casually.",
+  "Share a quick, dry opinion about something everyday, then ask the viewer what they think.",
+  "Ask the viewer about something they're into lately (a show, a game, music), casually.",
+  "React to the last thing the viewer said like a friend would, then keep the conversation going with one question. If they haven't said anything yet, ask where they're watching from."
+];
+const CHITCHAT_RULE = " Talk straight to that one person, casual and warm under the dry delivery, one or two short sentences. Never mention that they're the only viewer, the audience, or the stream being quiet.";
 const FILLER_RULE = " One sentence, two at most, deadpan, punchline at the end. Don't comment on the audience, the crowd, how many people are watching, or lurkers. Do not invent stories, past events, or anything that didn't happen; stick to opinions, observations, and what really happened in this stream. Never mention silence, quiet, or that nobody is chatting.";
 const IDLE = { last: Date.now(), next: 10000, order: [], prev: -1 };
 const idleWait = () => 8000 + Math.random() * 4000;   // about 10 s of quiet, only while someone is watching
@@ -762,7 +772,8 @@ function pumpChat() {
       && CHAT.viewers > 0                                        // nobody watching (or count unknown): stay quiet, don't spend AI time
       && Date.now() - IDLE.last > IDLE.next) {
     IDLE.last = Date.now(); IDLE.next = idleWait();
-    CHAT.q.push({ type:"idle", user:"", text:nextFiller(), got:Date.now() });
+    const solo = CHAT.viewers === 1;
+    CHAT.q.push({ type:"idle", user:"", solo, text: solo ? CHITCHAT[Math.floor(Math.random() * CHITCHAT.length)] : nextFiller(), got:Date.now() });
   }
   if (!streamOn() || !S.ctx || S.muted || !CHAT.q.length || $("setup").style.display !== "none") return;
   if (S.phase === "idle") return runVisit(true);
@@ -772,7 +783,7 @@ function pumpChat() {
     $("question").textContent = ""; $("caption").textContent = "";
     CHAT.waiting = true; S.lastAct = Date.now(); S.said = "";
     let text = m.text;
-    const line = "(" + text + (/^New viewers/.test(text) ? "" : FILLER_RULE + chatRecap(5)) + ")";
+    const line = "(" + text + (/^New viewers/.test(text) ? "" : (m.solo ? CHITCHAT_RULE : FILLER_RULE) + chatRecap(5)) + ")";
     if (S.provider === "openai") { send({ type:"conversation.item.create", item:{ type:"message", role:"user", content:[{ type:"input_text", text: line }] } }); send({ type:"response.create" }); }
     else send({ realtimeInput:{ text: line } });
     setTimeout(() => { CHAT.waiting = false; }, 15000);
@@ -860,7 +871,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014234307";
+const BUILD = "20261014234408";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
