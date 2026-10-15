@@ -14,7 +14,7 @@ if (location.pathname.replace(/\/$/, "") !== "/streaming") {
 function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD_PURCHASE, value, currency: "USD", transaction_id: id }); } catch {} }
 </script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#faf7ee">
+<meta name="theme-color" content="#f6efe2">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
 <link rel="canonical" href="https://jack-o.io/">
@@ -83,9 +83,12 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   #err { color:#ff9a8a; font-size:14px; margin-top:12px; min-height:1.3em; }
 
   /* Setup screen: watercolor-paper look matching the jack-o.io illustration */
-  .overlay { --bg:#faf7ee; --surface:#fffdf8; --line:rgba(58,40,26,.28); --ink:#3a281a; --fg:#2b1d12; --muted:#6e5a48; --accent:#e5782a; --accent-ink:#2b1d12;
+  .overlay { --bg:#f6efe2; --surface:#fffaf1; --line:rgba(58,40,26,.28); --ink:#3a281a; --fg:#2b1d12; --muted:#6e5a48; --accent:#e5782a; --accent-ink:#2b1d12;
     color:var(--fg);
-    background:var(--bg); }
+    background:
+      radial-gradient(900px 500px at 105% -10%, rgba(255,170,80,.16), transparent 60%),
+      radial-gradient(700px 420px at -10% 110%, rgba(230,120,40,.10), transparent 60%),
+      var(--bg); }
   .hero { display:block; width:100%; height:auto; border-radius:12px; margin:0 0 18px; }
   .overlay h1, .overlay h2, .overlay button, .overlay .tipbtn { font-family:"Patrick Hand", "Comic Neue", system-ui, sans-serif; }
   .overlay h1 { font-size:34px; font-weight:400; letter-spacing:0; color:var(--ink); }
@@ -105,15 +108,7 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   .overlay ol b, .overlay .by b { color:var(--fg); }
   .overlay #err { color:#b3261e; }
   .overlay #scanbox video { border:1.5px solid var(--ink); }
-.overlay ol.how { list-style:none; margin:6px 0 4px; padding:0; font-size:17px; }
-.overlay ol.how li { display:flex; align-items:center; gap:14px; margin:2px 0; }
-.overlay ol.how img { width:88px; height:88px; flex:0 0 88px; }
-.overlay h2.step { display:flex; align-items:center; gap:10px; }
-.overlay h2.step img { width:56px; height:56px; flex:0 0 56px; margin:-6px 0; }
-.overlay button.wide { display:block; width:100%; margin:6px 0 10px; }
-.overlay #light-section { margin-top:18px; }
-.overlay .okmsg { margin:0 0 12px; padding:10px 12px; border:1.5px solid var(--ink); border-radius:10px; background:var(--surface); font-size:17px; }
-#qrbox .small { font-size:13px; opacity:.8; margin:6px 0 0; }
+.overlay ol.how { margin:4px 0 18px; padding-left:22px; font-size:17px; } .overlay ol.how li { margin:6px 0; }
 .steps { margin:10px 0; border:1.5px solid rgba(58,40,26,.45); border-radius:10px; padding:10px 14px; background:var(--surface); }
 .steps summary { cursor:pointer; font-weight:600; color:var(--ink); } .steps ol { margin:10px 0 2px; padding-left:20px; } .steps li { margin:6px 0; }
 .steps a { color:var(--ink); font-weight:600; }
@@ -173,33 +168,13 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
     <h1>Talking Jack-o'-Lantern</h1>
     <p class="lede">Put an old phone inside a pumpkin and it talks to trick-or-treaters. It hears them, answers out loud in character, and glows as it speaks.</p>
     <ol class="how" id="how">
-      <li><img src="steps/1-pay.jpg" alt="" width="88" height="88"><span><b>1. Get a Pumpkin Pass</b> on the phone you use every day.</span></li>
-      <li><img src="steps/2-pick.jpg" alt="" width="88" height="88"><span><b>2. Pick a pumpkin</b> and hear how it talks.</span></li>
-      <li><img src="steps/3-send.jpg" alt="" width="88" height="88"><span><b>3. Send it to the old phone.</b> This phone shows a code, the old phone scans it.</span></li>
-      <li><img src="steps/4-start.jpg" alt="" width="88" height="88"><span><b>4. Tap Start</b> on the old phone.</span></li>
-      <li><img src="steps/5-pumpkin.jpg" alt="" width="88" height="88"><span><b>5. Put it in the pumpkin,</b> screen facing out. Done.</span></li>
+      <li><b>Pick a pumpkin</b> and hear its voice.</li>
+      <li><b>Tap Start.</b> We handle the rest.</li>
+      <li><b>Put the phone in your pumpkin.</b> That's it.</li>
     </ol>
-    <p class="help">Only one phone? That works too. Do every step on it and skip step 3.</p>
-
-    <section id="passbox">
-      <h2 class="step"><img src="steps/1-pay.jpg" alt="" width="56" height="56">1. Get a Pumpkin Pass</h2>
-      <div id="nopass">
-        <a id="buypass" class="tipbtn" target="_self">🎃 Get a Pumpkin Pass, $4.99</a>
-        <p class="help">We handle everything: every character, voice, and color, plus about <b>400 replies</b> of talk time, enough for a whole Halloween night. Top up anytime. No account, no key, nothing to set up.</p>
-        <p class="help">Rather not pay? <a href="#ownkey" id="gofree">Use your own free Google key</a> for the basic pumpkin.</p>
-      </div>
-      <div id="haspass" style="display:none">
-        <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked and we handle the rest.</p>
-        <div class="battery"><div id="batteryfill"></div></div>
-        <p id="batterytext" class="help"></p>
-        <a id="refill" class="tipbtn" target="_self">🔋 Refill, $2.99 (about 250 replies)</a>
-        <p class="help">Next: pick your pumpkin.</p>
-      </div>
-      <p id="passmsg" class="help" role="status"></p>
-    </section>
 
     <section id="characters">
-      <h2 class="step"><img src="steps/2-pick.jpg" alt="" width="56" height="56">2. Pick your pumpkin</h2>
+      <h2>1. Meet the pumpkins</h2>
       <p class="help" style="margin-top:0">Pick a character and hear it. Tap any voice to hear it too.</p>
       <div class="field">
         <label for="persona">Personality</label>
@@ -219,7 +194,10 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <p class="help"><b>Match the visitor</b> answers in the language people speak to it. If it switches languages by mistake, pick one language.</p>
       </div>
 
-      <div id="light-section">
+    </section>
+
+    <section id="light-section">
+      <h2>Lantern</h2>
       <label>Lantern color <span class="lockbadge" data-lock>🔒</span></label>
       <div id="colors" class="swatches" role="radiogroup" aria-label="Lantern color"></div>
       <p id="colormsg" class="help" role="status"></p>
@@ -230,49 +208,49 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <option value="torch">Flashlight only</option>
       </select>
       <p class="help">The screen glows in the lantern color and gets brighter as it talks. The flashlight can flicker too (always white), but only on Android phones in Chrome. iPhones use the screen.</p>
-      </div>
     </section>
 
-    <section id="send">
-      <h2 class="step"><img src="steps/3-send.jpg" alt="" width="56" height="56">3. Send it to the old phone</h2>
-      <p class="help" style="margin-top:0">Putting this phone in the pumpkin? Skip to step 4.</p>
-      <p class="help"><b>On this phone:</b></p>
-      <button id="share" type="button" class="wide">Show the code</button>
-      <div id="qrbox" role="dialog" aria-label="Code for your old phone">
-        <div id="qr"></div>
-        <p>On the old phone, open <b>jack-o.io</b> and tap <b>Scan the code</b>. Or point its camera app at this code and open the link.</p>
-        <p class="small">The code carries your Pumpkin Pass. Show it only to your own phones.</p>
-        <button id="hideqr" type="button" style="margin-top:10px;color:#1a1410;border-color:#d9cfc6">Hide the code</button>
+    <section id="passbox">
+      <h2>2. Start your pumpkin</h2>
+      <div id="nopass">
+        <a id="buypass" class="tipbtn" target="_self">🎃 Get a Pumpkin Pass, $4.99</a>
+        <p class="help">We handle everything: every character, voice, and color, plus about <b>400 replies</b> of talk time, enough for a whole Halloween night. Top up anytime. No account, no key, nothing to set up.</p>
+        <p class="help">Rather not pay? <a href="#ownkey" id="gofree">Use your own free Google key</a> for the basic pumpkin.</p>
       </div>
-      <p class="help"><b>On the old phone:</b> open jack-o.io, then</p>
-      <button id="scan" type="button" class="wide">Scan the code</button>
-      <p id="keymsg" class="help" role="status" style="color:var(--fg)"></p>
-      <div id="scanbox">
-        <video id="scanvid" playsinline muted></video>
-        <p class="help">Point this camera at the code on the other phone.</p>
-        <button id="stopscan" type="button" style="margin-top:8px">Cancel</button>
+      <div id="haspass" style="display:none">
+        <p class="help" style="margin-top:0"><b>Pumpkin Pass active.</b> Everything's unlocked and we handle the rest.</p>
+        <div class="battery"><div id="batteryfill"></div></div>
+        <p id="batterytext" class="help"></p>
+        <a id="refill" class="tipbtn" target="_self">🔋 Refill, $2.99 (about 250 replies)</a>
+        <p class="help">Moving to another phone? Tap <b>Share my key</b> under "Your own key" below: the code carries your pass too.</p>
       </div>
+      <p id="passmsg" class="help" role="status"></p>
     </section>
 
-    <section id="startbox">
-      <h2 class="step"><img src="steps/4-start.jpg" alt="" width="56" height="56">4. Tap Start on the old phone</h2>
-      <p id="movedmsg" class="okmsg" role="status" style="display:none"></p>
-      <ul class="help plain" style="margin-top:0">
-        <li><b>Brightness all the way up.</b> Turn off auto-brightness.</li>
-        <li><b>Keep the screen on.</b> iPhone: Settings › Display &amp; Brightness › Auto-Lock › Never, and turn off Low Power Mode. Android: Settings › Display › Screen timeout › the longest, and turn off battery saver.</li>
-        <li><b>Volume all the way up,</b> and plug it in to charge.</li>
-      </ul>
-      <button class="primary" id="start">Start</button>
-      <div id="err" role="alert"></div>
-      <p class="help">Allow the microphone when it asks.</p>
-    </section>
-
-    <section id="pumpkinbox">
-      <h2 class="step"><img src="steps/5-pumpkin.jpg" alt="" width="56" height="56">5. Put it in the pumpkin</h2>
-      <p class="help" style="margin-top:0">Screen facing out, through the carved face. That's it. 🎃</p>
-      <p class="help"><b>Tip:</b> yellow or orange tape over the flashlight gives a warmer glow.</p>
+    <section>
+      <h2>3. Set up the phone</h2>
+      <ol>
+        <li><b>Turn brightness all the way up.</b> Turn off auto-brightness.</li>
+        <li><b>Stop the screen from turning off.</b> iPhone: open Settings › Display &amp; Brightness › Auto-Lock › Never. Also turn off Low Power Mode. Android: open Settings › Display › Screen timeout › pick the longest. Also turn off battery saver.</li>
+        <li><b>Turn the volume all the way up</b> and plug the phone in to charge.</li>
+        <li><b>Optional:</b> put yellow or orange tape over the flashlight for a warmer glow.</li>
+        <li><b>Tap Start,</b> allow the microphone when asked, and put the phone in the pumpkin with the screen facing out.</li>
+      </ol>
       <p class="help">To mute it, tap the screen or say <b>"Mute on"</b> (or "Pumpkin, stop talking"). To unmute, tap again or say <b>"Mute off"</b> (or "Pumpkin, unmute"). Tap <b>Settings</b> in the corner to change things.</p>
     </section>
+
+
+
+
+    
+
+
+
+
+
+
+    <button class="primary" id="start">Start</button>
+    <div id="err" role="alert"></div>
 
     <details id="ownkey" class="ownkey">
       <summary>Free option: use your own Google key</summary>
@@ -307,7 +285,22 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <p id="keykind" class="help" role="status"></p>
       <p class="help">You can save both a Google and an OpenAI key and switch between them with the buttons above.</p>
       <p class="help">Your key stays on this phone. It only goes to Google (or OpenAI). Don't share it with people you don't know.</p>
-      <p class="help"><b>Using an old phone?</b> Paste the key on this phone, then use step 3 above to send it to the old phone.</p>
+      <p class="help"><b>Using an old phone?</b> Get the key on your main phone first. Tap <b>Share my key</b> there, then tap <b>Scan a key</b> on the old phone and point it at the code.</p>
+      <div class="btnrow">
+        <button id="scan" type="button">Scan a key</button>
+        <button id="share" type="button">Share my key</button>
+      </div>
+      <p id="keymsg" class="help" role="status" style="color:var(--fg)"></p>
+      <div id="scanbox">
+        <video id="scanvid" playsinline muted></video>
+        <p class="help">Point this camera at the square code on the other phone.</p>
+        <button id="stopscan" type="button" style="margin-top:8px">Cancel</button>
+      </div>
+      <div id="qrbox" role="dialog" aria-label="QR code with your key">
+        <div id="qr"></div>
+        <p>On the other phone, tap <b>Scan a key</b> and point it here. You can also use its camera app and open the link. Anyone who scans this gets your key, so hide it when you're done.</p>
+        <button id="hideqr" type="button" style="margin-top:10px;color:#1a1410;border-color:#d9cfc6">Hide code</button>
+      </div>
     </section>
     <section id="unlockbox">
       <h2>Unlock everything</h2>
@@ -381,30 +374,10 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
 <script>
 // ------------------------------------------------------------------ key handoff: a QR link with the key after "#".
 // The part after "#" is never sent to the server; we save it on this phone and wipe it from the address bar.
-// The code from step 3 carries the pass (p=), an own key (k=) and the chosen settings (s=) to the old phone.
-function importShared(str) {
-  const get = n => (String(str).match(new RegExp("(?:^|[#&?])" + n + "=([^&]+)")) || [])[1];
-  const k = get("k"), p = get("p"), s = get("s"); let got = false;
-  try {
-    if (k && /^[A-Za-z0-9._-]{20,300}$/.test(k)) { localStorage.setItem("geminiKey", k); got = true; }
-    if (p && /^p[0-9a-f]{32}$/.test(p)) { localStorage.setItem("passId", p); got = true; }
-    if (s) {
-      const o = JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, "+").replace(/_/g, "/")))));
-      if (/^[a-z]{2,12}$/.test(o.p)) localStorage.setItem("persona", o.p);
-      if (/^[A-Za-z]{2,20}$/.test(o.v)) localStorage.setItem(/^sk-/.test(localStorage.getItem("geminiKey") || "") ? "voiceOA" : "voice", o.v);
-      if (/^[A-Za-z-]{2,8}$/.test(o.l)) localStorage.setItem("lang", o.l);
-      if (/^(both|screen|torch)$/.test(o.t)) localStorage.setItem("light", o.t);
-      if (/^#[0-9a-f]{6}$/i.test(o.c)) localStorage.setItem("color", o.c);
-      if (typeof o.u === "string") localStorage.setItem("custom", o.u.slice(0, 400));
-      got = true;
-    }
-    if (got) sessionStorage.setItem("moved", "1");
-  } catch {}
-  return got;
-}
-(function importFromLink() {
-  if (!/[#&](k|p|s)=/.test(location.hash)) return;
-  importShared(location.hash.slice(1));
+(function importKeyFromLink() {
+  const m = location.hash.match(/^#k=([A-Za-z0-9._-]{20,300})(&|$)/), p = location.hash.match(/[#&]p=(p[0-9a-f]{32})/);
+  if (!m && !p) return;
+  try { if (m) localStorage.setItem("geminiKey", m[1]); if (p) localStorage.setItem("passId", p[1]); } catch {}
   history.replaceState(null, "", location.pathname + location.search);
 })();
 
@@ -561,7 +534,6 @@ function fillVoices() {
 for (const [code,name] of LANGS) $("lang").add(new Option(name,code));
 $("key").value = store.get("geminiKey","");
 $("persona").value = store.get("persona","jack");
-if (!$("persona").value || !PERSONAS[$("persona").value]) $("persona").value = "jack";
 $("custom").value = store.get("custom","");
 $("custom").addEventListener("change", () => { store.set("custom", $("custom").value); endVisitForNewSettings(); });   // next answer uses the new character
 const ANDROID = /Android/i.test(navigator.userAgent);
@@ -1059,16 +1031,6 @@ async function playCharSample(id) {
   } catch { sampleVoice(personaVoice()); }   // no recording yet: play the voice sample instead
 }
 showPass();
-(function movedHere() {
-  let moved = false; try { moved = sessionStorage.getItem("moved") === "1"; sessionStorage.removeItem("moved"); } catch {}
-  if (!moved) return;
-  const who = (PERSONAS[$("persona").value] || PERSONAS.jack).name.split(",")[0].replace(/^Write your own…$/, "your pumpkin");
-  const what = PASS.id ? "Your Pumpkin Pass and " + who + " are" : $("key").value.trim() ? "Your key and " + who + " are" : who + " is";
-  $("movedmsg").textContent = "Got it! " + what + " on this phone. Now tap Start.";
-  $("movedmsg").style.display = "block";
-  const go = () => $("startbox").scrollIntoView({ block:"start" });
-  setTimeout(go, 400); window.addEventListener("load", () => setTimeout(go, 100), { once:true });
-})();
 (async () => {                                              // just paid: wait for Stripe's notice, then show the battery
   if (!PASS.id) return;
   const paidAt = +(localStorage.getItem("passJustPaid") || 0), fresh = Date.now() - paidAt < 10 * 60000;
@@ -1080,7 +1042,7 @@ showPass();
     await new Promise(r => setTimeout(r, 2000));
   }
   if (fresh && PASS.balance > before) adPurchase(PASS.balance - before >= 2000000 ? 4.99 : 2.99, PASS.id + "-" + paidAt);   // a pass adds $2.50, a refill $1.50
-  if (fresh) { localStorage.removeItem("passJustPaid"); $("passmsg").textContent = PASS.balance > 0 ? "Payment confirmed! Next: pick your pumpkin. 🎃" : "We couldn't confirm the payment yet. Reload in a minute. Still stuck? Email ddilanchian@gmail.com with your receipt."; }
+  if (fresh) { localStorage.removeItem("passJustPaid"); $("passmsg").textContent = PASS.balance > 0 ? "Payment confirmed. Your pumpkin is ready: tap Start! 🎃" : "We couldn't confirm the payment yet. Reload in a minute. Still stuck? Email ddilanchian@gmail.com with your receipt."; }
 })();
 setInterval(() => { if ($("setup").style.display !== "none") refreshPass(); }, 60000);
 
@@ -1092,7 +1054,7 @@ $("start").onclick = async () => {
   save(); stopSample(); endVisitForNewSettings();
   if (!usingPass() && !$("key").value.trim()) {
     $("passbox").scrollIntoView({ behavior:"smooth", block:"center" });
-    return showErr(PASS.id && PASS.balance <= 0 && localStorage.getItem("passBal") !== null ? "Your pumpkin's battery is empty. Refill it above, or use your own free key." : "No Pumpkin Pass on this phone yet. Get one in step 1, or send it from your other phone in step 3.");
+    return showErr(PASS.id && PASS.balance <= 0 && localStorage.getItem("passBal") !== null ? "Your pumpkin's battery is empty. Refill it above, or use your own free key." : "Get a Pumpkin Pass above to start, or use your own free Google key at the bottom.");
   }
   showErr("");
   try { await ensureAudio(); } catch (e) { return showErr(micHelp(e)); }
@@ -1106,7 +1068,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015124436";
+const BUILD = "20261015133138";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1134,19 +1096,11 @@ setInterval(() => {
   }, 300);
 })();
 function lightMode() { const m = store.get("light","both"); return (m === "torch" && S && S.ctx && !S.torchOK) ? "both" : m; }
-function sharedSettings() {
-  const o = { p:$("persona").value, v:$("voice").value, l:$("lang").value, t:$("light").value };
-  const c = store.get("color", ""); if (c) o.c = c;
-  if ($("persona").value === "custom") o.u = $("custom").value.slice(0, 400);
-  return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
 $("share").onclick = () => {
-  save();
   const key = $("key").value.trim();
-  if (!key && !(PASS.id && PASS.balance > 0)) { $("passbox").scrollIntoView({ behavior:"smooth", block:"start" }); return keyMsg("Get a Pumpkin Pass in step 1 first. (Or add your own key at the bottom.)"); }
-  if (typeof qrcode !== "function") return keyMsg("Couldn't make the code. Check your internet and try again.");
-  keyMsg("");
-  const q = qrcode(0, "M"); q.addData(location.origin + location.pathname + "#" + [key ? "k=" + key : "", PASS.id ? "p=" + PASS.id : "", "s=" + sharedSettings()].filter(Boolean).join("&")); q.make();
+  if (!key && !PASS.id) return showErr("Paste a key on this phone first.");
+  if (typeof qrcode !== "function") return showErr("Couldn't make the code. Check your internet and try again.");
+  const q = qrcode(0, "M"); q.addData(location.origin + location.pathname + "#" + [key ? "k=" + key : "", PASS.id ? "p=" + PASS.id : ""].filter(Boolean).join("&")); q.make();
   $("qr").innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
   $("qrbox").style.display = "block"; $("share").style.display = "none";
 };
@@ -1180,10 +1134,9 @@ $("scan").onclick = async () => {
       const w = 400, h = Math.round(400 * v.videoHeight / v.videoWidth);
       c.width = w; c.height = h; g.drawImage(v, 0, 0, w, h);
       const code = jsQR(g.getImageData(0, 0, w, h).data, w, h, { inversionAttempts:"dontInvert" });
-      if (code && /[#&](k|p|s)=/.test(code.data) && importShared(code.data.slice(code.data.indexOf("#")))) {
-        stopScan(); keyMsg("Got it. Loading…"); location.reload(); return;
-      }
-      const m = code && code.data.match(/^([A-Za-z0-9._-]{20,300})$/);   // a bare key
+      const pp = code && code.data.match(/[#&]p=(p[0-9a-f]{32})/);
+      if (pp) { PASS.id = pp[1]; try { localStorage.setItem("passId", PASS.id); } catch {} refreshPass(); if (!/#k=/.test(code.data)) { stopScan(); keyMsg("Pumpkin Pass added from the other phone."); return; } }
+      const m = code && (code.data.match(/#k=([A-Za-z0-9._-]{20,300})(&|$)/) || code.data.match(/^([A-Za-z0-9._-]{20,300})$/));
       if (m) { $("key").value = m[1]; checkKey(); save(); stopScan(); keyMsg("Key added from the other phone."); return; }
     }
     setTimeout(tick, 250);
