@@ -845,6 +845,10 @@ async function ensureAudio() {
   S.out = S.ctx.createGain(); S.analyser = S.ctx.createAnalyser(); S.analyser.fftSize = 512;
   S.boostChain = makeBoost(S.ctx); S.boost = S.boostChain.input;
   S.out.connect(S.boost); S.boostChain.output.connect(S.analyser); S.analyser.connect(S.ctx.destination);
+  // Keep the speaker awake: phones (older Androids especially) power the speaker down after silence and
+  // clip the first syllable when it wakes. A constant, inaudible hum (about -70 dB at 30 Hz) prevents that.
+  const hum = S.ctx.createOscillator(), humGain = S.ctx.createGain();
+  hum.frequency.value = 30; humGain.gain.value = 0.0003; hum.connect(humGain); humGain.connect(S.ctx.destination); hum.start();
   // Flashlight: needs the back camera open; only Chrome on Android supports it.
   if (lightMode() !== "screen" && !IOS) try {
     const cam = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:"environment" } } });
@@ -854,6 +858,7 @@ async function ensureAudio() {
   const src = S.ctx.createMediaStreamSource(S.mic);
   let acc = [], pos = 0;
   const feed = data => {
+    if (streamOn()) return;                                  // stream mode never uses the mic
     const ratio = S.ctx.sampleRate / S.inRate, chunk = S.inRate / 25;   // 40 ms chunks, so the AI hears speech sooner
     for (; pos < data.length; pos += ratio) acc.push(data[Math.floor(pos)]);
     pos -= data.length;
@@ -1132,7 +1137,7 @@ function pumpAudio(flush) {
     PLAY.started = false; PLAY.cushion = Math.min(1.5, PLAY.cushion + 0.2); S.dbg.underrun++;
   }
   if (!PLAY.started) {
-    if (!flush && PLAY.queued < PLAY.cushion) return;
+    if (!flush && PLAY.queued < (streamOn() ? Math.max(0.6, PLAY.cushion) : PLAY.cushion)) return;
     if (!PLAY.pendLen) return;
     PLAY.started = true; PLAY.endFrame = Math.ceil((now + 0.05) * rate);
   }
