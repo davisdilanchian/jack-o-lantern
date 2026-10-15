@@ -686,13 +686,17 @@ function spokenName(u) {
 // kinds rotate (shuffled, never the same twice in a row) so it doesn't repeat itself.
 const FILLERS = [
   "Call back to something a specific viewer actually said earlier in this stream and riff on it with a new angle. If nobody has said anything yet, give a dry opinion on something mundane instead.",
-  "VIEWERS: Make one dry, specific observation about the number of people currently watching.",
-  "Pick a viewer who chatted earlier in this stream and ask them one specific follow-up about what they told you. If nobody has chatted yet, give a dry hot take about something everyday instead.",
-  "Give one dry, oddly specific opinion about something completely ordinary (a food, a household object, a habit, a day of the week).",
-  "Make one dry observation about your actual situation: you are an old phone inside a pumpkin, plugged into the wall, on a live stream.",
-  "Give a deadpan hot take about the internet or social media, then dare chat to disagree."
+  "Pick a viewer who chatted earlier in this stream and ask them one specific, friendly follow-up about what they told you. If nobody has chatted yet, give a dry hot take about something everyday instead.",
+  "Give one dry, oddly specific opinion about a food.",
+  "Give one dry, oddly specific opinion about a household object.",
+  "Give one dry, oddly specific opinion about a common habit people have.",
+  "Give a deadpan hot take about social media or phones.",
+  "Give a deadpan hot take about movies, music, or video games.",
+  "Make one dry observation about your actual situation: an old phone inside a pumpkin, plugged into the wall.",
+  "Rank three ordinary things from worst to best in one dry sentence.",
+  "Give one piece of dry, sensible-but-odd advice about everyday life."
 ];
-const FILLER_RULE = " One sentence, two at most, deadpan, punchline at the end. Do not invent stories, past events, or anything that didn't happen; stick to opinions, observations, and what really happened in this stream. Never mention silence, quiet, or that nobody is chatting.";
+const FILLER_RULE = " One sentence, two at most, deadpan, punchline at the end. Don't comment on the audience, the crowd, how many people are watching, or lurkers. Do not invent stories, past events, or anything that didn't happen; stick to opinions, observations, and what really happened in this stream. Never mention silence, quiet, or that nobody is chatting.";
 const IDLE = { last: Date.now(), next: 10000, order: [], prev: -1 };
 const idleWait = () => 8000 + Math.random() * 4000;   // about 10 s of quiet, only while someone is watching
 function nextFiller() {
@@ -768,7 +772,6 @@ function pumpChat() {
     $("question").textContent = ""; $("caption").textContent = "";
     CHAT.waiting = true; S.lastAct = Date.now(); S.said = "";
     let text = m.text;
-    if (text.startsWith("VIEWERS: ")) text = CHAT.viewers ? text.slice(9) + " Right now " + CHAT.viewers + " people are watching." : FILLERS[3];
     const line = "(" + text + (/^New viewers/.test(text) ? "" : FILLER_RULE + chatRecap(5)) + ")";
     if (S.provider === "openai") { send({ type:"conversation.item.create", item:{ type:"message", role:"user", content:[{ type:"input_text", text: line }] } }); send({ type:"response.create" }); }
     else send({ realtimeInput:{ text: line } });
@@ -857,7 +860,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014234049";
+const BUILD = "20261014234307";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
