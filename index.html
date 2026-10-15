@@ -311,6 +311,7 @@ body.paid .lockbadge, body.paid [data-lock] { display:none; }
         <a href="https://youtube.com/@davisdilanchian" target="_blank" rel="noopener">YouTube</a>
         <a href="https://x.com/davisdilanchian" target="_blank" rel="noopener">X</a>
       </p>
+      <p class="help"><b>Choppy or stuttering sound?</b> Open this page in <b>Chrome</b> instead of the phone's built-in browser. Some older built-in browsers (like Samsung Internet) can't keep up with live audio.</p>
       <p class="made">Made by <a href="https://davisdilanchian.com" target="_blank" rel="noopener">Davis Dilanchian</a>. More projects on my site.</p>
     </footer>
   </div>
@@ -630,7 +631,8 @@ function save() {
 const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, torchAt:0, ws:null, phase:"idle",
   muted:false, turn:false, greeting:false, playEnd:0, floor:0.01, loud:0, lastAct:0, start:0, end:0, visits:[],
   analyser:null, out:null, level:0, peak:0.05, said:"", wake:null, visitId:0, lastChunk:0, lastMsg:0, echo:0.02, couple:0.5, outHist:[], hold:[], barge:false, dbg:{ barge:0, interrupted:0, underrun:0, watchdog:0, torch:0 }, heard:"", cmd:null, pre:[], cmdBusy:false, cmdTimes:[], inRate: providerOf(store.get("geminiKey","")) === "openai" ? 24000 : 16000 };
-const TUNE = { ratio:2.5, min:0.01, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.6 };
+const MIC_GAIN = 3;
+const TUNE = { ratio:2.2, min:0.006, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.6 };
 const status = t => $("status").textContent = t;
 const speaking = () => S.turn || PLAY.queued > 0 || (S.player && S.pbuf > 0.01) || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
 
@@ -761,7 +763,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261014221028";
+const BUILD = "20261014222138";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -988,7 +990,7 @@ function onMic(samples) {
 }
 function sendAudio(samples) {
   const pcm = new Int16Array(samples.length);
-  for (let i = 0; i < samples.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, samples[i] * 32767));
+  for (let i = 0; i < samples.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, samples[i] * 32767 * MIC_GAIN));   // the plain mic is quiet; lift it for the AI
   if (S.provider === "openai") send({ type:"input_audio_buffer.append", audio:b64(pcm.buffer) });
   else send({ realtimeInput:{ audio:{ mimeType:"audio/pcm;rate=16000", data:b64(pcm.buffer) } } });
 }
