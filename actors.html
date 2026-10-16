@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Jack-o actors</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#faf7ee; --surface:#fffdf8; --ink:#3a281a; --fg:#2b1d12; --muted:#6e5a48; --line:rgba(58,40,26,.25); --accent:#e5782a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:640px; margin:0 auto; padding:18px 16px 60px; }
+  h1, h2, button, summary { font-family:"Patrick Hand", system-ui, sans-serif; font-weight:400; color:var(--ink); }
+  h1 { font-size:32px; margin:0 0 2px; } h2 { font-size:22px; margin:22px 0 8px; }
+  .sub, .note { color:var(--muted); font-size:13px; margin:4px 0 10px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  select, input[type=text], textarea { width:100%; font:inherit; padding:9px 10px; border:1.5px solid rgba(58,40,26,.45); border-radius:10px; background:var(--surface); color:var(--fg); }
+  textarea { min-height:92px; resize:vertical; font-size:13px; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; } @media (max-width:420px) { .row { grid-template-columns:1fr; } }
+  button { font-size:19px; padding:8px 14px; border:1.5px solid var(--ink); border-radius:10px; background:var(--surface); cursor:pointer; }
+  button.go { background:var(--accent); box-shadow:2px 3px 0 rgba(58,40,26,.85); width:100%; font-size:24px; margin-top:14px; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .seg { display:flex; gap:6px; flex-wrap:wrap; } .seg button { font-size:17px; padding:5px 12px; border-radius:999px; }
+  .seg button.on { background:var(--accent); }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; } .chips button { font:13px system-ui,sans-serif; padding:5px 10px; border-radius:999px; }
+  .check { display:flex; align-items:center; gap:8px; color:var(--fg); font-size:15px; margin-top:10px; } .check input { width:20px; height:20px; accent-color:var(--accent); }
+  .take { background:var(--surface); border:1.5px solid var(--line); border-radius:12px; padding:10px 12px; margin:10px 0; }
+  .take .meta { font-size:12px; color:var(--muted); } .take .said { margin:6px 0 8px; } .take .btns { display:flex; gap:8px; } .take .btns button { font-size:16px; padding:4px 12px; }
+  #status { min-height:1.4em; color:var(--muted); font-size:13px; margin-top:8px; } .err { color:#b3261e !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🎭 Actors</h1>
+  <p class="sub">Hear what the live voices can do with more expressive directions. Uses the key saved on this phone. Each take costs a fraction of a cent on that key.</p>
+
+  <div class="seg" id="prov"><button data-p="gemini">Google</button><button data-p="openai">OpenAI</button></div>
+  <p class="note" id="keynote"></p>
+
+  <div class="row">
+    <div><label for="char">Character</label><select id="char"></select></div>
+    <div><label for="voice">Voice</label><select id="voice"></select></div>
+  </div>
+  <div class="row">
+    <div><label for="model">Model</label><select id="model"></select></div>
+    <div><label for="temp">Temperature <span id="tempv"></span></label><input id="temp" type="range" min="0" max="2" step="0.1" value="1" style="width:100%"></div>
+  </div>
+  <textarea id="custom" placeholder="Describe your own character…" style="display:none;margin-top:8px"></textarea>
+
+  <h2>Delivery</h2>
+  <div class="seg" id="styles"><button data-s="current">As on the pumpkins</button><button data-s="expressive">Expressive</button><button data-s="big">Over the top</button><button data-s="custom">My own</button></div>
+  <textarea id="direction" placeholder="Extra directions for how to perform (added to the character)."></textarea>
+  <label class="check" id="affectrow"><input type="checkbox" id="affect"> Affective dialog (adapts its tone to how the visitor sounds; 2.5 model only)</label>
+
+  <h2>The visitor says</h2>
+  <input type="text" id="line" value="Hi! I'm dressed as a witch!">
+  <div class="chips" id="lines"></div>
+
+  <button class="go" id="perform">▶ Perform</button>
+  <button id="compare" style="width:100%;margin-top:8px">Same line in all three delivery styles</button>
+  <p id="status"></p>
+
+  <h2>Takes</h2>
+  <div id="takes"><p class="note">Nothing yet.</p></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const store = { get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+const DIRECTIONS = {
+  current: "",
+  expressive: "PERFORMANCE: You are a voice actor performing this character live, not reading lines. Perform every reply: vary pitch and pace, use dramatic pauses, stretch words, and laugh, scoff, sigh or gasp out loud where it fits. Whisper the asides and land the punchlines. Never sound flat or politely neutral.",
+  big: "PERFORMANCE: Play it big, like a stage actor voicing a theme-park animatronic. Exaggerated and theatrical: big character noises (Mwahaha, Hmph, Ughhh, Ooooh), long dramatic pauses, sudden loud bursts and creepy whispers, wild swings in pitch. Every single line is a show.",
+};
+const MOOD = { jack:"smug and snide", witch:"cackling and playful", count:"dramatic old-movie vampire", grump:"crabby old man", ghost:"nervous, jumpy, scared", denial:"defensive, in total denial", prof:"pompous, snobby professor", cabbie:"gruff New York cab driver" };
+const LINES = ["Hi! I'm dressed as a witch!", "Trick or treat!", "Are you a real pumpkin?", "What's your favorite candy?", "Boo!", "I don't have a costume.", "Can you tell me a joke?"];
+let D = null, PROV = "gemini", STYLE = "expressive", TAKES = [];
+
+// Characters, voices and models come straight from the main page, so this always matches what the pumpkins use.
+async function loadDefs() {
+  const src = await (await fetch("/", { cache:"no-store" })).text();
+  const grab = (re, wrap = x => x) => { const m = src.match(re); return m ? new Function("return " + wrap(m[1]))() : null; };
+  D = {
+    PERSONAS: grab(/const PERSONAS = (\{[\s\S]*?\n\});/), SAFETY: grab(/const SAFETY = ("[^\n]*");/),
+    VOICES: grab(/const VOICES = (\[[^\n]*\]);/), OA_VOICES: grab(/const OA_VOICES = (\{[^\n]*\});/), OA_PERSONA_VOICE: grab(/const OA_PERSONA_VOICE = (\{[^\n]*\});/),
+    MODELS: grab(/const MODELS = (\[[^\n]*\]);/), OA_MODELS: grab(/const OA_MODELS = (\[[^\n]*\]);/),
+  };
+}
+const keyFor = p => { const k = store.get("key_" + p, ""); if (k) return k; const g = store.get("geminiKey", ""); return (p === "openai") === /^sk-/.test(g) ? g : ""; };
+function fill() {
+  $("char").innerHTML = Object.entries(D.PERSONAS).map(([id, p]) => `<option value="${id}">${p.name}</option>`).join("");
+  $("char").value = store.get("persona", "jack"); if (!$("char").value) $("char").value = "jack";
+  setProv(keyFor("gemini") || !keyFor("openai") ? "gemini" : "openai");
+  $("lines").innerHTML = LINES.map(l => `<button type="button">${l}</button>`).join("");
+  $("lines").querySelectorAll("button").forEach(b => b.onclick = () => { $("line").value = b.textContent; });
+  setStyle("expressive"); $("tempv").textContent = $("temp").value;
+}
+function setProv(p) {
+  PROV = p; document.querySelectorAll("#prov button").forEach(b => b.classList.toggle("on", b.dataset.p === p));
+  const k = keyFor(p); $("keynote").textContent = k ? (p === "gemini" ? "Using the Google key saved on this phone." : "Using the OpenAI key saved on this phone.") : "No " + (p === "gemini" ? "Google" : "OpenAI") + " key saved on this phone. Enter one on jack-o.io first.";
+  $("keynote").classList.toggle("err", !k);
+  const models = p === "gemini" ? D.MODELS : D.OA_MODELS; $("model").innerHTML = models.map(m => `<option>${m.replace("models/", "")}</option>`).join("");
+  affectRow(); fillVoices();
+}
+function fillVoices() {
+  const id = $("char").value, p = D.PERSONAS[id] || D.PERSONAS.jack;
+  const voices = PROV === "gemini" ? D.VOICES : Object.keys(D.OA_VOICES);
+  $("voice").innerHTML = voices.map(v => `<option>${v}</option>`).join("");
+  $("voice").value = PROV === "gemini" ? p.voice : (D.OA_PERSONA_VOICE[id] || "ash");
+  $("custom").style.display = id === "custom" ? "block" : "none";
+}
+function setStyle(s) {
+  STYLE = s; document.querySelectorAll("#styles button").forEach(b => b.classList.toggle("on", b.dataset.s === s));
+  if (s !== "custom") $("direction").value = DIRECTIONS[s];
+}
+function instructions(style) {
+  const id = $("char").value, p = D.PERSONAS[id] || D.PERSONAS.jack;
+  const base = id === "custom" ? ($("custom").value.trim() || D.PERSONAS.jack.text) : p.text;
+  const dir = style === undefined ? $("direction").value.trim() : DIRECTIONS[style];
+  return base + D.SAFETY + (dir ? " " + dir + (MOOD[id] ? " Your delivery is " + MOOD[id] + "." : "") : "");
+}
+const status = (t, err) => { $("status").textContent = t; $("status").classList.toggle("err", !!err); };
+
+// One take: open a live session, say the visitor's line as text, collect the spoken reply, close.
+function takeGemini(text, style) {
+  return new Promise((res, rej) => {
+    const key = keyFor("gemini"); if (!key) return rej(new Error("No Google key on this phone."));
+    const ws = new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + encodeURIComponent(key));
+    const pcm = []; let said = "", t0 = 0, first = 0, done = false;
+    const end = v => { if (done) return; done = true; try { ws.close(); } catch {} v instanceof Error ? rej(v) : res(v); };
+    const timer = setTimeout(() => end(new Error("No reply within 30 seconds.")), 30000);
+    const gen = { responseModalities:["AUDIO"], temperature:+$("temp").value, speechConfig:{ voiceConfig:{ prebuiltVoiceConfig:{ voiceName:$("voice").value } } } };
+    if ($("affect").checked) gen.enableAffectiveDialog = true;
+    ws.onopen = () => ws.send(JSON.stringify({ setup:{ model:"models/" + $("model").value, generationConfig:gen, systemInstruction:{ parts:[{ text:instructions(style) }] }, outputAudioTranscription:{} } }));
+    ws.onmessage = async e => {
+      const m = JSON.parse(typeof e.data === "string" ? e.data : await e.data.text());
+      if (m.setupComplete) { t0 = performance.now(); ws.send(JSON.stringify({ clientContent:{ turns:[{ role:"user", parts:[{ text }] }], turnComplete:true } })); return; }
+      const c = m.serverContent; if (!c) return;
+      if (c.outputTranscription && c.outputTranscription.text) said += c.outputTranscription.text;
+      for (const p of (c.modelTurn && c.modelTurn.parts) || []) if (p.inlineData && p.inlineData.data) { if (!first) first = performance.now() - t0; pcm.push(p.inlineData.data); }
+      if (c.turnComplete) { clearTimeout(timer); end({ pcm, said, first }); }
+    };
+    ws.onclose = e => { clearTimeout(timer); if (!done) end(new Error(e.reason || "Google closed the connection (" + e.code + ").")); };
+  });
+}
+async function takeOpenAI(text, style) {
+  const key = keyFor("openai"); if (!key) throw new Error("No OpenAI key on this phone.");
+  const session = { type:"realtime", model:$("model").value, instructions:instructions(style), audio:{ output:{ format:{ type:"audio/pcm", rate:24000 }, voice:$("voice").value } } };
+  const r = await fetch("https://api.openai.com/v1/realtime/client_secrets", { method:"POST", headers:{ Authorization:"Bearer " + key, "Content-Type":"application/json" },
+    body:JSON.stringify({ expires_after:{ anchor:"created_at", seconds:120 }, session }) });
+  const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error((j.error && j.error.message) || "OpenAI said no (" + r.status + ").");
+  return new Promise((res, rej) => {
+    const ws = new WebSocket("wss://api.openai.com/v1/realtime?model=" + encodeURIComponent($("model").value), ["realtime", "openai-insecure-api-key." + j.value]);
+    const pcm = []; let said = "", t0 = 0, first = 0, done = false;
+    const end = v => { if (done) return; done = true; try { ws.close(); } catch {} v instanceof Error ? rej(v) : res(v); };
+    const timer = setTimeout(() => end(new Error("No reply within 30 seconds.")), 30000);
+    ws.onopen = () => { t0 = performance.now(); ws.send(JSON.stringify({ type:"conversation.item.create", item:{ type:"message", role:"user", content:[{ type:"input_text", text }] } })); ws.send(JSON.stringify({ type:"response.create" })); };
+    ws.onmessage = e => {
+      const m = JSON.parse(e.data);
+      if ((m.type === "response.output_audio.delta" || m.type === "response.audio.delta") && m.delta) { if (!first) first = performance.now() - t0; pcm.push(m.delta); }
+      if ((m.type === "response.output_audio_transcript.delta" || m.type === "response.audio_transcript.delta") && m.delta) said += m.delta;
+      if (m.type === "response.done") { clearTimeout(timer); end({ pcm, said, first }); }
+      if (m.type === "error") { clearTimeout(timer); end(new Error((m.error && m.error.message) || "OpenAI error.")); }
+    };
+    ws.onclose = e => { clearTimeout(timer); if (!done) end(new Error("OpenAI closed the connection (" + e.code + ").")); };
+  });
+}
+
+// Audio: 24 kHz 16-bit pieces -> one buffer to play and a WAV to download.
+let ctx = null;
+function decode(pcm) {
+  const bins = pcm.map(atob), n = bins.reduce((a, b) => a + (b.length >> 1), 0), out = new Float32Array(n); let i = 0;
+  for (const bin of bins) for (let j = 0; j + 1 < bin.length; j += 2) { let v = bin.charCodeAt(j) | (bin.charCodeAt(j + 1) << 8); if (v & 0x8000) v -= 0x10000; out[i++] = v / 32768; }
+  return out;
+}
+let playing = null;
+function play(samples) {
+  ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
+  if (playing) try { playing.stop(); } catch {}
+  const buf = ctx.createBuffer(1, samples.length, 24000); buf.getChannelData(0).set(samples);
+  const s = ctx.createBufferSource(); s.buffer = buf; s.connect(ctx.destination); s.start(); playing = s;
+}
+function wav(samples) {
+  const b = new ArrayBuffer(44 + samples.length * 2), v = new DataView(b), w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); v.setUint32(4, 36 + samples.length * 2, true); w(8, "WAVE"); w(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 24000, true); v.setUint32(28, 48000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, samples[i])) * 32767, true);
+  return URL.createObjectURL(new Blob([b], { type:"audio/wav" }));
+}
+function addTake(t) {
+  if (!TAKES.length) $("takes").innerHTML = "";
+  TAKES.unshift(t);
+  const el = document.createElement("div"); el.className = "take";
+  el.innerHTML = `<div class="meta">${t.label}</div><div class="said">“${t.said.replace(/[<>&]/g, "") || "(no words came back)"}”</div><div class="btns"><button type="button">▶ Play</button><a href="${wav(t.samples)}" download="${t.file}.wav"><button type="button">⬇ WAV</button></a></div>`;
+  el.querySelector("button").onclick = () => play(t.samples);
+  $("takes").prepend(el);
+}
+async function perform(style) {
+  ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();          // unlock audio with this tap
+  const text = $("line").value.trim() || "Hi!";
+  const st = style || STYLE, stName = { current:"as on the pumpkins", expressive:"expressive", big:"over the top", custom:"my own directions" }[st];
+  status("Performing (" + stName + ")…");
+  const r = await (PROV === "gemini" ? takeGemini(text, style) : takeOpenAI(text, style));
+  const samples = decode(r.pcm);
+  const label = `${(D.PERSONAS[$("char").value] || {}).name || $("char").value} · ${$("voice").value} · ${$("model").value} · ${stName}${PROV === "gemini" && $("affect").checked ? " · affective" : ""}${PROV === "gemini" ? " · temp " + $("temp").value : ""} · first sound ${Math.round(r.first)} ms · “${text}”`;
+  addTake({ label, said: r.said.trim(), samples, file: `${$("char").value}-${$("voice").value}-${st}`.toLowerCase() });
+  play(samples); status("");
+  return samples.length / 24000;
+}
+async function guarded(fn) {
+  $("perform").disabled = $("compare").disabled = true;
+  try { await fn(); } catch (e) { status(e.message || String(e), true); }
+  $("perform").disabled = $("compare").disabled = false;
+}
+$("perform").onclick = () => guarded(() => perform(STYLE === "custom" ? undefined : STYLE));
+$("compare").onclick = () => guarded(async () => { for (const s of ["current", "expressive", "big"]) { const secs = await perform(s); await new Promise(r => setTimeout(r, secs * 1000 + 600)); } });
+document.querySelectorAll("#prov button").forEach(b => b.onclick = () => setProv(b.dataset.p));
+document.querySelectorAll("#styles button").forEach(b => b.onclick = () => setStyle(b.dataset.s));
+$("direction").addEventListener("input", () => { if (STYLE !== "custom") { STYLE = "custom"; document.querySelectorAll("#styles button").forEach(b => b.classList.toggle("on", b.dataset.s === "custom")); } });
+$("char").onchange = fillVoices;
+// Google's affective dialog only works on the 2.5 native-audio model (3.8 rejects it).
+function affectRow() { const ok = PROV === "gemini" && /2\.5/.test($("model").value); $("affectrow").style.display = ok ? "" : "none"; if (!ok) $("affect").checked = false; }
+$("model").onchange = affectRow;
+$("temp").oninput = () => { $("tempv").textContent = $("temp").value; };
+loadDefs().then(fill).catch(() => status("Couldn't load the characters. Reload the page.", true));
+</script>
+</body>
+</html>
