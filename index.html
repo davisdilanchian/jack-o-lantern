@@ -236,20 +236,6 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <button id="hearchar" type="button" class="hearbtn">▶ Hear</button>
       <button id="demosound" type="button" class="demosound">▶ Play video</button>
     </div>
-    <section id="remindbox" class="remindbox">
-      <div id="deskqr" class="deskqr" hidden aria-label="QR code that opens jack-o.io on your phone"></div>
-      <div>
-        <h2 id="deskhead" hidden>On a computer? Open it on your phone.</h2>
-        <p id="desktext" class="help" hidden>Point your phone's camera at this code. The pumpkin runs on a phone; an old one is perfect.</p>
-        <h2 class="remindhead">Not ready yet? Get a reminder before Halloween.</h2>
-        <form id="remindform" class="remindform">
-          <input id="remindemail" type="email" autocomplete="email" placeholder="you@email.com" required maxlength="120" aria-label="Your email">
-          <button type="submit">Remind me</button>
-        </form>
-        <p id="remindmsg" class="help" role="status">One email before Halloween with the link. No spam.</p>
-        <p class="help"><a href="#" id="remindcal">Or add a reminder to your calendar</a></p>
-      </div>
-    </section>
     <div id="pickbox">
       <div class="field">
         <label for="persona">Pick your pumpkin</label>
@@ -264,6 +250,21 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         </details>
       </div>
     </div>
+
+    <section id="remindbox" class="remindbox">
+      <div id="deskqr" class="deskqr" hidden aria-label="QR code that opens jack-o.io on your phone"></div>
+      <div>
+        <h2 id="deskhead" hidden>On a computer? Open it on your phone.</h2>
+        <p id="desktext" class="help" hidden>Point your phone's camera at this code. The pumpkin runs on a phone; an old one is perfect.</p>
+        <h2 class="remindhead">Not ready yet? Get a reminder before Halloween.</h2>
+        <form id="remindform" class="remindform">
+          <input id="remindemail" type="email" autocomplete="email" placeholder="you@email.com" required maxlength="120" aria-label="Your email">
+          <button type="submit">Remind me</button>
+        </form>
+        <p id="remindmsg" class="help" role="status">One email before Halloween with the link. No spam.</p>
+        <p class="help"><a href="#" id="remindcal">Or add a reminder to your calendar</a></p>
+      </div>
+    </section>
 
     <section id="labbox" style="display:none">
       <h2>🧪 Lab</h2>
@@ -1373,7 +1374,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261016130915";
+const BUILD = "20261016134739";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1453,6 +1454,7 @@ $("scan").onclick = async () => {
 };
 function showErr(t) { $("err").textContent = t; if (t) keepErr("shown: " + t); }
 // ------------------------------------------------------------------ computers: open on your phone; everyone: Halloween reminder
+if (DEV !== "computer") $("pickbox").before($("remindbox"));   // phones: the reminder sits right under the video; computers: under the character picker
 if (DEV === "computer" && !OWNER_PAGE && typeof qrcode === "function") {
   try {
     const q = qrcode(0, "M"); q.addData("https://jack-o.io/?src=qr"); q.make();
