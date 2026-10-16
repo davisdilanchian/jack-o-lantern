@@ -261,14 +261,10 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <h2>Set it up</h2>
       <details id="ownkey" class="ownkey freeopt mini">
       <summary>Free option: use your own Google key</summary>
-      <p class="help">Free with your own Google (or OpenAI) key, in each character's own voice. A Pumpkin Pass adds every voice and color, and your key still does the talking.</p>
+      <p class="help">Free with your own Google key, in each character's own voice. A Pumpkin Pass adds every voice and color, and your key still does the talking.</p>
     <section id="key-section">
-      <p class="help" style="margin-top:0">A key is a long code, like a password, that lets the pumpkin use Google (free) or OpenAI (paid).</p>
-      <div class="seg" role="radiogroup" aria-label="Which service">
-        <button type="button" id="provgemini" role="radio">Google <small>free</small></button>
-        <button type="button" id="provopenai" role="radio">OpenAI <small>paid</small></button>
-      </div>
-      <label for="key" id="keylabel">Google key</label>
+      <p class="help" style="margin-top:0">A key is a long code, like a password, that lets the pumpkin use Google. It's free.</p>
+      <label for="key" style="display:block;margin-top:12px">Google key</label>
       <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your key here">
       <details class="steps" id="howgemini">
         <summary>How do I get a key?</summary>
@@ -278,17 +274,8 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
           <li>Paste it in the box above.</li>
         </ol>
       </details>
-      <details class="steps" id="howopenai" style="display:none">
-        <summary>How do I get a key?</summary>
-        <ol>
-          <li>Open <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">OpenAI's key page</a> and sign in.</li>
-          <li>Tap <b>Create new secret key</b> and copy it (it starts with sk-).</li>
-          <li>Add a few dollars under <b>Billing</b>. It costs a few cents per conversation.</li>
-          <li>Paste it in the box above.</li>
-        </ol>
-      </details>
       <p id="keykind" class="help" role="status"></p>
-      <p class="help">Your key stays on this phone and only goes to Google or OpenAI. You can save one of each and switch above.</p>
+      <p class="help">Your key stays on this phone and only goes to Google.</p>
     </section>
     <section id="unlockbox" hidden>      <!-- retired $1.99 unlock: kept so earlier buyers stay unlocked -->
       <h2>Unlock everything</h2>
@@ -303,7 +290,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <details class="steps"><summary>How the unlock works</summary>
           <ul class="help plain">
             <li><b>It follows your key, not the phone.</b> Paste your key in step 1 before you buy. Any phone using that key unlocks by itself, including phones you set up with <b>Share my key</b>.</li>
-            <li><b>Changing keys is fine.</b> If an unlocked phone switches to a new key (or from Google to OpenAI), the new key unlocks too. One purchase covers up to 6 keys.</li>
+            <li><b>Changing keys is fine.</b> If an unlocked phone switches to a new key, the new key unlocks too. One purchase covers up to 6 keys.</li>
             <li><b>No account, no sign-in.</b> We never see your key. Only a scrambled fingerprint of it, which can't be turned back into the key, is saved with your payment.</li>
             <li><b>Payment is handled by Stripe.</b> Your card details never touch this site.</li>
             <li><b>Refunds:</b> email <a href="mailto:ddilanchian@gmail.com">ddilanchian@gmail.com</a> with your order number from the Stripe receipt.</li>
@@ -402,7 +389,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
     <details id="privacy" class="ownkey">
       <summary>Privacy</summary>
       <ul class="help plain">
-        <li>What visitors say goes to Google (or OpenAI) so the pumpkin can answer. With a free Google key, Google may use it to improve its products.</li>
+        <li>What visitors say goes to Google so the pumpkin can answer. With a free Google key, Google may use it to improve its products.</li>
         <li>This site records nothing. Your key and settings stay on this phone.</li>
         <li>With an ElevenLabs key, the pumpkin's words go to ElevenLabs to be spoken.</li>
         <li>Stripe handles payments; card details never touch this site. To restore an earlier purchase, the site checks a scrambled fingerprint of your key, never the key.</li>
@@ -586,14 +573,6 @@ const LANGS = [
   ["ru-RU","Русский"],["ar-EG","العربية"],["hi-IN","हिन्दी"],["ja-JP","日本語"],["ko-KR","한국어"],["cmn-CN","中文"],["vi-VN","Tiếng Việt"],["id-ID","Bahasa Indonesia"]
 ];
 const VOICES = ["Puck","Zephyr","Charon","Kore","Fenrir","Leda","Orus","Aoede","Callirrhoe","Autonoe","Enceladus","Iapetus","Umbriel","Algieba","Despina","Erinome","Algenib","Rasalgethi","Laomedeia","Achernar","Alnilam","Schedar","Gacrux","Pulcherrima","Achird","Zubenelgenubi","Vindemiatrix","Sadachbia","Sadaltager","Sulafat"];
-// OpenAI keys start with "sk-"; anything else is treated as a Google Gemini key.
-const effProvider = () => providerOf($("key").value);       // no key: the pass, which is Google
-const providerOf = k => /^sk-/.test((k || "").trim()) ? "openai" : "gemini";
-const OA_VOICES = { alloy:"neutral", ash:"confident", ballad:"expressive", coral:"warm", echo:"smooth", sage:"calm", shimmer:"bright", verse:"dynamic", marin:"natural", cedar:"deep" };
-const OA_PERSONA_VOICE = { jack:"ash", witch:"shimmer", count:"verse", grump:"echo", ghost:"coral", denial:"alloy", prof:"ballad", cabbie:"cedar", custom:"ash" };
-const OA_MODELS = ["gpt-realtime-2.1", "gpt-realtime"];
-let oaIdx = 0;
-try { oaIdx = Math.max(0, OA_MODELS.indexOf(localStorage.getItem("oaModel") || OA_MODELS[0])); } catch {}
 // Google renames live models often; try these in order and remember the first that works.
 const MODELS = ["models/gemini-3.8-live", "models/gemini-2.5-flash-native-audio-latest"];
 let modelIdx = 0;
@@ -639,19 +618,13 @@ const store = { get(k,d){ try { return localStorage.getItem(k) ?? d; } catch { r
 for (const [id,p] of Object.entries(PERSONAS)) $("persona").add(new Option(p.name,id));
 const VOICE_FEEL = {"Puck":"upbeat","Zephyr":"bright","Charon":"informative","Kore":"firm","Fenrir":"excitable","Leda":"youthful","Orus":"firm","Aoede":"breezy","Callirrhoe":"easy-going","Autonoe":"bright","Enceladus":"breathy","Iapetus":"clear","Umbriel":"easy-going","Algieba":"smooth","Despina":"smooth","Erinome":"clear","Algenib":"gravelly","Rasalgethi":"informative","Laomedeia":"upbeat","Achernar":"soft","Alnilam":"firm","Schedar":"even","Gacrux":"mature","Pulcherrima":"forward","Achird":"friendly","Zubenelgenubi":"casual","Vindemiatrix":"gentle","Sadachbia":"lively","Sadaltager":"knowledgeable","Sulafat":"warm"};
 const cap = w => w[0].toUpperCase() + w.slice(1);
-const voiceKey = () => effProvider() === "openai" ? "voiceOA" : "voice";
-const personaVoice = () => effProvider() === "openai" ? (OA_PERSONA_VOICE[$("persona").value] || "ash") : PERSONAS[$("persona").value].voice;
-let shownProvider = "";
+const personaVoice = () => PERSONAS[$("persona").value].voice;
 function fillVoices() {
-  const prov = effProvider();
-  if (prov === shownProvider) return;
-  shownProvider = prov; $("voice").length = 0;
-  if (prov === "openai") for (const [v,f] of Object.entries(OA_VOICES)) $("voice").add(new Option(cap(v) + " (" + f + ")", v));
-  else for (const v of VOICES) $("voice").add(new Option(VOICE_FEEL[v] ? v + " (" + VOICE_FEEL[v] + ")" : v, v));
-  $("voice").value = store.get(voiceKey(), personaVoice());
+  if ($("voice").length) return;
+  for (const v of VOICES) $("voice").add(new Option(VOICE_FEEL[v] ? v + " (" + VOICE_FEEL[v] + ")" : v, v));
+  $("voice").value = store.get("voice", personaVoice());
   if (!$("voice").value) $("voice").value = personaVoice();
   renderChips();
-  $("keykind").textContent = !$("key").value.trim() ? "" : prov === "openai" ? "OpenAI key. Voices below are OpenAI's." : "Google key.";
 }
 for (const [code,name] of LANGS) $("lang").add(new Option(name,code));
 $("key").value = store.get("geminiKey","");
@@ -673,15 +646,9 @@ function makeBoost(ctx) {
   const input = ctx.createGain(), output = input;
   return { input, output, set: () => {} };
 }
-// Volume boost and peak rounding, applied to each sample of the voice: below 0.8 it is a plain
-// multiply; above that, peaks are rounded off smoothly instead of clipping.
-function boostSample(x, g) {
-  x *= g; const a = Math.abs(x);
-  return a <= 0.8 ? x : Math.sign(x) * (0.8 + 0.2 * Math.tanh((a - 0.8) / 0.2));
-}
 
 // Voice picker: one button per voice. Tapping selects it and plays a short sample, cutting off any sample still playing.
-// Google samples are pre-recorded files (instant, no key needed); OpenAI samples are made with the visitor's key, in character.
+// Voice samples are pre-recorded files (instant, no key needed).
 function renderChips() {
   const box = $("voicechips"); box.innerHTML = "";
   if (!unlocked()) $("voice").value = personaVoice();
@@ -694,7 +661,7 @@ function renderChips() {
     b.onclick = () => {
       sampleVoice(o.value);
       if (isLocked) return lockedNote("voicemsg", "That voice comes with the Pumpkin Pass. Free: this character's own voice.");
-      $("voice").value = o.value; store.set(voiceKey(), o.value); renderChips(); endVisitForNewSettings();   // next answer uses the new voice
+      $("voice").value = o.value; store.set("voice", o.value); renderChips(); endVisitForNewSettings();   // next answer uses the new voice
     };
     box.appendChild(b);
   }
@@ -714,34 +681,20 @@ async function sampleVoice(v) {
   // Create/resume the audio context inside the tap (iPhones only allow sound that starts from a tap).
   const ctx = S.ctx || SAMPLE.ctx || (SAMPLE.ctx = new (window.AudioContext || window.webkitAudioContext)());
   try { ctx.resume(); } catch {}
-  const prov = effProvider(), persona = $("persona").value;
-  const id = prov === "openai" ? "oa:" + v + ":" + persona : "g:" + v;
+  const id = "g:" + v;
   let buf = SAMPLE.cache[id];
   if (!buf) {
     const ctl = SAMPLE.ctl = new AbortController();
-    voiceMsg(prov === "openai" && persona === "custom" ? "Getting a sample from OpenAI…" : "Loading…");
+    voiceMsg("Loading…");
     try {
-      let r;
-      if (prov === "openai" && persona !== "custom") {
-        r = await fetch("voices/oa/" + persona + "/" + v + ".mp3", { signal:ctl.signal });   // pre-recorded in character
-        if (!r.ok || !/audio/.test(r.headers.get("content-type") || "")) r = null;   // the site answers unknown paths with the page itself
-      }
-      if (prov === "openai" && !r) {
-        const p = PERSONAS[persona], who = persona === "custom" ? ($("custom").value.trim() || "a spooky talking jack-o'-lantern") : p.name + ". " + p.text.slice(0, 400);
-        r = await fetch("https://api.openai.com/v1/audio/speech", { method:"POST", signal:ctl.signal,
-          headers:{ "Authorization":"Bearer " + $("key").value.trim(), "Content-Type":"application/json" },
-          body: JSON.stringify({ model:"gpt-4o-mini-tts", voice:v, input:SAMPLE_LINE, response_format:"mp3", instructions:"Speak in character as " + who }) });
-        if (!r.ok) { const j = await r.json().catch(() => ({})); throw Object.assign(new Error((j.error && j.error.message) || ""), { status:r.status, code:j.error && j.error.code }); }
-      } else if (prov !== "openai") {
-        r = await fetch("voices/" + v + ".mp3", { signal:ctl.signal });
-        if (!r.ok || !/audio/.test(r.headers.get("content-type") || "")) throw new Error("missing");
-      }
+      const r = await fetch("voices/" + v + ".mp3", { signal:ctl.signal });
+      if (!r.ok || !/audio/.test(r.headers.get("content-type") || "")) throw new Error("missing");
       const ab = await r.arrayBuffer();
       buf = await new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej));   // callback form works on older phones
       SAMPLE.cache[id] = buf;
     } catch (e) {
       if (e.name === "AbortError" || mine !== SAMPLE.n) return;
-      return voiceMsg(e.status ? oaError(e.status, e.code, e.message) : "Couldn't play that sample. Check your internet and try again.");
+      return voiceMsg("Couldn't play that sample. Check your internet and try again.");
     }
   }
   if (mine !== SAMPLE.n) return;
@@ -752,50 +705,29 @@ async function sampleVoice(v) {
   src.onended = () => { if (SAMPLE.src === src) stopSample(); };
   src.start(); SAMPLE.src = src;
   for (const b of $("voicechips").children) b.classList.toggle("playing", b.dataset.v === v);
-  if (/^(Loading|Getting)/.test($("voicemsg").textContent)) voiceMsg("Tap a voice to hear it and use it.");
+  if (/^Loading/.test($("voicemsg").textContent)) voiceMsg("Tap a voice to hear it and use it.");
 }
 
 // Notice the key however it arrives: typing, pasting, autofill, a scanned QR, or a saved key.
-// Also pull the key out if extra text came along with it (spaces, quotes, "OPENAI_API_KEY=").
-// One saved key per AI ("key_gemini", "key_openai"); "geminiKey" is always the key in use.
-// Pasting a key of the other kind switches to that AI by itself.
-let provChoice = store.get("provider", providerOf(store.get("geminiKey", "")));
-function showProvider() {
-  for (const p of ["gemini", "openai"]) {
-    const b = $("prov" + p), has = !!store.get("key_" + p, "");
-    b.classList.toggle("on", p === provChoice); b.setAttribute("aria-checked", p === provChoice);
-    b.querySelector("small").textContent = has ? "saved ✓" : (p === "gemini" ? "free" : "paid");
-  }
-  $("keylabel").textContent = provChoice === "openai" ? "OpenAI key" : "Google key";
-  $("howgemini").style.display = provChoice === "openai" ? "none" : "block";
-  $("howopenai").style.display = provChoice === "openai" ? "block" : "none";
-}
-function switchProvider(p) {
-  if (p === provChoice) return;
-  provChoice = p; store.set("provider", p);
-  $("key").value = store.get("key_" + p, ""); store.set("geminiKey", $("key").value);
-  showProvider(); checkKey(); endVisitForNewSettings();
-}
-$("provgemini").onclick = () => switchProvider("gemini");
-$("provopenai").onclick = () => switchProvider("openai");
-(function migrateKeys() {   // keys saved before the switch existed
-  const k = store.get("geminiKey", "");
-  if (k && !store.get("key_" + providerOf(k), "")) store.set("key_" + providerOf(k), k);
-  if (!$("key").value) $("key").value = store.get("key_" + provChoice, "") || k;   // fill the box from the saved key
+// Also pull the key out if extra text came along with it (spaces, quotes, "GEMINI_API_KEY=").
+// "geminiKey" is the key in use. OpenAI keys are no longer supported: one saved from before is dropped.
+(function dropOpenAIKey() {
+  if (/^sk-/.test(store.get("geminiKey", "").trim())) { store.set("geminiKey", store.get("key_gemini", "")); $("key").value = store.get("geminiKey", ""); }
+  if (!$("key").value) $("key").value = store.get("key_gemini", "");
 })();
 // Ask the browser to keep this site's data (Safari can otherwise clear it after a while unused).
 try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch {}
 function checkKey() {
-  const raw = $("key").value, m = raw.match(/sk-[A-Za-z0-9_-]{20,}/) || raw.match(/AIza[A-Za-z0-9_-]{30,}/);
+  const raw = $("key").value, m = raw.match(/AIza[A-Za-z0-9_-]{30,}/);
   if (m && m[0] !== raw) $("key").value = m[0];
+  $("keykind").textContent = "";
+  if (/sk-[A-Za-z0-9_-]{20,}/.test(raw) && !m) { $("key").value = store.get("key_gemini", "");   // keep the Google key they had
+    $("keykind").textContent = "That's an OpenAI key. Only Google keys work here: get a free one below."; }
   const k = $("key").value.trim();
   if (k) {
-    const p = providerOf(k);
-    if (store.get("key_" + p, "") !== k) store.set("key_" + p, k);
+    if (store.get("key_gemini", "") !== k) store.set("key_gemini", k);
     if (store.get("geminiKey", "") !== k) store.set("geminiKey", k);   // save right away, not only on Start
-    if (p !== provChoice) { provChoice = p; store.set("provider", p); }
-  } else if (document.activeElement === $("key")) store.set("key_" + provChoice, "");   // they cleared the box
-  showProvider();
+  } else if (document.activeElement === $("key")) { store.set("key_gemini", ""); store.set("geminiKey", ""); }   // they cleared the box
   fillVoices();
 }
 checkKey();
@@ -813,10 +745,10 @@ $("persona").onchange = () => {
     $("persona").value = lastPersona; syncCustom();
     return lockedNote("voicemsg", "Writing your own character comes with the Pumpkin Pass.");
   }
-  lastPersona = $("persona").value; $("voice").value = personaVoice(); store.set(voiceKey(), $("voice").value); syncCustom(); renderChips(); endVisitForNewSettings(); };
+  lastPersona = $("persona").value; $("voice").value = personaVoice(); store.set("voice", $("voice").value); syncCustom(); renderChips(); endVisitForNewSettings(); };
 $("lang").onchange = () => endVisitForNewSettings();
 // The voice a conversation uses: your pick if unlocked, otherwise the character's own voice.
-function activeVoice() { return unlocked() ? (store.get(voiceKey(), "") || personaVoice()) : personaVoice(); }
+function activeVoice() { return unlocked() ? (store.get("voice", "") || personaVoice()) : personaVoice(); }
 function lockedNote(id, text) {
   $(id).innerHTML = "🔒 " + text + ' <a href="#passbox">See the pass</a>';
 }
@@ -853,7 +785,7 @@ function labDraw() {
 }
 // ▶ Play: the same test line, with the lab's current model, directions, temperature and voice (no mic, plays on the speaker).
 async function labPlay() {
-  const key = store.get("geminiKey", "").trim(), own = key && providerOf(key) === "gemini";
+  const key = store.get("geminiKey", "").trim(), own = !!key;
   const url = own ? "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + encodeURIComponent(key)
     : usingPass() ? (API_BASE ? "wss://jack-o.io" : (location.protocol === "https:" ? "wss://" : "ws://") + location.host) + "/api/live?pass=" + PASS.id : "";
   if (!url) return $("labsaid").textContent = "Needs a Google key (or a Pumpkin Pass) on this phone.";
@@ -911,13 +843,13 @@ function personaText() {
 }
 function save() {
   store.set("geminiKey",$("key").value.trim()); store.set("persona",$("persona").value);
-  store.set("custom",$("custom").value); store.set(voiceKey(),$("voice").value); S.inRate = effProvider() === "openai" ? 24000 : 16000; store.set("lang",$("lang").value);
+  store.set("custom",$("custom").value); store.set("voice",$("voice").value); S.inRate = 16000; store.set("lang",$("lang").value);
 }
 
 // ------------------------------------------------------------------ state
 const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, torchAt:0, ws:null, phase:"idle",
   muted:false, turn:false, greeting:false, playEnd:0, floor:0.004, loud:0, lastAct:0, start:0, end:0, visits:[],
-  analyser:null, out:null, level:0, peak:0.05, said:"", wake:null, visitId:0, lastChunk:0, lastMsg:0, echo:0.02, couple:0.5, outHist:[], hold:[], barge:false, dbg:{ barge:0, interrupted:0, underrun:0, watchdog:0, torch:0 }, heard:"", cmd:null, pre:[], cmdBusy:false, cmdTimes:[], inRate: providerOf(store.get("geminiKey","")) === "openai" ? 24000 : 16000 };
+  analyser:null, out:null, level:0, peak:0.05, said:"", wake:null, visitId:0, lastChunk:0, lastMsg:0, echo:0.02, couple:0.5, outHist:[], hold:[], barge:false, dbg:{ barge:0, interrupted:0, underrun:0, watchdog:0, torch:0 }, heard:"", cmd:null, pre:[], cmdBusy:false, cmdTimes:[], inRate: 16000 };
 const MIC_GAIN = 3;
 const FLOOR0 = 0.004;   // starting guess for a quiet room (raw mic); it settles to the real level within a second or two
 function learnFloor(rms) { S.floor = rms < S.floor ? S.floor * 0.85 + rms * 0.15 : S.floor * 0.995 + rms * 0.005; }
@@ -1089,8 +1021,7 @@ function onViewers(n) {
 function say(line, trigger, question) {
   $("question").textContent = question || ""; $("caption").textContent = "";
   CHAT.waiting = true; S.lastAct = Date.now(); S.said = ""; DIR.trigger = trigger + ", " + (CHAT.viewers || 0) + " watching";
-  if (S.provider === "openai") { send({ type:"conversation.item.create", item:{ type:"message", role:"user", content:[{ type:"input_text", text: line }] } }); send({ type:"response.create" }); }
-  else send({ realtimeInput:{ text: line } });
+  send({ realtimeInput:{ text: line } });
   setTimeout(() => { CHAT.waiting = false; }, 15000);    // never get stuck if a reply goes missing
 }
 function pumpChat() {
@@ -1403,7 +1334,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015191007";
+const BUILD = "20261015193729";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1652,8 +1583,7 @@ function onMic(samples) {
 function sendAudio(samples) {
   const pcm = new Int16Array(samples.length);
   for (let i = 0; i < samples.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, samples[i] * 32767 * MIC_GAIN));   // the plain mic is quiet; lift it for the AI
-  if (S.provider === "openai") send({ type:"input_audio_buffer.append", audio:b64(pcm.buffer) });
-  else send({ realtimeInput:{ audio:{ mimeType:"audio/pcm;rate=16000", data:b64(pcm.buffer) } } });
+  send({ realtimeInput:{ audio:{ mimeType:"audio/pcm;rate=16000", data:b64(pcm.buffer) } } });
 }
 function b64(buf) { const u = new Uint8Array(buf); let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
 
@@ -1668,11 +1598,10 @@ function runVisit(isPreview) {
   S.phase = "connecting"; S.start = now; S.lastAct = now; S.lastMsg = now; S.lastChunk = now; S.turn = false; S.greeting = false; S.said = "";
   status(LAB_ON ? "Someone's here… (" + labTag() + ")" : "Someone's here…"); $("caption").textContent = "";
   const key = store.get("geminiKey","");
-  S.provider = viaPass() ? "gemini" : providerOf(key); S.inRate = S.provider === "openai" ? 24000 : 16000;
+  S.provider = "gemini"; S.inRate = 16000;
   S.el = S.provider === "gemini" && elWanted();
   const id = ++S.visitId;
   track("visit", modeName());
-  if (S.provider === "openai") return openAIVisit(isPreview, key, id);
   const ws = viaPass()
     ? new WebSocket((API_BASE ? "wss://jack-o.io" : (location.protocol === "https:" ? "wss://" : "ws://") + location.host) + "/api/live?pass=" + PASS.id)
     : new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + encodeURIComponent(key));
@@ -1696,93 +1625,7 @@ function runVisit(isPreview) {
     closeVisit();
   };
 }
-// ------------------------------------------------------------------ OpenAI Realtime (when the key is an OpenAI key)
-// Trade the key for a short-lived session key, then talk over a WebSocket. Same audio format as Gemini's output (24 kHz PCM).
-async function openAIVisit(isPreview, key, id) {
-  const session = { type:"realtime", model: OA_MODELS[oaIdx], instructions: LAB_ON ? labSystem() : personaText(),
-    audio:{ input:{ format:{ type:"audio/pcm", rate:24000 },
-                    transcription:{ model:"gpt-4o-mini-transcribe" },
-                    turn_detection:{ type:"server_vad", threshold:0.4, silence_duration_ms:450, prefix_padding_ms:250, create_response:true, interrupt_response: false } },
-            output:{ format:{ type:"audio/pcm", rate:24000 }, voice: activeVoice() } } };
-  let r, j = {};
-  try {
-    r = await fetch("https://api.openai.com/v1/realtime/client_secrets", { method:"POST",
-      headers:{ "Authorization":"Bearer " + key, "Content-Type":"application/json" },
-      body: JSON.stringify({ expires_after:{ anchor:"created_at", seconds:120 }, session }) });
-    j = await r.json().catch(() => ({}));
-  } catch { if (S.visitId === id) failConnect("Couldn't connect. Check the Wi-Fi and try again."); return; }
-  if (S.visitId !== id || S.phase !== "connecting") return;      // visit was cancelled meanwhile
-  if (!r.ok) {
-    const msg = (j.error && j.error.message) || "";
-    if (r.status >= 400 && r.status < 500 && r.status !== 401 && r.status !== 429 && /model/i.test(msg) && oaIdx < OA_MODELS.length - 1) {
-      oaIdx++; S.phase = "idle"; return runVisit(isPreview);       // try the next model
-    }
-    return failConnect(oaError(r.status, j.error && j.error.code, msg));
-  }
-  store.set("oaModel", OA_MODELS[oaIdx]);
-  const ws = new WebSocket("wss://api.openai.com/v1/realtime?model=" + encodeURIComponent(OA_MODELS[oaIdx]), ["realtime", "openai-insecure-api-key." + j.value]);
-  S.ws = ws;
-  ws.onmessage = e => { if (S.ws === ws) handleOA(e.data); };
-  ws.onclose = () => { if (S.ws !== ws) return; if (S.phase === "connecting") return failConnect("Couldn't connect to OpenAI. Try again in a minute."); closeVisit(); };
-}
-function oaError(status, code, msg) {
-  if (status === 401) return "OpenAI didn't accept the key. Tap Settings and paste it again.";
-  if (code === "insufficient_quota" || /quota|billing|credit/i.test(msg)) return "Your OpenAI account is out of credit. Add some at platform.openai.com, under Billing.";
-  if (status === 429) return "OpenAI is busy right now. Try again in a minute.";
-  if (status === 403) return "This OpenAI key can't use voice. Make a new key with All permissions.";
-  return "OpenAI said: " + (msg || "error " + status);
-}
 function failConnect(msg) { showErr(msg); status("Can't connect. Check Wi-Fi, then tap Settings."); closeVisit(); }
-function handleOA(text) {
-  let m; try { m = JSON.parse(text); } catch { return; }
-  S.lastMsg = Date.now();
-  switch (m.type) {
-    case "session.created":
-      if (streamOn()) { S.phase = "listening"; status("Live: waiting for chat"); return; }
-      S.phase = "talking"; S.greeting = true; status("Talking");
-      send({ type:"conversation.item.create", item:{ type:"message", role:"user", content:[{ type:"input_text", text: GREETING }] } });
-      send({ type:"response.create" });
-      return;
-    case "response.output_audio.delta": case "response.audio.delta":
-      if (!S.turn) { S.turn = true; S.said = ""; }
-      if (m.item_id && m.item_id !== S.oaItem) { S.oaItem = m.item_id; S.oaItemStart = S.ctx ? Math.max(S.ctx.currentTime, S.playEnd) : 0; }
-      if (!S.muted) play(m.delta);
-      S.phase = "talking"; status("Talking"); S.lastAct = Date.now();
-      return;
-    case "response.output_audio_transcript.delta": case "response.audio_transcript.delta":
-      S.said += m.delta || ""; $("caption").textContent = S.said;
-      return;
-    case "input_audio_buffer.speech_started":
-      S.lastAct = Date.now();
-      // Someone talked over it: stop its voice right away and tell OpenAI how much was actually heard.
-      if (false) {   // talking over it is off: the mic is closed while it speaks
-        if (S.oaItem && S.ctx) send({ type:"conversation.item.truncate", item_id:S.oaItem, content_index:0, audio_end_ms: Math.max(0, Math.round((S.ctx.currentTime - S.oaItemStart) * 1000)) });
-        S.dbg.interrupted++; stopPlayback(); S.turn = false; S.greeting = false;
-      }
-      return;
-    case "input_audio_buffer.speech_stopped":
-      S.lastAct = Date.now();
-      return;
-    case "conversation.item.input_audio_transcription.delta":
-      S.heard += m.delta || ""; voiceCommand(S.heard);
-      return;
-    case "conversation.item.input_audio_transcription.completed":
-      voiceCommand(m.transcript || ""); S.heard = "";
-      return;
-    case "response.done": {
-      logSaid(); DIR.quietSince = Date.now(); freshOutput.pending = true; setTimeout(telReport, 4000); CHAT.waiting = false;
-      pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; S.lastAct = Date.now();
-      const er = m.response && m.response.status === "failed" && m.response.status_details && m.response.status_details.error;
-      if (er) { showErr(oaError(0, er.code, er.message || "")); closeVisit(); }
-      return;
-    }
-    case "error":
-      console.warn("OpenAI:", m.error);
-      if (S.phase === "connecting") failConnect(oaError(0, m.error && m.error.code, (m.error && m.error.message) || ""));
-      return;
-  }
-}
-
 // ------------------------------------------------------------------ battery drained: red screen until a refill shows up
 // A refill bought on any phone sharing this pass wakes it up: it checks the battery every minute while drained.
 // ------------------------------------------------------------------ more anonymous counts for /stats: how far people
@@ -1807,7 +1650,7 @@ function handleOA(text) {
   $("scan").addEventListener("click", () => once("click", "scan"));
   $("gofree").addEventListener("click", () => once("click", "enter_key"));
   $("persona").addEventListener("change", () => once("persona", $("persona").value));
-  $("key").addEventListener("change", () => { if ($("key").value.trim()) once("key", providerOf($("key").value)); });
+  $("key").addEventListener("change", () => { if ($("key").value.trim()) once("key", "gemini"); });
   // time on the page (only while it's on screen)
   for (const [ms, k] of [[10000, "10s"], [30000, "30s"], [60000, "1m"], [180000, "3m"]])
     setTimeout(() => { if (document.visibilityState === "visible" && root.style.display !== "none") once("time", k); }, ms);
@@ -1835,8 +1678,8 @@ function handleOA(text) {
   setInterval(ping, 60000); $("start").addEventListener("click", () => setTimeout(ping, 6000));
 })();
 
-// How this pumpkin runs, for /stats: on a pass (and with an ElevenLabs voice), or on its own Google/OpenAI key (free or unlocked).
-function modeName() { if (viaPass()) return elWanted() ? "pass+eleven" : "pass"; if (passPaid()) return (providerOf($("key").value) === "openai" ? "openai" : "google") + "-key+pass"; return (providerOf($("key").value) === "openai" ? "openai" : "google") + (unlocked() ? "-unlocked" : "-free"); }
+// How this pumpkin runs, for /stats: on a pass (and with an ElevenLabs voice), or on its own Google key (free or unlocked).
+function modeName() { if (viaPass()) return elWanted() ? "pass+eleven" : "pass"; if (passPaid()) return "google" + "-key+pass"; return "google" + (unlocked() ? "-unlocked" : "-free"); }
 function passDrained() { return !!PASS.id && PASS.balance <= 0 && PASS.granted > 0 && !store.get("geminiKey", "").trim(); }
 function drained() {
   closeVisit(); try { setTorch(false); } catch {}
@@ -1971,9 +1814,8 @@ function play(b64data) {
   const bin = atob(b64data), n = bin.length >> 1;
   if (!n) return;
   telChunk(n); S.lastChunk = Date.now(); if (IOS) releaseMic();
-  const g = S.provider === "openai" ? 1.5 : 1;            // OpenAI's voices are about 1.5x quieter than Google's
   const inp = new Float32Array(n);
-  for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if (v & 0x8000) v -= 0x10000; inp[i] = g === 1 ? v / 32768 : boostSample(v / 32768, g); }
+  for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if (v & 0x8000) v -= 0x10000; inp[i] = v / 32768; }
   const rate = S.ctx.sampleRate, step = 24000 / rate;
   const outLen = Math.max(0, Math.ceil((n - 1 - PLAY.pos) / step));   // stop before the last input sample; the next chunk finishes the gap
   if (outLen <= 0) return;
@@ -2141,11 +1983,7 @@ async function checkUnmute(clip) {
   try {
     const key = store.get("geminiKey",""), blob = wavBlob(clip, S.inRate);
     let text = "";
-    if (providerOf(key) === "openai") {
-      const fd = new FormData(); fd.append("file", blob, "clip.wav"); fd.append("model", "gpt-4o-mini-transcribe");
-      const r = await fetch("https://api.openai.com/v1/audio/transcriptions", { method:"POST", headers:{ "Authorization":"Bearer " + key }, body:fd });
-      text = ((await r.json()) || {}).text || "";
-    } else {
+    {
       const data = b64(await blob.arrayBuffer());
       const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent", { method:"POST",
         headers:{ "x-goog-api-key":key, "Content-Type":"application/json" },
