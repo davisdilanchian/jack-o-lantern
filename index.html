@@ -48,6 +48,12 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   #drained small { display:block; margin-top:18px; font-size:16px; font-weight:500; opacity:.85; }
   #putin { position:fixed; inset:0; z-index:7; display:none; align-items:center; justify-content:center; text-align:center; padding:24px; background:#000; color:#fff;
     font:400 clamp(34px,10vw,64px)/1.15 "Patrick Hand", system-ui, sans-serif; transition:opacity .6s; }
+  .remindbox { display:grid; grid-template-columns:1fr; gap:14px; align-items:center; margin:18px 0 4px; padding:14px; border:1.5px dashed var(--line); border-radius:12px; }
+  .remindbox.desk { grid-template-columns:150px 1fr; }
+  .remindbox h2 { font-size:20px; margin:0 0 6px; } .remindbox h2 + h2 { margin-top:12px; }
+  .deskqr svg, .deskqr img { width:150px; height:150px; display:block; background:#fff; border-radius:8px; padding:6px; }
+  .remindform { display:flex; gap:8px; } .remindform input { flex:1; min-width:0; } .remindform button { width:auto; white-space:nowrap; }
+  @media (max-width:520px) { .remindbox.desk { grid-template-columns:1fr; } }
   #dm { position:fixed; inset:0; z-index:12; display:none; flex-direction:column; align-items:center; justify-content:center; gap:22px; text-align:center; padding:24px;
     background:#000; color:#fff; font:400 clamp(30px,8.5vw,56px)/1.15 "Patrick Hand", system-ui, sans-serif; }
   #dm p { margin:0; max-width:16ch; } #dm small { display:block; margin-top:10px; font:16px system-ui,-apple-system,sans-serif; opacity:.8; }
@@ -230,6 +236,20 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <button id="hearchar" type="button" class="hearbtn">▶ Hear</button>
       <button id="demosound" type="button" class="demosound">▶ Play video</button>
     </div>
+    <section id="remindbox" class="remindbox">
+      <div id="deskqr" class="deskqr" hidden aria-label="QR code that opens jack-o.io on your phone"></div>
+      <div>
+        <h2 id="deskhead" hidden>On a computer? Open it on your phone.</h2>
+        <p id="desktext" class="help" hidden>Point your phone's camera at this code. The pumpkin runs on a phone; an old one is perfect.</p>
+        <h2 class="remindhead">Not ready yet? Get a reminder before Halloween.</h2>
+        <form id="remindform" class="remindform">
+          <input id="remindemail" type="email" autocomplete="email" placeholder="you@email.com" required maxlength="120" aria-label="Your email">
+          <button type="submit">Remind me</button>
+        </form>
+        <p id="remindmsg" class="help" role="status">One email before Halloween with the link. No spam.</p>
+        <p class="help"><a href="#" id="remindcal">Or add a reminder to your calendar</a></p>
+      </div>
+    </section>
     <div id="pickbox">
       <div class="field">
         <label for="persona">Pick your pumpkin</label>
@@ -307,7 +327,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
     </details>
 
       <div id="passbox">
-        <p class="help center" style="margin:14px 0 0">No key? We handle everything.</p>
+        <p class="help center" style="margin:14px 0 0"><b>No key, no setup, works in 30 seconds.</b></p>
         <div id="nopass">
           <a id="buypass" class="tipbtn" target="_self">🎃 Get a Pumpkin Pass, $4.99</a>
           <p class="help center">About 400 replies, every voice and color, and ElevenLabs voices.</p>
@@ -393,6 +413,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
         <li>This site records nothing. Your key and settings stay on this phone.</li>
         <li>With an ElevenLabs key, the pumpkin's words go to ElevenLabs to be spoken.</li>
         <li>Stripe handles payments; card details never touch this site. To restore an earlier purchase, the site checks a scrambled fingerprint of your key, never the key.</li>
+        <li>A reminder sign-up keeps your email only to send you the Halloween reminder.</li>
         <li>A bug report sends what you write, your phone type, the site version and your settings (never your key).</li>
         <li>We count anonymous usage (page views, options used) with a random number on your phone. Google's ad tag notes which ad visits led to a purchase. The video plays from YouTube (privacy-enhanced).</li>
         <li>Put a small "talking pumpkin" sign nearby so people know it's listening.</li>
@@ -1278,7 +1299,7 @@ function dmScreen(html, buttons) {
 const dmHide = () => { $("dm").style.display = "none"; };
 $("dmbtn").onclick = () => {
   track("demo", "start");
-  dmScreen('Are you ready to put this phone inside a pumpkin?<ul class="dmcheck"><li>Brightness all the way up</li><li>Volume all the way up</li></ul>', [
+  dmScreen('Are you ready to put this phone inside a pumpkin?<ul class="dmcheck"><li>Brightness all the way up</li><li>Volume all the way up</li><li>Talk back to it out loud, like a trick-or-treater</li></ul>', [
     ["No", "", () => { track("demo", "no"); dmScreen("Come back when you have a pumpkin ready. 🎃", [["Back", "", dmHide]]); }],
     ["Yes", "go", dmGo],
   ]);
@@ -1300,22 +1321,26 @@ async function dmGo() {
 function dmMic(rms) {
   const now = Date.now();
   if (now < DM.readyAt || DM.playing) { DM.heard = false; DM.loudN = 0; return; }
-  if (rms > S.floor * TUNE.ratio && rms > TUNE.min) { if (++DM.loudN >= 2) { DM.heard = true; DM.lastLoud = now; } }
+  if (rms > S.floor * TUNE.ratio && rms > TUNE.min) { if (++DM.loudN >= 2) { if (!DM.heard) $("caption").textContent = "👂 I hear you…"; DM.heard = true; DM.lastLoud = now; } }
   else { DM.loudN = 0; learnFloor(rms); }
-  if ((DM.heard && now - DM.lastLoud > 900) || (DM.step === 0 && now - DM.readyAt > 6000)) dmNext();
+  // Next line when they stop talking, or after a few seconds anyway (people at a desk often don't talk).
+  if ((DM.heard && now - DM.lastLoud > 900) || (DM.step === 0 && now - DM.readyAt > 6000) || (DM.step > 0 && !DM.heard && now - DM.turnAt > 7000)) dmNext();
 }
 async function dmNext() {
   if (DM.playing || !DM.on) return;
-  DM.playing = true; DM.heard = false;
+  DM.playing = true; DM.heard = false; $("caption").textContent = ""; $("question").textContent = "";
   const line = DM_LINES[DM.step++]; track("demo", "line" + line);
   try {
     const buf = await dmClip(S.ctx, line);
     if (IOS) releaseMic();
-    dmPlay(S.ctx, S.out, buf, () => setTimeout(() => { DM.playing = false; DM.lastLoud = Date.now(); if (DM.step >= DM_LINES.length) dmOver(); }, 700));
+    dmPlay(S.ctx, S.out, buf, () => setTimeout(() => { DM.playing = false; DM.lastLoud = DM.turnAt = Date.now();
+      if (DM.step >= DM_LINES.length) return dmOver();
+      $("caption").textContent = "🎤 Your turn! Say something back to the pumpkin.";   // make it obvious it wants an answer
+    }, 700));
   } catch { DM.playing = false; dmOver(); }
 }
 function dmOver() {
-  DM.on = false; track("demo", "over"); status("Demo over");
+  DM.on = false; track("demo", "over"); status("Demo over"); $("caption").textContent = "";
   dmScreen("Demo over.<small>Like it? Get a Pumpkin Pass, or use your own free key, and it really talks back.</small>", [
     ["Back", "", () => { dmHide(); $("setup").style.display = "flex"; demo(true); }],
     ["Get a Pumpkin Pass", "go", () => { track("demo", "pass"); dmHide(); $("setup").style.display = "flex"; demo(true); $("passbox").scrollIntoView({ behavior:"smooth", block:"center" }); }],
@@ -1348,7 +1373,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015232319";
+const BUILD = "20261016113415";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1427,6 +1452,34 @@ $("scan").onclick = async () => {
   tick();
 };
 function showErr(t) { $("err").textContent = t; if (t) keepErr("shown: " + t); }
+// ------------------------------------------------------------------ computers: open on your phone; everyone: Halloween reminder
+if (DEV === "computer" && !OWNER_PAGE && typeof qrcode === "function") {
+  try {
+    const q = qrcode(0, "M"); q.addData("https://jack-o.io/?src=qr"); q.make();
+    $("deskqr").innerHTML = q.createSvgTag({ cellSize:4, margin:2 }); $("deskqr").hidden = false;
+    $("deskhead").hidden = false; $("desktext").hidden = false; $("remindbox").classList.add("desk");
+  } catch {}
+}
+$("remindform").onsubmit = async e => {
+  e.preventDefault();
+  const email = $("remindemail").value.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { $("remindmsg").textContent = "That email doesn't look right."; return; }
+  $("remindmsg").textContent = "Saving…";
+  try {
+    const r = await fetch((/(^|\.)jack-o\.io$/.test(location.hostname) ? "" : "https://jack-o.io") + "/api/remind", { method:"POST",
+      body: JSON.stringify({ email, aid: AID, dev: DEV, persona: $("persona").value }) });
+    if (!r.ok) throw new Error(r.status === 429 ? "Too many tries. Try again later." : "");
+    $("remindmsg").textContent = "Done! We'll email you before Halloween. 🎃"; $("remindform").hidden = true; track("remind", "email");
+  } catch (err) { $("remindmsg").textContent = err.message || "Couldn't save. Check the connection and try again."; }
+};
+$("remindcal").onclick = e => {   // a calendar file: the evening of Oct 28 this year
+  e.preventDefault(); track("remind", "calendar");
+  const y = new Date().getFullYear(), ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//jack-o.io//reminder//EN", "BEGIN:VEVENT",
+    "UID:jacko-" + y + "@jack-o.io", "DTSTAMP:" + new Date().toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z",
+    "DTSTART:" + y + "1028T180000", "DTEND:" + y + "1028T183000", "SUMMARY:Set up your talking jack-o'-lantern",
+    "DESCRIPTION:Open https://jack-o.io on an old phone and put it in your pumpkin.", "URL:https://jack-o.io", "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([ics], { type:"text/calendar" })); a.download = "jack-o-lantern-reminder.ics"; a.click();
+};
 // ------------------------------------------------------------------ bug reports (shown on /stats)
 $("bugsend").onclick = async () => {
   const text = $("bugtext").value.trim();
@@ -1694,7 +1747,7 @@ function failConnect(msg) { showErr(msg); status("Can't connect. Check Wi-Fi, th
     if (!/youtube/.test(e.origin || "")) return;
     let d; try { d = JSON.parse(e.data); } catch { return; }
     const i = d && d.info; if (!i) return;
-    if (i.muted === false && !demoLoud) once("vid", "yt_unmute");
+    if (i.playerState === 1 && !demoLoud) once("vid", "yt_play");   // started with YouTube's own controls
     if (i.playerState === 2) once("vid", "paused");
   });
 })();
