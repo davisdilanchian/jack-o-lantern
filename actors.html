@@ -75,6 +75,11 @@
   <button id="compare" style="width:100%;margin-top:8px">Same line in all three delivery styles</button>
   <p id="status"></p>
 
+  <h2>Experiments (live model)</h2>
+  <p class="note">Each one changes one or two things to make the live model act more. Uses the character, voice and line above. Tell Claude which ones work.</p>
+  <button id="runall" style="width:100%">▶ Run all experiments on this line</button>
+  <div id="exps"></div>
+
   <h2>Takes</h2>
   <div id="takes"><p class="note">Nothing yet.</p></div>
 </main>
@@ -87,6 +92,25 @@ const DIRECTIONS = {
   big: "PERFORMANCE: Play it big, like a stage actor voicing a theme-park animatronic. Exaggerated and theatrical: big character noises (Mwahaha, Hmph, Ughhh, Ooooh), long dramatic pauses, sudden loud bursts and creepy whispers, wild swings in pitch. Every single line is a show.",
 };
 const MOOD = { jack:"smug and snide", witch:"cackling and playful", count:"dramatic old-movie vampire", grump:"crabby old man", ghost:"nervous, jumpy, scared", denial:"defensive, in total denial", prof:"pompous, snobby professor", cabbie:"gruff New York cab driver" };
+// Experiments for making the live model more expressive. Each changes one or two things; p = { name, text, mood, safety, kidsafe }.
+const EXPERIMENTS = [
+  { id:"A", name:"Baseline", desc:"Exactly what the pumpkins use today.", model:"gemini-3.8-live",
+    sys: p => p.text + p.safety, turn: (l, p) => l },
+  { id:"B", name:"Director's notes", desc:"Google's recommended voice-direction format: audio profile, scene, director's notes.", model:"gemini-3.8-live",
+    sys: p => "### AUDIO PROFILE\n" + p.name + ". " + p.text + "\n### THE SCENE\nA front porch on Halloween night. A real trick-or-treater is standing right in front of you and you are performing live.\n### DIRECTOR'S NOTES\nStyle: " + p.mood + ", a big theatrical performance, like a voice actor in an animated film.\nPacing: always changing. Slow, dramatic pauses before punchlines, quick clipped asides.\nPitch: swing high and low. Stretch the words you want to land. Whisper secrets, get loud when outraged.\nSounds: actually make them out loud: laugh, scoff, sigh, gasp, hmph.\nNever sound like a calm, polite assistant.\n" + p.safety, turn: (l, p) => l },
+  { id:"C", name:"Direction on every line", desc:"A short acting note is attached to each thing the visitor says.", model:"gemini-3.8-live",
+    sys: p => p.text + p.safety, turn: (l, p) => "[Perform your reply out loud as " + p.name + ": " + p.mood + ", theatrical, with real pauses, laughs and scoffs.] The trick-or-treater says: \"" + l + "\"" },
+  { id:"D", name:"Write it the way it should sound", desc:"It speaks what it writes, so it writes stretched words, CAPITALS, pauses and sound words.", model:"gemini-3.8-live",
+    sys: p => p.text + p.safety + " Your words are performed exactly as you write them, so write them the way they should sound: stretch words (Ohhh, sooo, hmmmph), put the stressed word in CAPITALS, use ... for dramatic pauses, and include real sound words (Mwahaha, Ugh, Pfft, Ooooh). For example: \"Ohhh. A WITCH. How... ter-ri-bly original. Hmph!\"", turn: (l, p) => l },
+  { id:"E", name:"Fewer rules", desc:"Only the kid-safety rules; no length limit or no-stage-direction rule.", model:"gemini-3.8-live",
+    sys: p => p.text + " " + p.kidsafe + " Perform with big, " + p.mood + " energy.", turn: (l, p) => l },
+  { id:"F", name:"Hot (temperature 1.6)", desc:"Same as Director's notes, but more random and wild.", model:"gemini-3.8-live", temp:1.6, same:"B" },
+  { id:"G", name:"Other model: 3.1 flash live", desc:"Director's notes on Google's other fast live model.", model:"gemini-3.1-flash-live-preview", same:"B" },
+  { id:"H", name:"2.5 native audio + affective", desc:"Director's notes on the older model with affective dialog on. Starts about 2-3 s slower.", model:"gemini-2.5-flash-native-audio-latest", affect:true, same:"B" },
+  { id:"I", name:"Everything combined", desc:"Director's notes + direction on every line + write it the way it should sound.", model:"gemini-3.8-live",
+    sys: p => EXPERIMENTS[1].sys(p) + " Your words are performed exactly as you write them, so stretch words, put the stressed word in CAPITALS, use ... for pauses and include sound words (Mwahaha, Ugh, Pfft).", turn: (l, p) => EXPERIMENTS[2].turn(l, p) },
+  { id:"J", name:"Everything combined, dramatic voice", desc:"Same as Everything combined, with the excitable Fenrir voice.", model:"gemini-3.8-live", voice:"Fenrir", same:"I" },
+];
 const LINES = ["Hi! I'm dressed as a witch!", "Trick or treat!", "Are you a real pumpkin?", "What's your favorite candy?", "Boo!", "I don't have a costume.", "Can you tell me a joke?"];
 let D = null, PROV = "gemini", STYLE = "expressive", TAKES = [], ENGINE = "live", HIST = [];
 
@@ -136,16 +160,32 @@ function instructions(style) {
 const status = (t, err) => { $("status").textContent = t; $("status").classList.toggle("err", !!err); };
 
 // One take: open a live session, say the visitor's line as text, collect the spoken reply, close.
-function takeGemini(text, style) {
+function expResolve(e) { const base = e.same ? EXPERIMENTS.find(x => x.id === e.same) : e; return Object.assign({}, base, e, { sys: base.sys, turn: base.turn }); }
+function expParams() {
+  const id = $("char").value, p = D.PERSONAS[id] || D.PERSONAS.jack;
+  return { name: p.name, text: id === "custom" ? ($("custom").value.trim() || D.PERSONAS.jack.text) : p.text, mood: MOOD[id] || "playful, in character", safety: D.SAFETY,
+    kidsafe: "Your audience is mostly trick-or-treating kids and their parents: tease the situation, never the person, nothing hurtful, scary or unsuitable for children, and never ask for names, addresses or ages." };
+}
+async function runExp(e0) {
+  const e = expResolve(e0), p = expParams(), line = $("line").value.trim() || "Hi!";
+  status("Experiment " + e.id + ": " + e.name + "…");
+  const r = await takeGemini(e.turn(line, p), null, { model: e.model, temp: e.temp ?? 1, affect: !!e.affect, voice: e.voice || $("voice").value, sys: e.sys(p) });
+  const samples = decode(r.pcm);
+  addTake({ label:`EXP ${e.id} · ${e.name} · ${p.name.split(",")[0]} · ${e.voice || $("voice").value} · ${e.model} · first sound ${Math.round(r.first)} ms · “${line}”`, said: r.said.trim(), samples, file:`exp-${e.id}-${$("char").value}`.toLowerCase() });
+  play(samples); status("");
+  return samples.length / 24000;
+}
+function takeGemini(text, style, o) {
   return new Promise((res, rej) => {
     const key = keyFor("gemini"); if (!key) return rej(new Error("No Google key on this phone."));
     const ws = new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + encodeURIComponent(key));
     const pcm = []; let said = "", t0 = 0, first = 0, done = false;
     const end = v => { if (done) return; done = true; try { ws.close(); } catch {} v instanceof Error ? rej(v) : res(v); };
     const timer = setTimeout(() => end(new Error("No reply within 30 seconds.")), 30000);
-    const gen = { responseModalities:["AUDIO"], temperature:+$("temp").value, speechConfig:{ voiceConfig:{ prebuiltVoiceConfig:{ voiceName:$("voice").value } } } };
-    if ($("affect").checked) gen.enableAffectiveDialog = true;
-    ws.onopen = () => ws.send(JSON.stringify({ setup:{ model:"models/" + $("model").value, generationConfig:gen, systemInstruction:{ parts:[{ text:instructions(style) }] }, outputAudioTranscription:{} } }));
+    o = o || {};
+    const gen = { responseModalities:["AUDIO"], temperature: o.temp ?? +$("temp").value, speechConfig:{ voiceConfig:{ prebuiltVoiceConfig:{ voiceName: o.voice || $("voice").value } } } };
+    if (o.affect ?? $("affect").checked) gen.enableAffectiveDialog = true;
+    ws.onopen = () => ws.send(JSON.stringify({ setup:{ model:"models/" + (o.model || $("model").value), generationConfig:gen, systemInstruction:{ parts:[{ text: o.sys || instructions(style) }] }, outputAudioTranscription:{} } }));
     ws.onmessage = async e => {
       const m = JSON.parse(typeof e.data === "string" ? e.data : await e.data.text());
       if (m.setupComplete) { t0 = performance.now(); ws.send(JSON.stringify({ clientContent:{ turns:[{ role:"user", parts:[{ text }] }], turnComplete:true } })); return; }
@@ -282,15 +322,23 @@ async function perform(style) {
   return samples.length / 24000;
 }
 async function guarded(fn) {
-  $("perform").disabled = $("compare").disabled = $("talk").disabled = true;
+  $("perform").disabled = $("compare").disabled = $("talk").disabled = $("runall").disabled = true;
   try { await fn(); } catch (e) { status(e.message || String(e), true); }
-  $("perform").disabled = $("compare").disabled = $("talk").disabled = false;
+  $("perform").disabled = $("compare").disabled = $("talk").disabled = $("runall").disabled = false;
 }
 $("perform").onclick = () => guarded(() => ENGINE === "flash"
   ? (ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(), ctx.resume(), status("Thinking…"), flashTake([{ text:$("line").value.trim() || "Hi!" }], "“" + ($("line").value.trim() || "Hi!") + "”"))
   : perform(STYLE === "custom" ? undefined : STYLE));
 $("talk").addEventListener("pointerdown", e => { e.preventDefault(); recStart().catch(err => status("Couldn't use the microphone: " + err.message, true)); });
 for (const ev of ["pointerup", "pointerleave", "pointercancel"]) $("talk").addEventListener(ev, () => recStop());
+function drawExps() {
+  $("exps").innerHTML = EXPERIMENTS.map(e => `<div class="take"><div class="meta">${e.id} · ${e.model}${e.voice ? " · voice " + e.voice : ""}${e.temp ? " · temp " + e.temp : ""}</div><div class="said"><b>${e.name}</b>: ${e.desc}</div><div class="btns"><button type="button" data-x="${e.id}">▶ Try</button></div></div>`).join("");
+  $("exps").querySelectorAll("button").forEach(b => b.onclick = () => guarded(() => runExp(EXPERIMENTS.find(e => e.id === b.dataset.x))));
+}
+$("runall").onclick = () => guarded(async () => {
+  ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
+  for (const e of EXPERIMENTS) { const secs = await runExp(e); await new Promise(r => setTimeout(r, secs * 1000 + 700)); }
+});
 $("newconv").onclick = () => { HIST = []; status("New conversation. The pumpkin forgot everything."); };
 $("char").addEventListener("change", () => { HIST = []; });
 $("compare").onclick = () => guarded(async () => { for (const s of ["current", "expressive", "big"]) { const secs = await perform(s); await new Promise(r => setTimeout(r, secs * 1000 + 600)); } });
@@ -314,7 +362,7 @@ $("char").onchange = fillVoices;
 function affectRow() { const ok = PROV === "gemini" && /2\.5/.test($("model").value); $("affectrow").style.display = ok ? "" : "none"; if (!ok) $("affect").checked = false; }
 $("model").onchange = affectRow;
 $("temp").oninput = () => { $("tempv").textContent = $("temp").value; };
-loadDefs().then(() => { fill(); setEngine("live"); }).catch(() => status("Couldn't load the characters. Reload the page.", true));
+loadDefs().then(() => { fill(); setEngine("live"); drawExps(); }).catch(() => status("Couldn't load the characters. Reload the page.", true));
 </script>
 </body>
 </html>
