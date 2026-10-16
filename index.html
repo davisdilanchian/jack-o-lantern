@@ -1348,7 +1348,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015200514";
+const BUILD = "20261015203121";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1452,7 +1452,7 @@ function micHelp(e) {
   if (n === "NotFoundError" || n === "OverconstrainedError") return "No microphone found on this device.";
   if (n === "NotReadableError" || n === "AbortError") return "Another app is using the microphone. Hang up any calls, close other apps, and try again.";
   if (n === "NoMediaDevices") return "This browser can't use the microphone. Open this page in " + (IOS ? "Safari." : "Chrome.");
-  return "Sound didn't start. Reload the page and try again. (" + (n || "error") + ")";
+  return "Sound didn't start. Reload the page and try again. (" + (n || "error") + (e && e.message ? ": " + String(e.message).slice(0, 80) : "") + ")";
 }
 
 async function ensureAudio() {
@@ -1464,8 +1464,13 @@ async function ensureAudio() {
   // Ask for the microphone first, so its prompt appears before anything else can fail.
   let mic = null;
   if (!streamOn()) {
+    setSession("play-and-record");                           // iPhone: a page left in "playback" can't open the mic
     try { mic = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } }); }
-    catch (e) { try { ctx.close(); } catch {} throw e; }
+    catch (e) {
+      if (e && (e.name === "NotAllowedError" || e.name === "SecurityError")) { try { ctx.close(); } catch {} throw e; }
+      try { mic = await navigator.mediaDevices.getUserMedia({ audio:true }); }   // some phones refuse the detailed settings
+      catch (e2) { try { ctx.close(); } catch {} throw e2; }
+    }
   }
   try { await ctx.resume(); } catch {}
   S.ctx = ctx; S.mic = mic;
