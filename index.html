@@ -37,11 +37,11 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   #glow, #white { position:fixed; inset:0; opacity:0; pointer-events:none; }
   #glow { background:radial-gradient(circle at 50% 50%, var(--amber) 0%, var(--orange) 60%, #c25200 100%); }
   #white { background:radial-gradient(circle at 50% 50%, #fffdf9 0%, #fff1d2 70%, #ffd89a 100%); }
-  #stage { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:max(16px,env(safe-area-inset-top)) 16px max(20px,env(safe-area-inset-bottom)); text-align:center; }
+  #stage { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:max(16px,env(safe-area-inset-top)) 16px calc(max(12px,env(safe-area-inset-bottom)) + 48px); text-align:center; }
   #status { font-size:14px; font-weight:600; opacity:.8; mix-blend-mode:difference; color:#fff; }
   #question { font-size:clamp(16px,4.2vw,22px); font-weight:700; max-width:640px; mix-blend-mode:difference; color:#fff; opacity:.85; margin-bottom:6px; }
   #caption { font-size:clamp(18px,5vw,26px); font-weight:600; max-width:640px; mix-blend-mode:difference; color:#fff; min-height:3em; }
-  #gear { position:fixed; top:max(12px,env(safe-area-inset-top)); right:12px; z-index:5; width:auto; padding:8px 14px; font-size:14px; background:rgba(14,12,11,.6); color:var(--fg); border:1px solid rgba(255,255,255,.18); border-radius:8px; }
+  #gear { position:fixed; bottom:max(12px,env(safe-area-inset-bottom)); right:12px;   /* bottom: iPhone permission banners cover the top */ z-index:5; width:auto; padding:8px 14px; font-size:14px; background:rgba(14,12,11,.6); color:var(--fg); border:1px solid rgba(255,255,255,.18); border-radius:8px; }
   #drained { position:fixed; inset:0; z-index:8; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px; color:#fff;
     font:700 clamp(30px,9vw,60px)/1.15 system-ui,-apple-system,sans-serif; background:#d00000; animation:drainblink 2s step-end infinite; cursor:pointer; }
   @keyframes drainblink { 0% { background:#d00000; } 50% { background:#000; } }      /* 1 s red, 1 s off */
@@ -574,9 +574,9 @@ const LANGS = [
 ];
 const VOICES = ["Puck","Zephyr","Charon","Kore","Fenrir","Leda","Orus","Aoede","Callirrhoe","Autonoe","Enceladus","Iapetus","Umbriel","Algieba","Despina","Erinome","Algenib","Rasalgethi","Laomedeia","Achernar","Alnilam","Schedar","Gacrux","Pulcherrima","Achird","Zubenelgenubi","Vindemiatrix","Sadachbia","Sadaltager","Sulafat"];
 // Google renames live models often; try these in order and remember the first that works.
-const MODELS = ["models/gemini-3.8-live", "models/gemini-2.5-flash-native-audio-latest"];
+const MODELS = ["models/gemini-3.1-flash-live-preview", "models/gemini-3.8-live"];   // 3.1 is the most expressive (Google shuts it down Nov 17, 2026); 3.8 if it fails
 let modelIdx = 0;
-try { modelIdx = Math.max(0, MODELS.indexOf(localStorage.getItem("model") || MODELS[0])); } catch {}
+try { modelIdx = Math.max(0, MODELS.indexOf(localStorage.getItem("model31") || MODELS[0])); } catch {}
 const GREETING = "(You just heard someone approach the porch. Greet them in character, briefly.)";
 
 // ------------------------------------------------------------------ lantern color (the screen glow)
@@ -781,7 +781,7 @@ function labSystem() {
 }
 function labDraw() {
   $("labtempv").textContent = LAB.temp; $("labaffrow").style.display = labIs25() ? "" : "none";
-  $("labnow").textContent = "Now: " + labTag() + (viaPass() ? " (on the Pumpkin Pass the model stays 3.8 or 2.5 latest)" : "");
+  $("labnow").textContent = "Now: " + labTag() + (viaPass() ? " (on the Pumpkin Pass the model stays 3.1, 3.8 or 2.5 latest)" : "");
 }
 // ▶ Play: the same test line, with the lab's current model, directions, temperature and voice (no mic, plays on the speaker).
 async function labPlay() {
@@ -1334,7 +1334,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015193729";
+const BUILD = "20261015195736";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1608,8 +1608,8 @@ function runVisit(isPreview) {
   ws.binaryType = "arraybuffer"; S.ws = ws;
   ws.onopen = () => ws.send(JSON.stringify({ setup:{
     model: LAB_ON ? labModel() : MODELS[modelIdx],
-    generationConfig:{ ...(LAB_ON ? labGen() : {}), responseModalities:["AUDIO"], speechConfig: Object.assign(store.get("lang","auto") === "auto" ? {} : { languageCode: store.get("lang","auto") }, { voiceConfig:{ prebuiltVoiceConfig:{ voiceName: activeVoice() } } }) },
-    systemInstruction:{ parts:[{ text: LAB_ON ? labSystem() : personaText() }] },
+    generationConfig:{ ...(LAB_ON ? labGen() : { temperature: 1 }), responseModalities:["AUDIO"], speechConfig: Object.assign(store.get("lang","auto") === "auto" ? {} : { languageCode: store.get("lang","auto") }, { voiceConfig:{ prebuiltVoiceConfig:{ voiceName: activeVoice() } } }) },
+    systemInstruction:{ parts:[{ text: LAB_ON ? labSystem() : personaText() + LAB_WRITE }] },   // direction D: write it the way it should sound
     realtimeInputConfig:{ activityHandling: "NO_INTERRUPTION",
       automaticActivityDetection:{ startOfSpeechSensitivity:"START_SENSITIVITY_HIGH", endOfSpeechSensitivity:"END_SENSITIVITY_HIGH", silenceDurationMs:500 } },
     outputAudioTranscription:{}, inputAudioTranscription:{},
@@ -1764,8 +1764,8 @@ function handle(text) {
     return;
   }
   S.lastMsg = Date.now();
-  if (m.setupComplete && streamOn()) { store.set("model", MODELS[modelIdx]); S.phase = "listening"; status("Live: waiting for chat"); return; }
-  if (m.setupComplete) { store.set("model", MODELS[modelIdx]); S.phase = "talking"; S.greeting = true; status("Talking"); send({ realtimeInput:{ text: GREETING } }); return; }
+  if (m.setupComplete && streamOn()) { store.set("model31", MODELS[modelIdx]); S.phase = "listening"; status("Live: waiting for chat"); return; }
+  if (m.setupComplete) { store.set("model31", MODELS[modelIdx]); S.phase = "talking"; S.greeting = true; status("Talking"); send({ realtimeInput:{ text: GREETING } }); return; }
   if (m.goAway) return closeVisit();
   const c = m.serverContent; if (!c) return;
   if (c.outputTranscription?.text) { S.said += c.outputTranscription.text; $("caption").textContent = S.said; if (S.el && !S.muted) elSay(c.outputTranscription.text); }
