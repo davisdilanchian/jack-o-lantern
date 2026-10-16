@@ -80,6 +80,16 @@
   <button id="compare" style="width:100%;margin-top:8px">Same line in all three delivery styles</button>
   <p id="status"></p>
 
+  <h2>🎙 Talk live (like the pumpkin)</h2>
+  <p class="note">A real conversation with the live model through this phone's mic: it greets you, then you just talk. Uses the character, voice, model and temperature above. Headphones or a quiet room work best.</p>
+  <label for="tdir">Directions</label><select id="tdir"></select>
+  <label class="check"><input type="checkbox" id="tgreet" checked> Greet me first (like a visitor walking up)</label>
+  <div id="talkstage" style="display:none;text-align:center;margin:12px 0">
+    <div id="orb" style="width:120px;height:120px;margin:0 auto;border-radius:50%;background:radial-gradient(circle,#ffc65a,#e5782a 60%,#7a3200);box-shadow:0 0 0 rgba(229,120,42,.7);transition:transform .08s, box-shadow .08s"></div>
+    <div id="tlog" style="text-align:left;margin-top:12px;font-size:14px;max-height:260px;overflow:auto"></div>
+  </div>
+  <button id="livebtn" class="go" style="background:#2b1d12;color:#fff">🎙 Start talking</button>
+
   <h2>Experiments (live model)</h2>
   <p class="note">Each one changes one or two things to make the live model act more. Uses the character, voice and line above. Tell Claude which ones work.</p>
   <button id="runall" style="width:100%">▶ Run all experiments on this line</button>
@@ -143,7 +153,7 @@ function setProv(p) {
   PROV = p; document.querySelectorAll("#prov button").forEach(b => b.classList.toggle("on", b.dataset.p === p));
   const k = keyFor(p); $("keynote").textContent = k ? (p === "gemini" ? "Using the Google key saved on this phone." : "Using the OpenAI key saved on this phone.") : "No " + (p === "gemini" ? "Google" : "OpenAI") + " key saved on this phone. Enter one on jack-o.io first.";
   $("keynote").classList.toggle("err", !k);
-  const models = p === "gemini" ? D.MODELS : D.OA_MODELS; $("model").innerHTML = models.map(m => `<option>${m.replace("models/", "")}</option>`).join("");
+  const models = p === "gemini" ? [...new Set([...D.MODELS, "models/gemini-3.1-flash-live-preview", "models/gemini-2.5-flash-native-audio-preview-12-2025", "models/gemini-2.5-flash-native-audio-preview-09-2025"])] : D.OA_MODELS; $("model").innerHTML = models.map(m => `<option>${m.replace("models/", "")}</option>`).join("");
   affectRow(); fillVoices();
 }
 function fillVoices() {
@@ -345,6 +355,87 @@ $("perform").onclick = () => guarded(() => ENGINE === "flash"
   : perform(STYLE === "custom" ? undefined : STYLE));
 $("talk").addEventListener("pointerdown", e => { e.preventDefault(); recStart().catch(err => status("Couldn't use the microphone: " + err.message, true)); });
 for (const ev of ["pointerup", "pointerleave", "pointercancel"]) $("talk").addEventListener(ev, () => recStop());
+// ------------------------------------------------------------------ talk live: mic -> live model -> speaker, like the pumpkin
+const LIVE = { ws:null, stream:null, src:null, proc:null, an:null, playT:0, turn:[], said:"", heard:"", raf:0 };
+function fillTalkDirs() {
+  $("tdir").innerHTML = `<option value="above">Delivery buttons above</option>` + EXPERIMENTS.map(e => `<option value="${e.id}"${e.id === "B" ? " selected" : ""}>${e.id} · ${e.name}</option>`).join("");
+}
+function tlog(who, text) {
+  if (!text) return; const last = $("tlog").lastElementChild;
+  if (last && last.dataset.who === who) { last.querySelector("span").textContent += text; }
+  else { const d = document.createElement("div"); d.dataset.who = who; d.style.margin = "4px 0"; d.innerHTML = `<b>${who === "you" ? "You" : "🎃"}:</b> <span></span>`; d.querySelector("span").textContent = text; $("tlog").appendChild(d); }
+  $("tlog").scrollTop = 1e6;
+}
+const toB64 = i16 => { let s = ""; const u = new Uint8Array(i16.buffer); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+async function liveStart() {
+  const key = keyFor("gemini"); if (!key) return status("No Google key on this phone. Enter one on jack-o.io first.", true);
+  if (PROV !== "gemini") setProv("gemini");
+  ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); await ctx.resume();
+  let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); }
+  catch (e) { return status("Couldn't use the microphone: " + e.message, true); }
+  const d = $("tdir").value, sys = d === "above" ? instructions(STYLE === "custom" ? undefined : STYLE) : expResolve(EXPERIMENTS.find(x => x.id === d)).sys(expParams());
+  const gen = { responseModalities:["AUDIO"], temperature:+$("temp").value, speechConfig:{ voiceConfig:{ prebuiltVoiceConfig:{ voiceName:$("voice").value } } } };
+  if ($("affect").checked && $("affectrow").style.display !== "none") gen.enableAffectiveDialog = true;
+  const ws = new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + encodeURIComponent(key));
+  Object.assign(LIVE, { ws, stream, playT:0, turn:[], said:"", heard:"" });
+  $("tlog").innerHTML = ""; $("talkstage").style.display = "block"; $("livebtn").textContent = "■ Stop talking"; status("Connecting…");
+  LIVE.an = ctx.createAnalyser(); LIVE.an.fftSize = 512; LIVE.an.connect(ctx.destination);
+  ws.onopen = () => ws.send(JSON.stringify({ setup:{ model:"models/" + $("model").value, generationConfig:gen, systemInstruction:{ parts:[{ text:sys }] },
+    realtimeInputConfig:{ activityHandling:"NO_INTERRUPTION", automaticActivityDetection:{ startOfSpeechSensitivity:"START_SENSITIVITY_HIGH", endOfSpeechSensitivity:"END_SENSITIVITY_HIGH", silenceDurationMs:500 } },
+    inputAudioTranscription:{}, outputAudioTranscription:{}, contextWindowCompression:{ slidingWindow:{}, triggerTokens:6000 } } }));
+  ws.onmessage = async ev => {
+    const m = JSON.parse(typeof ev.data === "string" ? ev.data : await ev.data.text());
+    if (m.setupComplete) {
+      status("Listening. Talk to it."); micOn();
+      if ($("tgreet").checked) ws.send(JSON.stringify({ realtimeInput:{ text:"(You just heard someone approach the porch. Greet them in character, briefly.)" } }));
+      return;
+    }
+    const c = m.serverContent; if (!c) return;
+    if (c.inputTranscription && c.inputTranscription.text) tlog("you", c.inputTranscription.text);
+    if (c.outputTranscription && c.outputTranscription.text) { tlog("pumpkin", c.outputTranscription.text); LIVE.said += c.outputTranscription.text; }
+    for (const p of (c.modelTurn && c.modelTurn.parts) || []) if (p.inlineData && p.inlineData.data) { LIVE.turn.push(p.inlineData.data); enqueue(p.inlineData.data); }
+    if (c.turnComplete && LIVE.turn.length) {
+      const samples = decode(LIVE.turn), d2 = $("tdir").value;
+      addTake({ tag:"🎙", title:"Talk live · " + (d2 === "above" ? "delivery buttons" : d2), what:`Talk live<small>${$("model").value} · ${$("voice").value}</small>`, label:`${$("voice").value} · ${$("model").value} · temp ${$("temp").value}${gen.enableAffectiveDialog ? " · affective" : ""}`, said:LIVE.said.trim(), samples, file:"talk-" + $("char").value });
+      LIVE.turn = []; LIVE.said = "";
+    }
+  };
+  ws.onclose = e => { if (LIVE.ws === ws) { liveStop(); if (e.code !== 1000) status("Google closed the conversation: " + (e.reason || e.code), true); } };
+  orb();
+}
+function micOn() {
+  const s = ctx.createMediaStreamSource(LIVE.stream), proc = ctx.createScriptProcessor(4096, 1, 1), rate = ctx.sampleRate;
+  proc.onaudioprocess = e => {
+    if (!LIVE.ws || LIVE.ws.readyState !== 1) return;
+    if (ctx.currentTime < LIVE.playT + 0.35) return;                 // don't send its own voice back while it talks
+    const x = e.inputBuffer.getChannelData(0), y = resample(x, rate, 16000), i16 = new Int16Array(y.length);
+    for (let i = 0; i < y.length; i++) i16[i] = Math.max(-1, Math.min(1, y[i])) * 32767;
+    LIVE.ws.send(JSON.stringify({ realtimeInput:{ audio:{ mimeType:"audio/pcm;rate=16000", data:toB64(i16) } } }));
+  };
+  const mute = ctx.createGain(); mute.gain.value = 0; s.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
+  LIVE.src = s; LIVE.proc = proc;
+}
+function enqueue(b64) {
+  const f = decode([b64]), buf = ctx.createBuffer(1, f.length, 24000); buf.getChannelData(0).set(f);
+  const s = ctx.createBufferSource(); s.buffer = buf; s.connect(LIVE.an);
+  const t = Math.max(ctx.currentTime + 0.08, LIVE.playT); s.start(t); LIVE.playT = t + buf.duration;
+}
+function orb() {
+  cancelAnimationFrame(LIVE.raf); if (!LIVE.ws) return;
+  const a = new Float32Array(LIVE.an.fftSize); LIVE.an.getFloatTimeDomainData(a); let sum = 0; for (const v of a) sum += v * v;
+  const lv = Math.min(1, Math.sqrt(sum / a.length) * 6);
+  $("orb").style.transform = `scale(${1 + lv * 0.25})`; $("orb").style.boxShadow = `0 0 ${20 + lv * 70}px rgba(255,170,60,${0.3 + lv * 0.6})`;
+  LIVE.raf = requestAnimationFrame(orb);
+}
+function liveStop() {
+  const ws = LIVE.ws; LIVE.ws = null; try { ws && ws.close(1000); } catch {}
+  try { LIVE.src && LIVE.src.disconnect(); LIVE.proc && LIVE.proc.disconnect(); } catch {}
+  if (LIVE.stream) LIVE.stream.getTracks().forEach(t => t.stop());
+  LIVE.stream = LIVE.src = LIVE.proc = null; cancelAnimationFrame(LIVE.raf);
+  $("livebtn").textContent = "🎙 Start talking"; $("orb").style.transform = ""; $("orb").style.boxShadow = ""; status("");
+}
+$("livebtn").onclick = () => LIVE.ws ? liveStop() : liveStart();
+
 function drawExps() {
   $("exps").innerHTML = EXPERIMENTS.map(e => `<div class="take" id="exp-${e.id}"><div class="meta"><span class="letter">${e.id}</span>${e.model}${e.voice ? " · voice " + e.voice : ""}${e.temp ? " · temp " + e.temp : ""}</div><div class="said"><b>${e.name}</b>: ${e.desc}</div><div class="btns"><button type="button" data-x="${e.id}">▶ Try</button></div></div>`).join("");
   $("exps").querySelectorAll("button").forEach(b => b.onclick = () => guarded(() => runExp(EXPERIMENTS.find(e => e.id === b.dataset.x))));
@@ -376,7 +467,7 @@ $("char").onchange = fillVoices;
 function affectRow() { const ok = PROV === "gemini" && /2\.5/.test($("model").value); $("affectrow").style.display = ok ? "" : "none"; if (!ok) $("affect").checked = false; }
 $("model").onchange = affectRow;
 $("temp").oninput = () => { $("tempv").textContent = $("temp").value; };
-loadDefs().then(() => { fill(); setEngine("live"); drawExps(); }).catch(() => status("Couldn't load the characters. Reload the page.", true));
+loadDefs().then(() => { fill(); setEngine("live"); drawExps(); fillTalkDirs(); }).catch(() => status("Couldn't load the characters. Reload the page.", true));
 </script>
 </body>
 </html>
