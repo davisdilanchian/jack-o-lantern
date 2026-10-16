@@ -806,8 +806,12 @@ function lockedNote(id, text) {
   $(id).innerHTML = "🔒 " + text + ' <a href="#passbox">See the pass</a>';
 }
 // ------------------------------------------------------------------ lab (/actors only): other live models, directions, temperature
-const LAB_MODELS = ["models/gemini-3.8-live", "models/gemini-2.5-flash-native-audio-latest", "models/gemini-3.1-flash-live-preview",
+const LAB_MODELS = ["models/gemini-3.8-live", "models/gemini-2.5-flash-native-audio-latest", "models/gemini-3.8-live-extended-thinking#low",
+  "models/gemini-3.8-live-extended-thinking#high", "models/gemini-3.1-flash-live-preview",
   "models/gemini-2.5-flash-native-audio-preview-12-2025", "models/gemini-2.5-flash-native-audio-preview-09-2025"];
+// "model#level": a live model that needs a thinking level (3.8 extended thinking)
+const labModel = () => LAB.model.split("#")[0];
+const labGen = () => ({ temperature: LAB.temp, ...(LAB.aff && labIs25() ? { enableAffectiveDialog: true } : {}), ...(LAB.model.includes("#") ? { thinkingConfig: { thinkingLevel: LAB.model.split("#")[1] } } : {}) });
 const LAB_MOOD = { jack:"smug and snide", witch:"cackling and playful", count:"dramatic old-movie vampire", grump:"crabby old man", ghost:"nervous, jumpy, scared",
   denial:"defensive, in total denial", prof:"pompous, snobby professor", cabbie:"gruff New York cab driver", custom:"playful, in character" };
 const LAB_WRITE = " Your words are performed exactly as you write them, so write them the way they should sound: stretch words, put the stressed word in CAPITALS, use ... for dramatic pauses, and include real sound words (Mwahaha, Ugh, Pfft, Ooooh).";
@@ -822,7 +826,7 @@ const LAB_DIRS = {
 };
 const LAB = Object.assign({ model: LAB_MODELS[1], dir: "B", temp: 1, aff: true }, (() => { try { return JSON.parse(localStorage.getItem("lab") || "{}"); } catch { return {}; } })());
 const labIs25 = () => /2\.5/.test(LAB.model);
-const labTag = () => LAB.model.replace("models/gemini-", "").replace("-native-audio", "") + " · " + LAB_DIRS[LAB.dir][0].split(" · ")[0] + " · temp " + LAB.temp + (LAB.aff && labIs25() ? " · affective" : "");
+const labTag = () => LAB.model.replace("models/gemini-", "").replace("-native-audio", "").replace("#", " thinking ") + " · " + LAB_DIRS[LAB.dir][0].split(" · ")[0] + " · temp " + LAB.temp + (LAB.aff && labIs25() ? " · affective" : "");
 function labSystem() {
   const full = personaText(), id = $("persona").value;
   const base = id === "custom" && unlocked() ? ($("custom").value.trim() || PERSONAS.jack.text) : PERSONAS[id].text;
@@ -852,8 +856,8 @@ async function labPlay() {
     $("labsaid").innerHTML = "<b>" + tag + "</b> · first sound " + Math.round(first) + " ms<br>“" + said.trim().replace(/[<>&]/g, "") + "”";
   };
   setTimeout(() => finish("No reply within 30 seconds."), 30000);
-  ws.onopen = () => ws.send(JSON.stringify({ setup:{ model: LAB.model,
-    generationConfig:{ temperature: LAB.temp, ...(LAB.aff && labIs25() ? { enableAffectiveDialog: true } : {}), responseModalities:["AUDIO"], speechConfig:{ voiceConfig:{ prebuiltVoiceConfig:{ voiceName: activeVoice() } } } },
+  ws.onopen = () => ws.send(JSON.stringify({ setup:{ model: labModel(),
+    generationConfig:{ ...labGen(), responseModalities:["AUDIO"], speechConfig:{ voiceConfig:{ prebuiltVoiceConfig:{ voiceName: activeVoice() } } } },
     systemInstruction:{ parts:[{ text: labSystem() }] }, outputAudioTranscription:{} } }));
   ws.onmessage = e => {
     let m; try { m = JSON.parse(typeof e.data === "string" ? e.data : new TextDecoder().decode(e.data)); } catch { return; }
@@ -869,7 +873,8 @@ async function labPlay() {
 function labSave() { try { localStorage.setItem("lab", JSON.stringify(LAB)); } catch {} labDraw(); endVisitForNewSettings(); }
 if (LAB_ON) setTimeout(() => {
   $("labbox").style.display = "";
-  $("labmodel").innerHTML = LAB_MODELS.map(m => `<option value="${m}">${m.replace("models/", "")}</option>`).join("");
+  $("labmodel").innerHTML = LAB_MODELS.map(m => `<option value="${m}">${m.replace("models/", "").replace("#", " (thinking: ") + (m.includes("#") ? ")" : "")}</option>`).join("");
+  if (!LAB_MODELS.includes(LAB.model)) LAB.model = LAB_MODELS[1];
   $("labdir").innerHTML = Object.entries(LAB_DIRS).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join("");
   $("labmodel").value = LAB.model; $("labdir").value = LAB.dir; $("labtemp").value = LAB.temp; $("labaff").checked = !!LAB.aff;
   $("labmodel").onchange = () => { LAB.model = $("labmodel").value; labSave(); };
@@ -1383,7 +1388,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015182753";
+const BUILD = "20261015183935";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1643,8 +1648,8 @@ function runVisit(isPreview) {
     : new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + encodeURIComponent(key));
   ws.binaryType = "arraybuffer"; S.ws = ws;
   ws.onopen = () => ws.send(JSON.stringify({ setup:{
-    model: LAB_ON ? LAB.model : MODELS[modelIdx],
-    generationConfig:{ ...(LAB_ON ? { temperature: LAB.temp } : {}), ...(LAB_ON && LAB.aff && labIs25() ? { enableAffectiveDialog: true } : {}), responseModalities:["AUDIO"], speechConfig: Object.assign(store.get("lang","auto") === "auto" ? {} : { languageCode: store.get("lang","auto") }, { voiceConfig:{ prebuiltVoiceConfig:{ voiceName: activeVoice() } } }) },
+    model: LAB_ON ? labModel() : MODELS[modelIdx],
+    generationConfig:{ ...(LAB_ON ? labGen() : {}), responseModalities:["AUDIO"], speechConfig: Object.assign(store.get("lang","auto") === "auto" ? {} : { languageCode: store.get("lang","auto") }, { voiceConfig:{ prebuiltVoiceConfig:{ voiceName: activeVoice() } } }) },
     systemInstruction:{ parts:[{ text: LAB_ON ? labSystem() : personaText() }] },
     realtimeInputConfig:{ activityHandling: "NO_INTERRUPTION",
       automaticActivityDetection:{ startOfSpeechSensitivity:"START_SENSITIVITY_HIGH", endOfSpeechSensitivity:"END_SENSITIVITY_HIGH", silenceDurationMs:500 } },
@@ -1664,7 +1669,7 @@ function runVisit(isPreview) {
 // ------------------------------------------------------------------ OpenAI Realtime (when the key is an OpenAI key)
 // Trade the key for a short-lived session key, then talk over a WebSocket. Same audio format as Gemini's output (24 kHz PCM).
 async function openAIVisit(isPreview, key, id) {
-  const session = { type:"realtime", model: OA_MODELS[oaIdx], instructions: personaText(),
+  const session = { type:"realtime", model: OA_MODELS[oaIdx], instructions: LAB_ON ? labSystem() : personaText(),
     audio:{ input:{ format:{ type:"audio/pcm", rate:24000 },
                     transcription:{ model:"gpt-4o-mini-transcribe" },
                     turn_detection:{ type:"server_vad", threshold:0.4, silence_duration_ms:450, prefix_padding_ms:250, create_response:true, interrupt_response: false } },
