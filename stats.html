@@ -38,6 +38,10 @@
   .note { color:var(--muted); font-size:13px; }
   .err { background:var(--surface); border:1.5px solid var(--ink); border-radius:12px; padding:16px; }
   a { color:var(--ink); }
+  .bug { background:var(--surface); border:1.5px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:10px; }
+  .bug .txt { white-space:pre-wrap; overflow-wrap:anywhere; margin:4px 0 8px; font-size:15px; }
+  .bug .meta { color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+  .bug button { float:right; font:inherit; font-size:13px; padding:4px 10px; border:1.5px solid var(--ink); border-radius:999px; background:var(--surface); color:var(--ink); cursor:pointer; margin-left:8px; }
 </style>
 </head>
 <body>
@@ -60,7 +64,7 @@ const SEEN = { "video":"Saw the video", "setup":"Reached Set it up", "freekey":"
   "pumpkinpass":"Saw the Pumpkin Pass", "bottom":"Reached the bottom" };
 const OPENED = { ownkey:"Free option (own key)", moreopts:"More options", phonetips:"Phone tips", privacy:"Privacy", morevoices:"Try other voices", elbox:"ElevenLabs voice",
   howgemini:"How do I get a key? (Google)", howopenai:"How do I get a key? (OpenAI)" };
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 const pct = (a, b) => b ? (100 * a / b).toFixed(a / b < 0.1 ? 1 : 0) + "%" : "–";
 function days(everyDay) {
   const all = new Set([...Object.keys(DATA.events), ...Object.keys(DATA.loads), ...DATA.sales.map(s => DAY(s.at))]);
@@ -124,6 +128,7 @@ function render() {
       <div class="card"><b>${n.visit || 0}</b><span>conversations with visitors</span></div>
     </div>
     ${multi}${since}
+    ${bugList(P, set)}
     <h2>Where people drop off (phones)</h2>
     ${bars(funnel, k => k, phones, true)}
     <p class="note">Percentages are of phones that visited. Buy taps: ${Object.entries(by(u, "buy")).map(([k, v]) => v + " " + k).join(", ") || "none"}. Sold: ${Object.entries(soldKinds).map(([k, v]) => v + " " + k).join(", ") || "none"}.</p>
@@ -131,7 +136,7 @@ function render() {
     ${bars(Object.fromEntries(["video","setup","freekey","moreoptions","startbutton","pumpkinpass","bottom"].map(k => [SEEN[k], (by(u, "seen")[k] || 0)])), k => k, phones, true)}
     <p class="note">Scrolled at least: ${["25","50","75","100"].map(k => k + "% " + pct(by(u, "scroll")[k] || 0, phones)).join(" · ")}. Stayed at least: ${["10s","30s","1m","3m"].map(k => k + " " + pct(by(u, "time")[k] || 0, phones)).join(" · ")}.</p>
     <h2>The video (phones)</h2>
-    ${bars({ "Turned the sound on (our button)": by(u, "vid").sound_on || 0, "Turned the sound on (YouTube's controls)": by(u, "vid").yt_unmute || 0, "Paused it": by(u, "vid").paused || 0 }, k => k, phones, true)}
+    ${bars({ "Tapped Play video (our button)": (by(u, "vid").play || 0) + (by(u, "vid").sound_on || 0), "Turned the sound on (YouTube's controls)": by(u, "vid").yt_unmute || 0, "Paused it": by(u, "vid").paused || 0 }, k => k, phones, true)}
     <h2>Free demo (phones)</h2>
     ${bars({ "Tapped Try a free demo": by(u, "demo").start || 0, "Said No (not ready)": by(u, "demo").no || 0, "Said Yes": by(u, "demo").yes || 0,
       "Heard line 1": by(u, "demo").line1 || 0, "Heard line 2": by(u, "demo").line2 || 0, "Heard line 3": by(u, "demo").line3 || 0, "Heard line 4": by(u, "demo").line4 || 0,
@@ -165,6 +170,19 @@ function render() {
     <p class="note">Counting by version and by hour started Oct 15 around 3:30 PM.</p>
     <p class="note">"Page loads" is the older raw count. It includes reloads, and before Oct 15 afternoon it included the automatic reload after each site update. "Phones" counts each phone once a day (a random number stored on the phone, no personal data). Phone counts start Oct 15, 2026. Sales come from the payment records.</p>`;
 }
+function bugList(P, set) {
+  const all = DATA.bugs || [], list = all.filter(x => P.from ? x.at >= P.from : set.has(DAY(x.at)));
+  if (!list.length) return `<h2>Bug reports</h2><p class="note">None in this period${all.length ? " (" + all.length + " in all, see All)" : ""}.</p>`;
+  return `<h2>Bug reports (${list.length})</h2>` + list.map(x => `<div class="bug"><button data-bug="${esc(x.id)}">Done, remove</button>
+    <div class="meta">${when(x.at)} · ${esc(x.dev)} · ${esc(MODE[x.mode] || x.mode)} · ${esc(x.persona)}${x.cc ? " · " + esc(x.cc) : ""}${x.contact ? " · <b>" + esc(x.contact) + "</b>" : ""}</div>
+    <div class="txt">${esc(x.text)}</div>
+    <div class="meta">Version ${esc(x.b)} · ${esc(x.path)} · screen ${esc(x.scr)} · status "${esc(x.status)}"${x.model ? " · " + esc(x.model) : ""}${x.err ? "<br>Errors: " + esc(x.err) : ""}<br>${esc(x.ua)}</div></div>`).join("");
+}
+document.addEventListener("click", async e => {
+  const id = e.target.dataset && e.target.dataset.bug; if (!id) return;
+  e.target.disabled = true; await fetch("/api/bugs?id=" + encodeURIComponent(id), { method:"DELETE" }).catch(() => {});
+  DATA.bugs = (DATA.bugs || []).filter(x => x.id !== id); render();
+});
 async function load() {
   try {
     const r = await fetch("/api/stats/summary", { cache:"no-store" });
