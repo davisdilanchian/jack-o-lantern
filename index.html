@@ -1348,7 +1348,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015231513";
+const BUILD = "20261015231929";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1986,7 +1986,20 @@ function setTorch(on) {
 const norm = t => (t || "").toLowerCase().replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ");
 const UNMUTE_RE = /\bun ?mute\b|\bmute off\b|\bsound on\b|\bpumpkin\b.*\b(wake up|start talking|you can talk|talk again)\b/;
 const MUTE_RE = /\bmute( on)?\b|\bsound off\b|\bpumpkin\b.*\b(stop talking|be quiet|go to sleep|shush|hush)\b/;
+// Owner's override phrases: "demo override 1" plays a pre-recorded line in the current character's voice
+// (voices/demo/<character>-o1.mp3). Works on any key or pass; the AI's own reply to the phrase is dropped.
+const OVERRIDE_RE = /demo\W*over\W*ride\W*(1|one|won)\b/;
+async function sayOverride(line) {
+  closeVisit(); stopPlayback(); S.said = ""; $("caption").textContent = "";
+  try {
+    const buf = await dmClip(S.ctx, line);
+    if (IOS) releaseMic();
+    status("Talking");
+    dmPlay(S.ctx, S.out, buf, () => { S.end = Date.now(); status("Waiting for visitors"); });
+  } catch {}
+}
 function voiceCommand(text) {
+  if (OVERRIDE_RE.test((text || "").toLowerCase())) { S.heard = ""; sayOverride("o1"); return true; }
   const t = norm(text);
   if (!S.muted && ownKey() && !UNMUTE_RE.test(t) && MUTE_RE.test(t)) { S.heard = ""; setMute(true); return true; }   // pass-only: tap to mute
   return false;
