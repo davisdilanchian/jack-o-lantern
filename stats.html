@@ -114,9 +114,10 @@ function render() {
   const phones = u.load || 0, loads = ds.reduce((a, d) => a + (DATA.loads[d] || 0), 0);
   const multi = P.objs.length > 1 ? '<p class="note">This period adds up several days or hours, so a phone that came back in two of them counts twice.</p>' : "";
   const since = PERIOD === "update" ? (P.build ? '<p class="note"><b>Since the site update at ' + when(buildTime(P.build)) + '.</b> Only visits from that version count here.</p>' : '<p class="note">No visits counted on the newest version yet.</p>') : "";
-  const rems = (DATA.reminders || []).filter(x => P.from ? x.at >= P.from : set.has(DAY(x.at)));
+  const realRem = (DATA.reminders || []).filter(x => !x.owner && !/@(example\.(com|org|net)|test\.com)$/.test(x.email));   // the owner's own sign-up doesn't count
+  const rems = realRem.filter(x => P.from ? x.at >= P.from : set.has(DAY(x.at)));
   const funnel = { "Visited the site": u.load || 0, "Played a character's voice": u.hear || 0, "Tapped a buy button": u.buy || 0,
-    "Came back from paying": u.paid_back || 0, "Asked for a reminder (email)": by(u, "remind").email || 0, "Tapped Start": u.start || 0, "Had a trick-or-treater (a conversation)": u.visit || 0 };
+    "Came back from paying": u.paid_back || 0, "Asked for a reminder (email)": rems.length, "Tapped Start": u.start || 0, "Had a trick-or-treater (a conversation)": u.visit || 0 };
   $("out").innerHTML = `
     ${DATA.live ? `<div class="card live" style="margin-top:14px"><b>🎃 ${DATA.live.running}</b><span>pumpkins running right now${DATA.live.running ? ", " + DATA.live.talking + " talking to someone" : ""}.
       ${Object.entries(DATA.live.modes || {}).map(([k, v]) => v + " " + (MODE[k] || k)).join(" · ")} ${DATA.live.peakToday ? "<br>Today's peak: " + DATA.live.peakToday.running + " running, " + DATA.live.peakToday.talking + " talking at once." : ""}</span></div>` : ""}
@@ -127,7 +128,7 @@ function render() {
       <div class="card"><b>$${rev.toFixed(2)}</b><span>revenue, before Stripe fees</span></div>
       <div class="card"><b>${pct(sales.length, phones)}</b><span>of visiting phones bought</span></div>
       <div class="card"><b>${n.visit || 0}</b><span>conversations with visitors</span></div>
-      <div class="card"><b>${rems.length}</b><span>reminder emails (${(DATA.reminders || []).length} in all)</span></div>
+      <div class="card"><b>${rems.length}</b><span>reminder emails (${realRem.length} in all)</span></div>
     </div>
     ${multi}${since}
     ${bugList(P, set)}
@@ -141,10 +142,10 @@ function render() {
     ${bars({ "Tapped Play video (our button)": (by(u, "vid").play || 0) + (by(u, "vid").sound_on || 0), "Played it with YouTube's controls": by(u, "vid").yt_play || 0, "Paused it": by(u, "vid").paused || 0 }, k => k, phones, true)}
     <p class="note">Before Oct 16 midday, "YouTube's controls" was counted wrongly on every visit; it now counts only real plays.</p>
     <h2>Halloween reminders</h2>
-    ${bars({ "Left an email": by(u, "remind").email || 0, "Added it to their calendar": by(u, "remind").calendar || 0 }, k => k, phones, true)}
+    ${bars({ "Left an email": rems.length, "Added it to their calendar": by(u, "remind").calendar || 0 }, k => k, phones, true)}
     <p class="note">${rems.length ? rems.slice(0, 30).map(x => esc(x.email) + " <span style='opacity:.6'>(" + when(x.at) + (x.cc ? ", " + esc(x.cc) : "") + (x.dev ? ", " + esc(x.dev) : "") + ")</span>").join("<br>") : "No sign-ups in this period."}</p>
     <p class="note"><a href="/api/reminders?csv=1">Download all reminder emails (CSV)</a></p>
-    ${(() => { const all = DATA.reminders || [], real = all.filter(x => !/@(example\.(com|org|net)|test\.com)$/.test(x.email)), n = k => real.filter(x => x[k]).length;
+    ${(() => { const real = realRem, n = k => real.filter(x => x[k]).length;
       return `<p class="note">${real.length} signed up · welcome sent ${n("welcome")} · Oct 24 reminder sent ${n("week")} · Oct 30 reminder sent ${n("eve")} · ${n("unsub")} unsubscribed.<br>
       Automatic: the welcome goes out right after sign-up; the reminders go out Sat Oct 24 and Fri Oct 30 at 10 AM Eastern.</p>
       <div class="seg"><button id="mailtest" type="button">Send all 3 as a test to me</button><button id="mailwelcome" type="button">Send the welcome to anyone who missed it</button></div><p class="note" id="mailmsg"></p>`; })()}
