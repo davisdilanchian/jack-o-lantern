@@ -1348,7 +1348,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015230634";
+const BUILD = "20261015231513";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1578,6 +1578,7 @@ function onMic(samples) {
     // With them on, compare the mic with what the speaker is playing right now (loud syllables make
     // loud echo), learn how much of the speaker leaks into the mic, and only pass on sound that is
     // clearly more than that leak for at least 120 ms. Everything else is sent as silence.
+    S.heardAt = 0; S.quietN = 0;
     return;   // never send its own voice back while it talks (no interruptions)
     if (!S.barge) {
       const now = performance.now();
@@ -1596,7 +1597,17 @@ function onMic(samples) {
       samples = new Array(samples.length).fill(0);
     } else S.lastAct = Date.now();
   }
-  else { S.barge = false; S.hold = []; if (rms > S.floor * 2.5) S.lastAct = Date.now(); }
+  else {
+    // Listening. Only real voices count as activity (steady phone or room noise used to keep it "Listening" forever),
+    // and after half a second of quiet Google gets clean silence, so it can tell the visitor has stopped talking.
+    S.barge = false; S.hold = [];
+    if (rms > Math.max(S.floor * 1.8, TUNE.min * 0.5)) {
+      S.quietN = 0; S.flushed = false;
+      if (rms > Math.max(S.floor * TUNE.ratio, TUNE.min)) { S.lastAct = Date.now(); S.heardAt = Date.now(); }
+    } else { learnFloor(rms); if (++S.quietN > 5) samples = new Array(samples.length).fill(0); }
+    // They spoke, stopped 2.5 s ago, and still no answer: tell Google the audio has ended so it replies.
+    if (S.heardAt && !S.turn && !S.flushed && S.quietN > 5 && Date.now() - S.heardAt > 2500) { S.flushed = true; S.dbg.flush = (S.dbg.flush || 0) + 1; send({ realtimeInput:{ audioStreamEnd:true } }); }
+  }
   sendAudio(samples);
 }
 function sendAudio(samples) {
@@ -1716,7 +1727,7 @@ function closeVisit() {
   elStop();
   if (S.ws) { const w = S.ws; S.ws = null; try { w.close(); } catch {} }
   if (S.phase !== "idle") S.end = Date.now();
-  S.phase = "idle"; S.turn = false; S.greeting = false;
+  S.phase = "idle"; S.turn = false; S.greeting = false; S.heardAt = 0; S.listenSince = 0; S.flushed = false; S.quietN = 0;
   if (!S.muted && $("setup").style.display === "none") status(streamOn() ? "Live: waiting for chat" : "Waiting for visitors");
 }
 function send(o) { if (S.ws && S.ws.readyState === 1) S.ws.send(JSON.stringify(o)); }
@@ -1938,7 +1949,7 @@ function frame() {
   let sum = 0; for (const v of td) sum += v * v;
   const rms = Math.sqrt(sum / td.length);
   const tnow = performance.now(); S.outHist.push({ t:tnow, v:rms }); while (S.outHist.length && tnow - S.outHist[0].t > 500) S.outHist.shift();
-  if (DEBUG) $("caption").textContent = "talk-overs " + S.dbg.barge + " · interrupted " + S.dbg.interrupted + " · gaps " + S.dbg.underrun + " · leak " + S.couple.toFixed(2) + (S.fullEcho ? " · full echo cancel" : " · basic echo cancel");
+  if (DEBUG) $("caption").textContent = "floor " + S.floor.toFixed(4) + " · flushes " + (S.dbg.flush || 0) + " · stuck " + (S.dbg.stuck || 0) + " · talk-overs " + S.dbg.barge + " · interrupted " + S.dbg.interrupted + " · gaps " + S.dbg.underrun + " · leak " + S.couple.toFixed(2) + (S.fullEcho ? " · full echo cancel" : " · basic echo cancel");
   S.peak = Math.max(rms, S.peak * 0.998, 0.05);
   const lvl = S.muted ? 0 : Math.min(1, rms / S.peak);
   S.level = lvl > S.level ? lvl : S.level * 0.8 + lvl * 0.2;
@@ -1947,9 +1958,13 @@ function frame() {
   $("white").style.opacity = screenOn ? Math.max(0, (S.level - 0.6) / 0.4).toFixed(3) : 0; // orange -> white at his loudest
   setTorch(mode !== "screen" && S.level > 0.3);
 
-  // timeouts
+  checkTimeouts();
+}
+// Timeouts. Also run from a timer, because some phones pause the screen-refresh loop.
+function checkTimeouts() {
   const now = Date.now();
-  if (S.phase === "talking" && !speaking() && !S.greeting) { S.phase = "listening"; status("Listening"); }
+  if (S.phase === "talking" && !speaking() && !S.greeting) { S.phase = "listening"; S.listenSince = now; status("Listening"); }
+  if (S.phase === "listening" && !streamOn() && S.listenSince && now - S.listenSince > 60000 && !S.turn) { S.dbg.stuck = (S.dbg.stuck || 0) + 1; closeVisit(); }   // a minute of "Listening" with no answer: start fresh
   if (S.phase === "connecting" && now - S.start > 10000) closeVisit();
   // Watchdogs, so a lost message can never leave it stuck in "Talking" with the mic gated:
   if (S.turn && now - S.lastChunk > 8000) { pumpAudio(true); PLAY.started = false; S.turn = false; S.greeting = false; CHAT.waiting = false; S.dbg.watchdog++; }   // reply never finished
@@ -1960,6 +1975,7 @@ function frame() {
   if (!streamOn() && S.phase !== "idle" && now - S.start > TUNE.maxVisit && !speaking()) closeVisit();
   pumpChat();
 }
+setInterval(() => { try { if (S.ctx) checkTimeouts(); } catch {} }, 1000);
 function setTorch(on) {
   if (!S.torchOK || on === S.torchOn || S.torchBusy || Date.now() - S.torchAt < 150) return;
   S.torchOn = on; S.torchAt = Date.now(); S.torchBusy = true; S.dbg.torch++;
