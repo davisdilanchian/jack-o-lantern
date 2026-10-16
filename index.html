@@ -1325,7 +1325,8 @@ function dmMic(rms) {
   if (rms > S.floor * TUNE.ratio && rms > TUNE.min) { if (++DM.loudN >= 2) { if (!DM.heard) $("caption").textContent = "👂 I hear you…"; DM.heard = true; DM.lastLoud = now; } }
   else { DM.loudN = 0; learnFloor(rms); }
   // Next line when they stop talking, or after a few seconds anyway (people at a desk often don't talk).
-  if ((DM.heard && now - DM.lastLoud > 900) || (DM.step === 0 && now - DM.readyAt > 6000) || (DM.step > 0 && !DM.heard && now - DM.turnAt > 7000)) dmNext();
+  // Line 1 right after the countdown; later lines once they stop talking, after 7 s of silence, or after 12 s at most (a noisy room).
+  if ((DM.heard && now - DM.lastLoud > 900) || (DM.step === 0 && now - DM.readyAt > 800) || (DM.step > 0 && !DM.heard && now - DM.turnAt > 7000) || (DM.step > 0 && now - DM.turnAt > 12000)) dmNext();
 }
 async function dmNext() {
   if (DM.playing || !DM.on) return;
@@ -1336,7 +1337,7 @@ async function dmNext() {
     if (IOS) releaseMic();
     dmPlay(S.ctx, S.out, buf, () => setTimeout(() => { DM.playing = false; DM.lastLoud = DM.turnAt = Date.now();
       if (DM.step >= DM_LINES.length) return dmOver();
-      $("caption").textContent = "🎤 Your turn! Say something back to the pumpkin.";   // make it obvious it wants an answer
+      $("caption").textContent = "🎤 Your turn! Say something back to the pumpkin (or tap).";   // make it obvious it wants an answer
     }, 700));
   } catch { DM.playing = false; dmOver(); }
 }
@@ -1374,7 +1375,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261016141221";
+const BUILD = "20261016150934";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -2110,7 +2111,10 @@ function setMute(m) {
   if (m) { stopPlayback(); closeVisit(); setTorch(false); }
   else { S.end = 0; S.floor = Math.min(S.floor, FLOOR0 * 2); status(streamOn() ? "Live: waiting for chat" : "Waiting for visitors"); }   // listen right away, fresh noise level
 }
-for (const el of [$("stage"), $("muted"), $("glow"), $("white")]) el.addEventListener("click", () => { if (S.ctx) setMute(!S.muted); });
+for (const el of [$("stage"), $("muted"), $("glow"), $("white")]) el.addEventListener("click", () => {
+  if (DM.on) { if (!DM.playing && Date.now() > DM.readyAt) { track("demo", "tap"); dmNext(); } return; }   // demo: a tap skips to the next line (it used to mute and freeze the demo)
+  if (S.ctx) setMute(!S.muted);
+});
 </script>
 </body>
 </html>
