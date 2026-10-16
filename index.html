@@ -261,7 +261,7 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
           <input id="remindemail" type="email" autocomplete="email" placeholder="you@email.com" required maxlength="120" aria-label="Your email">
           <button type="submit">Remind me</button>
         </form>
-        <p id="remindmsg" class="help" role="status">We'll email you a week before Halloween and the day before. No spam.</p>
+        <p id="remindmsg" class="help" role="status">We'll email you a week before Halloween and the day before.</p>
         <p class="help"><a href="#" id="remindcal">Or add a reminder to your calendar</a></p>
       </div>
     </section>
@@ -1375,7 +1375,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261016150934";
+const BUILD = "20261016151625";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
