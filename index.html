@@ -896,9 +896,11 @@ function save() {
 
 // ------------------------------------------------------------------ state
 const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, torchAt:0, ws:null, phase:"idle",
-  muted:false, turn:false, greeting:false, playEnd:0, floor:0.01, loud:0, lastAct:0, start:0, end:0, visits:[],
+  muted:false, turn:false, greeting:false, playEnd:0, floor:0.004, loud:0, lastAct:0, start:0, end:0, visits:[],
   analyser:null, out:null, level:0, peak:0.05, said:"", wake:null, visitId:0, lastChunk:0, lastMsg:0, echo:0.02, couple:0.5, outHist:[], hold:[], barge:false, dbg:{ barge:0, interrupted:0, underrun:0, watchdog:0, torch:0 }, heard:"", cmd:null, pre:[], cmdBusy:false, cmdTimes:[], inRate: providerOf(store.get("geminiKey","")) === "openai" ? 24000 : 16000 };
 const MIC_GAIN = 3;
+const FLOOR0 = 0.004;   // starting guess for a quiet room (raw mic); it settles to the real level within a second or two
+function learnFloor(rms) { S.floor = rms < S.floor ? S.floor * 0.85 + rms * 0.15 : S.floor * 0.995 + rms * 0.005; }
 const TUNE = { ratio:2.2, min:0.006, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.6 };
 const status = t => $("status").textContent = t;
 const EL = { ws:null, open:false, ended:false, got:false, gen:0, out:[], hold:[], busy:false };   // ElevenLabs reply stream (see "ElevenLabs voice")
@@ -1334,7 +1336,7 @@ function dmMic(rms) {
   const now = Date.now();
   if (now < DM.readyAt || DM.playing) { DM.heard = false; DM.loudN = 0; return; }
   if (rms > S.floor * TUNE.ratio && rms > TUNE.min) { if (++DM.loudN >= 2) { DM.heard = true; DM.lastLoud = now; } }
-  else { DM.loudN = 0; S.floor = S.floor * 0.97 + rms * 0.03; }
+  else { DM.loudN = 0; learnFloor(rms); }
   if ((DM.heard && now - DM.lastLoud > 900) || (DM.step === 0 && now - DM.readyAt > 6000)) dmNext();
 }
 async function dmNext() {
@@ -1374,14 +1376,14 @@ $("start").onclick = async () => {
   if (!window.RESUMING && !streamOn()) {
     S.armAt = Date.now() + 5000;                                // the noise of putting it in the pumpkin isn't a visitor
     const el = $("putin"); el.style.opacity = "1"; el.style.display = "flex";
-    setTimeout(() => { el.style.opacity = "0"; setTimeout(() => { el.style.display = "none"; }, 600); S.end = 0; S.floor = 0.01; }, 5000);
+    setTimeout(() => { el.style.opacity = "0"; setTimeout(() => { el.style.display = "none"; }, 600); S.end = 0; S.floor = Math.min(S.floor, 0.01); }, 5000);
   }
 };
 
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015182140";
+const BUILD = "20261015182753";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1582,7 +1584,7 @@ function onMic(samples) {
   if (S.phase === "idle") {
     if (speaking() || $("setup").style.display !== "none") return;
     if (rms > S.floor * TUNE.ratio && rms > TUNE.min) { if (++S.loud >= 2 && Date.now() - S.end > TUNE.cooldown && !(Date.now() < (S.armAt || 0))) runVisit(false); }
-    else { S.loud = 0; S.floor = S.floor * 0.97 + rms * 0.03; }
+    else { S.loud = 0; learnFloor(rms); }
     return;
   }
   if (S.phase === "connecting") return;
@@ -2089,7 +2091,7 @@ function listenWhileMuted(samples, rms) {
   if (rms > S.floor * TUNE.ratio && rms > TUNE.min) {
     const now = Date.now(); S.cmdTimes = S.cmdTimes.filter(t => now - t < 3600000);
     if (++S.loud >= 2 && !S.cmdBusy && S.cmdTimes.length < 150) { S.cmdTimes.push(now); S.cmd = [].concat(...S.pre); S.pre = []; S.loud = 0; }
-  } else { S.loud = 0; S.floor = S.floor * 0.97 + rms * 0.03; }
+  } else { S.loud = 0; learnFloor(rms); }
 }
 function wavBlob(samples, rate) {
   const n = samples.length, b = new DataView(new ArrayBuffer(44 + n * 2));
@@ -2127,7 +2129,7 @@ function setMute(m) {
   $("muted").style.display = m ? "flex" : "none";
   S.cmd = null; S.pre = []; S.loud = 0;
   if (m) { stopPlayback(); closeVisit(); setTorch(false); }
-  else { S.end = 0; S.floor = 0.01; status(streamOn() ? "Live: waiting for chat" : "Waiting for visitors"); }   // listen right away, fresh noise level
+  else { S.end = 0; S.floor = Math.min(S.floor, FLOOR0 * 2); status(streamOn() ? "Live: waiting for chat" : "Waiting for visitors"); }   // listen right away, fresh noise level
 }
 for (const el of [$("stage"), $("muted"), $("glow"), $("white")]) el.addEventListener("click", () => { if (S.ctx) setMute(!S.muted); });
 </script>
