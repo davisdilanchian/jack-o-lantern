@@ -7,7 +7,7 @@
 // Google Ads measurement: notes which ad click led to a purchase. Not loaded on the owner's stream page.
 window.dataLayer = window.dataLayer || []; function gtag(){ dataLayer.push(arguments); }
 const AD_TAG = "AW-11003790813", AD_PURCHASE = AD_TAG + "/S1jbCKbNjp4dEN2Lgv8o";
-if (location.pathname.replace(/\/$/, "") !== "/streaming") {
+if (!/^\/(streaming|actors)$/.test(location.pathname.replace(/\/$/, ""))) {
   const s = document.createElement("script"); s.async = true; s.src = "https://www.googletagmanager.com/gtag/js?id=" + AD_TAG; document.head.appendChild(s);
   gtag("js", new Date()); gtag("config", AD_TAG);
 }
@@ -245,6 +245,16 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       </div>
     </div>
 
+    <section id="labbox" style="display:none">
+      <h2>🧪 Lab</h2>
+      <p class="help" style="margin-top:0">Only here on /actors. Everything else is the real pumpkin. Changes apply from the next visitor (or tap Settings, then Save and resume).</p>
+      <label for="labmodel">Live model</label><select id="labmodel"></select>
+      <label for="labdir">Directions</label><select id="labdir"></select>
+      <label for="labtemp">Temperature: <span id="labtempv"></span></label><input type="range" id="labtemp" min="0" max="2" step="0.1" style="width:100%">
+      <label class="check" id="labaffrow"><input type="checkbox" id="labaff"> Affective dialog (2.5 models only)</label>
+      <p class="help" id="labnow"></p>
+    </section>
+
     <section id="characters">
       <h2>Set it up</h2>
       <details id="ownkey" class="ownkey freeopt mini">
@@ -446,7 +456,7 @@ function visitSource() {
   return h;
 }
 function track(e, k) {
-  if (location.pathname.replace(/\/$/, "") === "/streaming" || /^(localhost|127\.)/.test(location.hostname)) return;
+  if (/^\/(streaming|actors)$/.test(location.pathname.replace(/\/$/, "")) || /^(localhost|127\.)/.test(location.hostname)) return;
   let b = ""; try { b = BUILD; } catch {}                     // site version, for "since the last update" on /stats
   const body = JSON.stringify({ e, k: k || "", aid: AID, dev: DEV, b, src: e === "load" ? visitSource() : undefined });
   const url = (/(^|\.)jack-o\.io$/.test(location.hostname) ? "" : "https://jack-o.io") + "/api/ev";
@@ -514,7 +524,8 @@ let KEYHASH = "";
 // Fingerprints of every key this phone has seen unlocked (switching back to an old key stays unlocked, even offline).
 const paidKeys = () => { try { return JSON.parse(localStorage.getItem("paidKeys") || "[]"); } catch { return []; } };
 const setPaid = (h, on) => { const l = paidKeys().filter(x => x !== h); if (on) l.push(h); try { localStorage.setItem("paidKeys", JSON.stringify(l.slice(-20))); } catch {} };
-const OWNER_PAGE = location.pathname.replace(/\/$/, "") === "/streaming";   // password-protected: it's the owner
+const OWNER_PAGE = /^\/(streaming|actors)$/.test(location.pathname.replace(/\/$/, ""));   // password-protected: it's the owner
+const LAB_ON = location.pathname.replace(/\/$/, "") === "/actors";                              // the owner's lab: try other live-model setups
 const unlocked = () => OWNER_PAGE || passPaid() || (!!KEYHASH && paidKeys().includes(KEYHASH));
 // A phone unlocked with a paid key switched to a new key: ask the server to unlock the new key too.
 async function linkKey(to) {
@@ -792,6 +803,46 @@ function activeVoice() { return unlocked() ? (store.get(voiceKey(), "") || perso
 function lockedNote(id, text) {
   $(id).innerHTML = "🔒 " + text + ' <a href="#passbox">See the pass</a>';
 }
+// ------------------------------------------------------------------ lab (/actors only): other live models, directions, temperature
+const LAB_MODELS = ["models/gemini-3.8-live", "models/gemini-2.5-flash-native-audio-latest", "models/gemini-3.1-flash-live-preview",
+  "models/gemini-2.5-flash-native-audio-preview-12-2025", "models/gemini-2.5-flash-native-audio-preview-09-2025"];
+const LAB_MOOD = { jack:"smug and snide", witch:"cackling and playful", count:"dramatic old-movie vampire", grump:"crabby old man", ghost:"nervous, jumpy, scared",
+  denial:"defensive, in total denial", prof:"pompous, snobby professor", cabbie:"gruff New York cab driver", custom:"playful, in character" };
+const LAB_WRITE = " Your words are performed exactly as you write them, so write them the way they should sound: stretch words, put the stressed word in CAPITALS, use ... for dramatic pauses, and include real sound words (Mwahaha, Ugh, Pfft, Ooooh).";
+const LAB_DIRS = {
+  none: ["None (as on the pumpkins)", (f, b, t, n, m) => f],
+  expressive: ["Expressive", (f, b, t, n, m) => f + " PERFORMANCE: You are a voice actor performing this character live, not reading lines. Perform every reply: vary pitch and pace, use dramatic pauses, stretch words, and laugh, scoff, sigh or gasp out loud where it fits. Whisper the asides and land the punchlines. Never sound flat or politely neutral. Your delivery is " + m + "."],
+  big: ["Over the top", (f, b, t, n, m) => f + " PERFORMANCE: Play it big, like a stage actor voicing a theme-park animatronic. Exaggerated and theatrical: big character noises (Mwahaha, Hmph, Ughhh, Ooooh), long dramatic pauses, sudden loud bursts and creepy whispers, wild swings in pitch. Every single line is a show. Your delivery is " + m + "."],
+  B: ["B · Director's notes", (f, b, t, n, m) => "### AUDIO PROFILE\n" + n + ". " + b + "\n### THE SCENE\nA front porch on Halloween night. A real trick-or-treater is standing right in front of you and you are performing live.\n### DIRECTOR'S NOTES\nStyle: " + m + ", a big theatrical performance, like a voice actor in an animated film.\nPacing: always changing. Slow, dramatic pauses before punchlines, quick clipped asides.\nPitch: swing high and low. Stretch the words you want to land. Whisper secrets, get loud when outraged.\nSounds: actually make them out loud: laugh, scoff, sigh, gasp, hmph.\nNever sound like a calm, polite assistant.\n" + t],
+  D: ["D · Write it the way it should sound", (f, b, t, n, m) => f + LAB_WRITE],
+  E: ["E · Fewer rules", (f, b, t, n, m) => b + t.split(SAFETY)[0] + " Your audience is mostly trick-or-treating kids and their parents: tease the situation, never the person, nothing hurtful, scary or unsuitable for children, and never ask for names, addresses or ages. Perform with big, " + m + " energy."],
+  I: ["I · Director's notes + write it", (f, b, t, n, m) => LAB_DIRS.B[1](f, b, t, n, m) + LAB_WRITE],
+};
+const LAB = Object.assign({ model: LAB_MODELS[1], dir: "B", temp: 1, aff: true }, (() => { try { return JSON.parse(localStorage.getItem("lab") || "{}"); } catch { return {}; } })());
+const labIs25 = () => /2\.5/.test(LAB.model);
+const labTag = () => LAB.model.replace("models/gemini-", "").replace("-native-audio", "") + " · " + LAB_DIRS[LAB.dir][0].split(" · ")[0] + " · temp " + LAB.temp + (LAB.aff && labIs25() ? " · affective" : "");
+function labSystem() {
+  const full = personaText(), id = $("persona").value;
+  const base = id === "custom" && unlocked() ? ($("custom").value.trim() || PERSONAS.jack.text) : PERSONAS[id].text;
+  return LAB_DIRS[LAB.dir][1](full, base, full.slice(base.length), (PERSONAS[id] || PERSONAS.jack).name, LAB_MOOD[id] || LAB_MOOD.custom);
+}
+function labDraw() {
+  $("labtempv").textContent = LAB.temp; $("labaffrow").style.display = labIs25() ? "" : "none";
+  $("labnow").textContent = "Now: " + labTag() + (viaPass() ? " (on the Pumpkin Pass the model stays 3.8 or 2.5 latest)" : "");
+}
+function labSave() { try { localStorage.setItem("lab", JSON.stringify(LAB)); } catch {} labDraw(); endVisitForNewSettings(); }
+if (LAB_ON) setTimeout(() => {
+  $("labbox").style.display = "";
+  $("labmodel").innerHTML = LAB_MODELS.map(m => `<option value="${m}">${m.replace("models/", "")}</option>`).join("");
+  $("labdir").innerHTML = Object.entries(LAB_DIRS).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join("");
+  $("labmodel").value = LAB.model; $("labdir").value = LAB.dir; $("labtemp").value = LAB.temp; $("labaff").checked = !!LAB.aff;
+  $("labmodel").onchange = () => { LAB.model = $("labmodel").value; labSave(); };
+  $("labdir").onchange = () => { LAB.dir = $("labdir").value; labSave(); };
+  $("labtemp").oninput = () => { LAB.temp = +$("labtemp").value; labSave(); };
+  $("labaff").onchange = () => { LAB.aff = $("labaff").checked; labSave(); };
+  labDraw();
+}, 0);
+
 function personaText() {
   const id = $("persona").value;
   const base = id === "custom" && unlocked() ? ($("custom").value.trim() || PERSONAS.jack.text) : PERSONAS[id].text;
@@ -1187,7 +1238,7 @@ setInterval(() => { if ($("setup").style.display !== "none") refreshPass(); }, 6
 let demoLoud = false;
 const DEMO = "https://www.youtube-nocookie.com/embed/xMnbPGyVYps?loop=1&playlist=xMnbPGyVYps&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=https://jack-o.io";
 function demo(on) {
-  const f = $("demovid"); if (OWNER_PAGE) { f.parentNode.style.display = "none"; return; }
+  const f = $("demovid"); if (OWNER_PAGE) { f.parentNode.style.display = "none"; $("demosound").style.display = "none"; return; }
   const want = on ? DEMO : "about:blank"; if ((f.getAttribute("src") || "about:blank") !== want) f.setAttribute("src", want);
   demoLoud = false; $("demosound").textContent = "▶ Play video";
 }
@@ -1293,7 +1344,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015180405";
+const BUILD = "20261015180911";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1541,7 +1592,7 @@ function runVisit(isPreview) {
   S.visits.push(now);
   closeVisit();
   S.phase = "connecting"; S.start = now; S.lastAct = now; S.lastMsg = now; S.lastChunk = now; S.turn = false; S.greeting = false; S.said = "";
-  status("Someone's here…"); $("caption").textContent = "";
+  status(LAB_ON ? "Someone's here… (" + labTag() + ")" : "Someone's here…"); $("caption").textContent = "";
   const key = store.get("geminiKey","");
   S.provider = viaPass() ? "gemini" : providerOf(key); S.inRate = S.provider === "openai" ? 24000 : 16000;
   S.el = S.provider === "gemini" && elWanted();
@@ -1553,9 +1604,9 @@ function runVisit(isPreview) {
     : new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + encodeURIComponent(key));
   ws.binaryType = "arraybuffer"; S.ws = ws;
   ws.onopen = () => ws.send(JSON.stringify({ setup:{
-    model: MODELS[modelIdx],
-    generationConfig:{ responseModalities:["AUDIO"], speechConfig: Object.assign(store.get("lang","auto") === "auto" ? {} : { languageCode: store.get("lang","auto") }, { voiceConfig:{ prebuiltVoiceConfig:{ voiceName: activeVoice() } } }) },
-    systemInstruction:{ parts:[{ text: personaText() }] },
+    model: LAB_ON ? LAB.model : MODELS[modelIdx],
+    generationConfig:{ ...(LAB_ON ? { temperature: LAB.temp } : {}), ...(LAB_ON && LAB.aff && labIs25() ? { enableAffectiveDialog: true } : {}), responseModalities:["AUDIO"], speechConfig: Object.assign(store.get("lang","auto") === "auto" ? {} : { languageCode: store.get("lang","auto") }, { voiceConfig:{ prebuiltVoiceConfig:{ voiceName: activeVoice() } } }) },
+    systemInstruction:{ parts:[{ text: LAB_ON ? labSystem() : personaText() }] },
     realtimeInputConfig:{ activityHandling: "NO_INTERRUPTION",
       automaticActivityDetection:{ startOfSpeechSensitivity:"START_SENSITIVITY_HIGH", endOfSpeechSensitivity:"END_SENSITIVITY_HIGH", silenceDurationMs:500 } },
     outputAudioTranscription:{}, inputAudioTranscription:{},
@@ -1700,7 +1751,7 @@ function handleOA(text) {
 
 // ------------------------------------------------------------------ live count for /stats: while running, say "still on" once a minute
 (function livePing() {
-  if (/^(localhost|127\.)/.test(location.hostname)) return;
+  if (/^(localhost|127\.)/.test(location.hostname) || LAB_ON) return;
   const url = (/(^|\.)jack-o\.io$/.test(location.hostname) ? "" : "https://jack-o.io") + "/api/ping";
   const ping = () => {
     if (!S.ctx || $("setup").style.display !== "none" || !AID) return;              // only after Start, while it's out of the settings
