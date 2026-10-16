@@ -253,6 +253,8 @@ details.ownkey > summary { cursor:pointer; font-weight:600; color:var(--ink); fo
       <label for="labtemp">Temperature: <span id="labtempv"></span></label><input type="range" id="labtemp" min="0" max="2" step="0.1" style="width:100%">
       <label class="check" id="labaffrow"><input type="checkbox" id="labaff"> Affective dialog (2.5 models only)</label>
       <p class="help" id="labnow"></p>
+      <div class="row" style="margin-top:10px"><input id="labline" type="text" value="Hi! I'm dressed as a witch!" aria-label="Test line"><button id="labplay" type="button" class="hearbtn" style="width:auto;flex:0 0 auto;padding:0 18px">▶ Play</button></div>
+      <p class="help" id="labsaid"></p>
     </section>
 
     <section id="characters">
@@ -830,6 +832,40 @@ function labDraw() {
   $("labtempv").textContent = LAB.temp; $("labaffrow").style.display = labIs25() ? "" : "none";
   $("labnow").textContent = "Now: " + labTag() + (viaPass() ? " (on the Pumpkin Pass the model stays 3.8 or 2.5 latest)" : "");
 }
+// ▶ Play: the same test line, with the lab's current model, directions, temperature and voice (no mic, plays on the speaker).
+async function labPlay() {
+  const key = store.get("geminiKey", "").trim(), own = key && providerOf(key) === "gemini";
+  const url = own ? "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + encodeURIComponent(key)
+    : usingPass() ? (API_BASE ? "wss://jack-o.io" : (location.protocol === "https:" ? "wss://" : "ws://") + location.host) + "/api/live?pass=" + PASS.id : "";
+  if (!url) return $("labsaid").textContent = "Needs a Google key (or a Pumpkin Pass) on this phone.";
+  stopSample(); const ctx = SAMPLE.ctx || (SAMPLE.ctx = new (window.AudioContext || window.webkitAudioContext)()); try { ctx.resume(); } catch {}
+  const line = $("labline").value.trim() || "Hi!", tag = labTag();
+  $("labplay").disabled = true; $("labsaid").textContent = "Asking " + tag + "…";
+  const ws = new WebSocket(url); ws.binaryType = "arraybuffer";
+  const pcm = []; let said = "", t0 = 0, first = 0, done = false;
+  const finish = msg => {
+    if (done) return; done = true; try { ws.close(); } catch {} $("labplay").disabled = false;
+    if (!pcm.length) return $("labsaid").textContent = msg || "No reply came back.";
+    const bins = pcm.map(atob), n = bins.reduce((a, b) => a + (b.length >> 1), 0), buf = ctx.createBuffer(1, n, 24000), out = buf.getChannelData(0); let i = 0;
+    for (const bin of bins) for (let j = 0; j + 1 < bin.length; j += 2) { let v = bin.charCodeAt(j) | (bin.charCodeAt(j + 1) << 8); if (v & 0x8000) v -= 0x10000; out[i++] = v / 32768; }
+    const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination); src.start(); SAMPLE.src = src;
+    $("labsaid").innerHTML = "<b>" + tag + "</b> · first sound " + Math.round(first) + " ms<br>“" + said.trim().replace(/[<>&]/g, "") + "”";
+  };
+  setTimeout(() => finish("No reply within 30 seconds."), 30000);
+  ws.onopen = () => ws.send(JSON.stringify({ setup:{ model: LAB.model,
+    generationConfig:{ temperature: LAB.temp, ...(LAB.aff && labIs25() ? { enableAffectiveDialog: true } : {}), responseModalities:["AUDIO"], speechConfig:{ voiceConfig:{ prebuiltVoiceConfig:{ voiceName: activeVoice() } } } },
+    systemInstruction:{ parts:[{ text: labSystem() }] }, outputAudioTranscription:{} } }));
+  ws.onmessage = e => {
+    let m; try { m = JSON.parse(typeof e.data === "string" ? e.data : new TextDecoder().decode(e.data)); } catch { return; }
+    if (m.jacko && m.jacko.error) return finish(m.jacko.error);
+    if (m.setupComplete) { t0 = performance.now(); ws.send(JSON.stringify({ clientContent:{ turns:[{ role:"user", parts:[{ text: line }] }], turnComplete:true } })); return; }
+    const c = m.serverContent; if (!c) return;
+    if (c.outputTranscription && c.outputTranscription.text) said += c.outputTranscription.text;
+    for (const p of (c.modelTurn && c.modelTurn.parts) || []) if (p.inlineData && p.inlineData.data) { if (!first) first = performance.now() - t0; pcm.push(p.inlineData.data); }
+    if (c.turnComplete) finish();
+  };
+  ws.onclose = e => finish("Google closed the connection: " + (e.reason || e.code));
+}
 function labSave() { try { localStorage.setItem("lab", JSON.stringify(LAB)); } catch {} labDraw(); endVisitForNewSettings(); }
 if (LAB_ON) setTimeout(() => {
   $("labbox").style.display = "";
@@ -840,6 +876,7 @@ if (LAB_ON) setTimeout(() => {
   $("labdir").onchange = () => { LAB.dir = $("labdir").value; labSave(); };
   $("labtemp").oninput = () => { LAB.temp = +$("labtemp").value; labSave(); };
   $("labaff").onchange = () => { LAB.aff = $("labaff").checked; labSave(); };
+  $("labplay").onclick = labPlay;
   labDraw();
 }, 0);
 
@@ -1344,7 +1381,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015180911";
+const BUILD = "20261015182140";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
