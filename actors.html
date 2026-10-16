@@ -36,7 +36,16 @@
   <h1>🎭 Actors</h1>
   <p class="sub">Hear what the live voices can do with more expressive directions. Uses the key saved on this phone. Each take costs a fraction of a cent on that key.</p>
 
-  <div class="seg" id="prov"><button data-p="gemini">Google</button><button data-p="openai">OpenAI</button></div>
+  <h2 style="margin-top:12px">Engine</h2>
+  <div class="seg" id="engine"><button data-e="live">Live model</button><button data-e="flash">Flash: words + voice</button></div>
+  <p class="note" id="enginenote"></p>
+  <div id="flashopts" style="display:none">
+    <div class="row">
+      <div><label for="fword">Words model</label><select id="fword"><option>gemini-3.1-flash-lite</option><option>gemini-3.8-flash</option></select></div>
+      <div><label for="fvoice">Voice model</label><select id="fvoice"><option>gemini-3.8-flash-lite-tts</option><option>gemini-3.8-flash-tts</option></select></div>
+    </div>
+  </div>
+  <div class="seg" id="prov" style="margin-top:10px"><button data-p="gemini">Google</button><button data-p="openai">OpenAI</button></div>
   <p class="note" id="keynote"></p>
 
   <div class="row">
@@ -59,6 +68,10 @@
   <div class="chips" id="lines"></div>
 
   <button class="go" id="perform">▶ Perform</button>
+  <div id="flashtalk" style="display:none">
+    <button id="talk" style="width:100%;margin-top:8px">🎤 Hold to talk</button>
+    <button id="newconv" style="width:100%;margin-top:8px">New conversation</button>
+  </div>
   <button id="compare" style="width:100%;margin-top:8px">Same line in all three delivery styles</button>
   <p id="status"></p>
 
@@ -75,7 +88,7 @@ const DIRECTIONS = {
 };
 const MOOD = { jack:"smug and snide", witch:"cackling and playful", count:"dramatic old-movie vampire", grump:"crabby old man", ghost:"nervous, jumpy, scared", denial:"defensive, in total denial", prof:"pompous, snobby professor", cabbie:"gruff New York cab driver" };
 const LINES = ["Hi! I'm dressed as a witch!", "Trick or treat!", "Are you a real pumpkin?", "What's your favorite candy?", "Boo!", "I don't have a costume.", "Can you tell me a joke?"];
-let D = null, PROV = "gemini", STYLE = "expressive", TAKES = [];
+let D = null, PROV = "gemini", STYLE = "expressive", TAKES = [], ENGINE = "live", HIST = [];
 
 // Characters, voices and models come straight from the main page, so this always matches what the pumpkins use.
 async function loadDefs() {
@@ -167,6 +180,66 @@ async function takeOpenAI(text, style) {
   });
 }
 
+// Flash: words from a fast text model (with the conversation so far), then a performance from the TTS model.
+const STYLE_WORDS = { current:"", expressive:", very expressive and playful", big:", wildly theatrical and over the top", custom:"" };
+async function gpost(url, body) {
+  const r = await fetch(url, { method:"POST", headers:{ "x-goog-api-key":keyFor("gemini"), "Content-Type":"application/json" }, body:JSON.stringify(body) });
+  const j = await r.json().catch(() => ({})); if (!r.ok || j.error) throw new Error((j.error && j.error.message) || "Google said no (" + r.status + ")."); return j;
+}
+async function flashTake(userParts, label) {
+  if (!keyFor("gemini")) throw new Error("No Google key on this phone.");
+  const id = $("char").value, t0 = performance.now();
+  const sys = instructions(STYLE === "custom" ? undefined : STYLE) + " Reply in one to three short sentences that sound great performed out loud.";
+  HIST.push({ role:"user", parts:userParts });
+  const j = await gpost(`https://generativelanguage.googleapis.com/v1beta/models/${$("fword").value}:generateContent`, {
+    systemInstruction:{ parts:[{ text:sys }] }, contents:HIST, generationConfig:{ temperature:+$("temp").value, maxOutputTokens:200 } });
+  const said = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || "").join("").trim();
+  if (!said) { HIST.pop(); throw new Error("The words model returned nothing. Try again."); }
+  HIST.push({ role:"model", parts:[{ text:said }] });
+  const t1 = performance.now();
+  const style = (MOOD[id] || "playful, in character") + (STYLE_WORDS[STYLE] || "");
+  const v = await gpost("https://generativelanguage.googleapis.com/v1beta/interactions", { model:$("fvoice").value,
+    input:[{ type:"user_input", content:[{ type:"text", text:said, annotations:[{ type:"speech_metadata", style }] }] }],
+    response_format:{ type:"audio" }, generation_config:{ speech_config:[{ voice:$("voice").value }] } });
+  const data = (((v.steps || [])[0] || {}).content || [])[0]; if (!data || !data.data) throw new Error("The voice model returned no audio.");
+  const t2 = performance.now();
+  ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+  const bytes = Uint8Array.from(atob(data.data), c => c.charCodeAt(0));
+  const buf = await new Promise((res, rej) => ctx.decodeAudioData(bytes.buffer, res, rej));
+  const samples = buf.sampleRate === 24000 ? buf.getChannelData(0) : resample(buf.getChannelData(0), buf.sampleRate, 24000);
+  addTake({ label:`FLASH · ${(D.PERSONAS[id] || {}).name || id} · ${$("voice").value} · ${$("fword").value} + ${$("fvoice").value} · words ${Math.round(t1 - t0)} ms + voice ${Math.round(t2 - t1)} ms = ${Math.round(t2 - t0)} ms · ${label}`,
+    said, samples, file:`flash-${id}-${$("voice").value}`.toLowerCase() });
+  play(samples); status("");
+}
+function resample(x, from, to) { const n = Math.round(x.length * to / from), y = new Float32Array(n); for (let i = 0; i < n; i++) { const q = i * from / to, k = Math.floor(q), f = q - k; y[i] = (x[k] || 0) + ((x[k + 1] || 0) - (x[k] || 0)) * f; } return y; }
+// Hold to talk: record the mic, send it as audio to the words model.
+let rec = null;
+async function recStart() {
+  if (rec) return;
+  ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); await ctx.resume();
+  const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+  const srcN = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1), chunks = [];
+  proc.onaudioprocess = e => chunks.push(e.inputBuffer.getChannelData(0).slice(0));
+  srcN.connect(proc); proc.connect(ctx.destination);
+  rec = { stream, srcN, proc, chunks, rate:ctx.sampleRate }; $("talk").textContent = "🎙 Listening… let go to send";
+}
+async function recStop() {
+  if (!rec) return; const r = rec; rec = null; $("talk").textContent = "🎤 Hold to talk";
+  try { r.srcN.disconnect(); r.proc.disconnect(); } catch {} r.stream.getTracks().forEach(t => t.stop());
+  const n = r.chunks.reduce((a, c) => a + c.length, 0); if (n < r.rate * 0.4) return status("That was too short. Hold the button while you talk.", true);
+  const all = new Float32Array(n); let o = 0; for (const c of r.chunks) { all.set(c, o); o += c.length; }
+  const pcm = resample(all, r.rate, 16000), wavUrl = wavBytes(pcm, 16000);
+  status("Thinking…");
+  await guarded(() => flashTake([{ inlineData:{ mimeType:"audio/wav", data:wavUrl } }, { text:"(The trick-or-treater said this out loud. Answer them.)" }], "🎤 you talked"));
+}
+function wavBytes(samples, rate) {      // base64 WAV for sending
+  const b = new ArrayBuffer(44 + samples.length * 2), v = new DataView(b), w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); v.setUint32(4, 36 + samples.length * 2, true); w(8, "WAVE"); w(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, samples[i])) * 32767, true);
+  let s = ""; const u = new Uint8Array(b); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s);
+}
+
 // Audio: 24 kHz 16-bit pieces -> one buffer to play and a WAV to download.
 let ctx = null;
 function decode(pcm) {
@@ -209,13 +282,31 @@ async function perform(style) {
   return samples.length / 24000;
 }
 async function guarded(fn) {
-  $("perform").disabled = $("compare").disabled = true;
+  $("perform").disabled = $("compare").disabled = $("talk").disabled = true;
   try { await fn(); } catch (e) { status(e.message || String(e), true); }
-  $("perform").disabled = $("compare").disabled = false;
+  $("perform").disabled = $("compare").disabled = $("talk").disabled = false;
 }
-$("perform").onclick = () => guarded(() => perform(STYLE === "custom" ? undefined : STYLE));
+$("perform").onclick = () => guarded(() => ENGINE === "flash"
+  ? (ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(), ctx.resume(), status("Thinking…"), flashTake([{ text:$("line").value.trim() || "Hi!" }], "“" + ($("line").value.trim() || "Hi!") + "”"))
+  : perform(STYLE === "custom" ? undefined : STYLE));
+$("talk").addEventListener("pointerdown", e => { e.preventDefault(); recStart().catch(err => status("Couldn't use the microphone: " + err.message, true)); });
+for (const ev of ["pointerup", "pointerleave", "pointercancel"]) $("talk").addEventListener(ev, () => recStop());
+$("newconv").onclick = () => { HIST = []; status("New conversation. The pumpkin forgot everything."); };
+$("char").addEventListener("change", () => { HIST = []; });
 $("compare").onclick = () => guarded(async () => { for (const s of ["current", "expressive", "big"]) { const secs = await perform(s); await new Promise(r => setTimeout(r, secs * 1000 + 600)); } });
 document.querySelectorAll("#prov button").forEach(b => b.onclick = () => setProv(b.dataset.p));
+function setEngine(e) {
+  ENGINE = e; document.querySelectorAll("#engine button").forEach(b => b.classList.toggle("on", b.dataset.e === e));
+  const flash = e === "flash";
+  $("flashopts").style.display = $("flashtalk").style.display = flash ? "" : "none";
+  $("prov").style.display = $("model").parentNode.style.display = flash ? "none" : "";
+  if (flash && PROV !== "gemini") setProv("gemini");
+  $("compare").style.display = flash ? "none" : "";
+  $("affectrow").style.display = flash ? "none" : $("affectrow").style.display;
+  $("enginenote").textContent = flash ? "A fast text model writes the reply (it remembers the conversation), then Google's expressive TTS model performs it. Slower to start, much more acting." : "One real-time model listens and speaks. Starts in under a second.";
+  if (!flash) affectRow();
+}
+document.querySelectorAll("#engine button").forEach(b => b.onclick = () => setEngine(b.dataset.e));
 document.querySelectorAll("#styles button").forEach(b => b.onclick = () => setStyle(b.dataset.s));
 $("direction").addEventListener("input", () => { if (STYLE !== "custom") { STYLE = "custom"; document.querySelectorAll("#styles button").forEach(b => b.classList.toggle("on", b.dataset.s === "custom")); } });
 $("char").onchange = fillVoices;
@@ -223,7 +314,7 @@ $("char").onchange = fillVoices;
 function affectRow() { const ok = PROV === "gemini" && /2\.5/.test($("model").value); $("affectrow").style.display = ok ? "" : "none"; if (!ok) $("affect").checked = false; }
 $("model").onchange = affectRow;
 $("temp").oninput = () => { $("tempv").textContent = $("temp").value; };
-loadDefs().then(fill).catch(() => status("Couldn't load the characters. Reload the page.", true));
+loadDefs().then(() => { fill(); setEngine("live"); }).catch(() => status("Couldn't load the characters. Reload the page.", true));
 </script>
 </body>
 </html>
