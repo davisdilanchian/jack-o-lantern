@@ -28,6 +28,11 @@
   .check { display:flex; align-items:center; gap:8px; color:var(--fg); font-size:15px; margin-top:10px; } .check input { width:20px; height:20px; accent-color:var(--accent); }
   .take { background:var(--surface); border:1.5px solid var(--line); border-radius:12px; padding:10px 12px; margin:10px 0; }
   .take .meta { font-size:12px; color:var(--muted); } .take .said { margin:6px 0 8px; } .take .btns { display:flex; gap:8px; } .take .btns button { font-size:16px; padding:4px 12px; }
+  #nowplaying { position:fixed; left:0; right:0; bottom:0; z-index:5; display:none; padding:12px 16px calc(12px + env(safe-area-inset-bottom)); background:#2b1d12; color:#fff;
+    font:22px "Patrick Hand", system-ui, sans-serif; text-align:center; box-shadow:0 -2px 10px rgba(0,0,0,.25); }
+  #nowplaying small { display:block; font:13px system-ui,sans-serif; opacity:.8; margin-top:2px; }
+  .take.playing { outline:3px solid var(--accent); outline-offset:1px; background:#fff3e6; }
+  .take .letter { display:inline-block; min-width:28px; padding:0 8px; margin-right:6px; border-radius:999px; background:var(--accent); color:#2b1d12; font:18px "Patrick Hand", system-ui, sans-serif; text-align:center; }
   #status { min-height:1.4em; color:var(--muted); font-size:13px; margin-top:8px; } .err { color:#b3261e !important; }
 </style>
 </head>
@@ -83,6 +88,7 @@
   <h2>Takes</h2>
   <div id="takes"><p class="note">Nothing yet.</p></div>
 </main>
+<div id="nowplaying"></div>
 <script>
 const $ = id => document.getElementById(id);
 const store = { get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
@@ -171,8 +177,9 @@ async function runExp(e0) {
   status("Experiment " + e.id + ": " + e.name + "…");
   const r = await takeGemini(e.turn(line, p), null, { model: e.model, temp: e.temp ?? 1, affect: !!e.affect, voice: e.voice || $("voice").value, sys: e.sys(p) });
   const samples = decode(r.pcm);
-  addTake({ label:`EXP ${e.id} · ${e.name} · ${p.name.split(",")[0]} · ${e.voice || $("voice").value} · ${e.model} · first sound ${Math.round(r.first)} ms · “${line}”`, said: r.said.trim(), samples, file:`exp-${e.id}-${$("char").value}`.toLowerCase() });
-  play(samples); status("");
+  const what = `<b>${e.id}</b> · ${e.name}<small>${e.desc}</small>`, expEl = document.getElementById("exp-" + e.id);
+  const el = addTake({ tag:e.id, title:e.name, what, expEl, label:`${p.name.split(",")[0]} · ${e.voice || $("voice").value} · ${e.model}${e.temp ? " · temp " + e.temp : ""} · first sound ${Math.round(r.first)} ms · “${line}”`, said: r.said.trim(), samples, file:`exp-${e.id}-${$("char").value}`.toLowerCase() });
+  play(samples, what, [el, expEl]); status("");
   return samples.length / 24000;
 }
 function takeGemini(text, style, o) {
@@ -248,8 +255,8 @@ async function flashTake(userParts, label) {
   const buf = await new Promise((res, rej) => ctx.decodeAudioData(bytes.buffer, res, rej));
   const samples = buf.sampleRate === 24000 ? buf.getChannelData(0) : resample(buf.getChannelData(0), buf.sampleRate, 24000);
   addTake({ label:`FLASH · ${(D.PERSONAS[id] || {}).name || id} · ${$("voice").value} · ${$("fword").value} + ${$("fvoice").value} · words ${Math.round(t1 - t0)} ms + voice ${Math.round(t2 - t1)} ms = ${Math.round(t2 - t0)} ms · ${label}`,
-    said, samples, file:`flash-${id}-${$("voice").value}`.toLowerCase() });
-  play(samples); status("");
+    said, samples, file:`flash-${id}-${$("voice").value}`.toLowerCase(), what:`Flash: words + voice<small>${$("fword").value} + ${$("fvoice").value}</small>` });
+  play(samples, `Flash: words + voice<small>${$("fword").value} + ${$("fvoice").value}</small>`, [TAKES[0] && TAKES[0].el]); status("");
 }
 function resample(x, from, to) { const n = Math.round(x.length * to / from), y = new Float32Array(n); for (let i = 0; i < n; i++) { const q = i * from / to, k = Math.floor(q), f = q - k; y[i] = (x[k] || 0) + ((x[k + 1] || 0) - (x[k] || 0)) * f; } return y; }
 // Hold to talk: record the mic, send it as audio to the words model.
@@ -287,13 +294,19 @@ function decode(pcm) {
   for (const bin of bins) for (let j = 0; j + 1 < bin.length; j += 2) { let v = bin.charCodeAt(j) | (bin.charCodeAt(j + 1) << 8); if (v & 0x8000) v -= 0x10000; out[i++] = v / 32768; }
   return out;
 }
-let playing = null;
-function play(samples) {
+let playing = null, lit = [];
+// Play a take; while it plays, the bar at the bottom says what it is and its cards are highlighted.
+function play(samples, what, els) {
   ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();
-  if (playing) try { playing.stop(); } catch {}
+  if (playing) try { playing.onended = null; playing.stop(); } catch {}
+  unlight();
   const buf = ctx.createBuffer(1, samples.length, 24000); buf.getChannelData(0).set(samples);
   const s = ctx.createBufferSource(); s.buffer = buf; s.connect(ctx.destination); s.start(); playing = s;
+  lit = (els || []).filter(Boolean); lit.forEach(e => e.classList.add("playing"));
+  if (what) { $("nowplaying").innerHTML = "▶ Now playing: " + what; $("nowplaying").style.display = "block"; }
+  s.onended = () => { if (playing === s) { playing = null; unlight(); } };
 }
+function unlight() { lit.forEach(e => e.classList.remove("playing")); lit = []; $("nowplaying").style.display = "none"; }
 function wav(samples) {
   const b = new ArrayBuffer(44 + samples.length * 2), v = new DataView(b), w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
   w(0, "RIFF"); v.setUint32(4, 36 + samples.length * 2, true); w(8, "WAVE"); w(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
@@ -305,9 +318,9 @@ function addTake(t) {
   if (!TAKES.length) $("takes").innerHTML = "";
   TAKES.unshift(t);
   const el = document.createElement("div"); el.className = "take";
-  el.innerHTML = `<div class="meta">${t.label}</div><div class="said">“${t.said.replace(/[<>&]/g, "") || "(no words came back)"}”</div><div class="btns"><button type="button">▶ Play</button><a href="${wav(t.samples)}" download="${t.file}.wav"><button type="button">⬇ WAV</button></a></div>`;
-  el.querySelector("button").onclick = () => play(t.samples);
-  $("takes").prepend(el);
+  el.innerHTML = `${t.tag ? `<div><span class="letter">${t.tag}</span><b>${t.title || ""}</b></div>` : ""}<div class="meta">${t.label}</div><div class="said">“${t.said.replace(/[<>&]/g, "") || "(no words came back)"}”</div><div class="btns"><button type="button">▶ Play</button><a href="${wav(t.samples)}" download="${t.file}.wav"><button type="button">⬇ WAV</button></a></div>`;
+  el.querySelector("button").onclick = () => play(t.samples, t.what || t.label, [el, t.expEl]);
+  $("takes").prepend(el); t.el = el; return el;
 }
 async function perform(style) {
   ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); ctx.resume();          // unlock audio with this tap
@@ -317,8 +330,9 @@ async function perform(style) {
   const r = await (PROV === "gemini" ? takeGemini(text, style) : takeOpenAI(text, style));
   const samples = decode(r.pcm);
   const label = `${(D.PERSONAS[$("char").value] || {}).name || $("char").value} · ${$("voice").value} · ${$("model").value} · ${stName}${PROV === "gemini" && $("affect").checked ? " · affective" : ""}${PROV === "gemini" ? " · temp " + $("temp").value : ""} · first sound ${Math.round(r.first)} ms · “${text}”`;
-  addTake({ label, said: r.said.trim(), samples, file: `${$("char").value}-${$("voice").value}-${st}`.toLowerCase() });
-  play(samples); status("");
+  const what = `${stName}<small>${$("voice").value} · ${$("model").value}</small>`;
+  const el = addTake({ label, what, said: r.said.trim(), samples, file: `${$("char").value}-${$("voice").value}-${st}`.toLowerCase() });
+  play(samples, what, [el]); status("");
   return samples.length / 24000;
 }
 async function guarded(fn) {
@@ -332,7 +346,7 @@ $("perform").onclick = () => guarded(() => ENGINE === "flash"
 $("talk").addEventListener("pointerdown", e => { e.preventDefault(); recStart().catch(err => status("Couldn't use the microphone: " + err.message, true)); });
 for (const ev of ["pointerup", "pointerleave", "pointercancel"]) $("talk").addEventListener(ev, () => recStop());
 function drawExps() {
-  $("exps").innerHTML = EXPERIMENTS.map(e => `<div class="take"><div class="meta">${e.id} · ${e.model}${e.voice ? " · voice " + e.voice : ""}${e.temp ? " · temp " + e.temp : ""}</div><div class="said"><b>${e.name}</b>: ${e.desc}</div><div class="btns"><button type="button" data-x="${e.id}">▶ Try</button></div></div>`).join("");
+  $("exps").innerHTML = EXPERIMENTS.map(e => `<div class="take" id="exp-${e.id}"><div class="meta"><span class="letter">${e.id}</span>${e.model}${e.voice ? " · voice " + e.voice : ""}${e.temp ? " · temp " + e.temp : ""}</div><div class="said"><b>${e.name}</b>: ${e.desc}</div><div class="btns"><button type="button" data-x="${e.id}">▶ Try</button></div></div>`).join("");
   $("exps").querySelectorAll("button").forEach(b => b.onclick = () => guarded(() => runExp(EXPERIMENTS.find(e => e.id === b.dataset.x))));
 }
 $("runall").onclick = () => guarded(async () => {
