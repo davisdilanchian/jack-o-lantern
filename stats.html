@@ -144,9 +144,10 @@ function render() {
     ${bars({ "Left an email": by(u, "remind").email || 0, "Added it to their calendar": by(u, "remind").calendar || 0 }, k => k, phones, true)}
     <p class="note">${rems.length ? rems.slice(0, 30).map(x => esc(x.email) + " <span style='opacity:.6'>(" + when(x.at) + (x.cc ? ", " + esc(x.cc) : "") + (x.dev ? ", " + esc(x.dev) : "") + ")</span>").join("<br>") : "No sign-ups in this period."}</p>
     <p class="note"><a href="/api/reminders?csv=1">Download all reminder emails (CSV)</a></p>
-    ${(() => { const all = DATA.reminders || [], todo = all.filter(x => !x.sent && !x.unsub && !/@(example\.(com|org|net)|test\.com)$/.test(x.email));
-      return `<p class="note">In all: ${all.length} signed up · ${all.filter(x => x.sent).length} sent · ${all.filter(x => x.unsub).length} unsubscribed · <b>${todo.length} waiting</b>.</p>
-      <div class="seg"><button id="mailtest" type="button">Send a test to me</button><button id="mailall" type="button">Send the reminder to ${todo.length}</button></div><p class="note" id="mailmsg"></p>`; })()}
+    ${(() => { const all = DATA.reminders || [], real = all.filter(x => !/@(example\.(com|org|net)|test\.com)$/.test(x.email)), n = k => real.filter(x => x[k]).length;
+      return `<p class="note">${real.length} signed up · welcome sent ${n("welcome")} · Oct 24 reminder sent ${n("week")} · Oct 30 reminder sent ${n("eve")} · ${n("unsub")} unsubscribed.<br>
+      Automatic: the welcome goes out right after sign-up; the reminders go out Sat Oct 24 and Fri Oct 30 at 10 AM Eastern.</p>
+      <div class="seg"><button id="mailtest" type="button">Send all 3 as a test to me</button><button id="mailwelcome" type="button">Send the welcome to anyone who missed it</button></div><p class="note" id="mailmsg"></p>`; })()}
     <h2>Free demo (phones)</h2>
     ${bars({ "Tapped Try a free demo": by(u, "demo").start || 0, "Said No (not ready)": by(u, "demo").no || 0, "Said Yes": by(u, "demo").yes || 0,
       "Heard line 1": by(u, "demo").line1 || 0, "Heard line 2": by(u, "demo").line2 || 0, "Heard line 3": by(u, "demo").line3 || 0, "Heard line 4": by(u, "demo").line4 || 0,
@@ -196,13 +197,13 @@ document.addEventListener("click", async e => {
 async function mailSend(body) {
   $("mailmsg").textContent = "Sending…";
   try { const r = await fetch("/api/reminders/send", { method:"POST", body: JSON.stringify(body) }), j = await r.json();
-    $("mailmsg").textContent = j.ok ? "Sent " + j.sent + (j.test ? " test email." : " emails." + (j.skipped ? " Skipped " + j.skipped + " (already sent, unsubscribed or test addresses)." : "")) : "Not sent: " + j.error;
+    $("mailmsg").textContent = j.ok ? "Sent " + j.sent + (j.test ? " test emails." : " emails." + (j.note ? " (" + j.note + ")" : "")) : "Not sent: " + j.error;
     if (j.ok && !j.test) load();
   } catch { $("mailmsg").textContent = "Not sent: check the connection."; }
 }
 document.addEventListener("click", e => {
   if (e.target.id === "mailtest") { const to = prompt("Send a test email to:"); if (to) mailSend({ test: to }); }
-  if (e.target.id === "mailall" && confirm("Send the Halloween reminder to everyone waiting? Each address gets it only once.")) mailSend({ confirm: true });
+  if (e.target.id === "mailwelcome") mailSend({ kind: "welcome" });
 });
 async function load() {
   try {
