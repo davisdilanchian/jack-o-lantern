@@ -51,6 +51,8 @@ function adPurchase(value, id) { try { gtag("event", "conversion", { send_to: AD
   #dm { position:fixed; inset:0; z-index:12; display:none; flex-direction:column; align-items:center; justify-content:center; gap:22px; text-align:center; padding:24px;
     background:#000; color:#fff; font:400 clamp(30px,8.5vw,56px)/1.15 "Patrick Hand", system-ui, sans-serif; }
   #dm p { margin:0; max-width:16ch; } #dm small { display:block; margin-top:10px; font:16px system-ui,-apple-system,sans-serif; opacity:.8; }
+  #dm ul.dmcheck { list-style:none; margin:18px auto 0; padding:0; font:20px system-ui,-apple-system,sans-serif; text-align:left; display:inline-block; }
+  #dm ul.dmcheck li { margin:8px 0; } #dm ul.dmcheck li::before { content:"☐ "; color:#e5782a; }
   #dmbtns { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
   #dmbtns button { width:auto; min-width:120px; padding:10px 22px; font:400 26px "Patrick Hand", system-ui, sans-serif; border-radius:12px; border:2px solid #fff; background:#000; color:#fff; }
   #dmbtns button.go { background:#e5782a; border-color:#e5782a; color:#2b1d12; }
@@ -1198,11 +1200,11 @@ $("demosound").onclick = () => {
   $("demosound").textContent = demoLoud ? "⏸ Pause" : "▶ Play video";
 };
 // ------------------------------------------------------------------ free demo: no key, no pass, nothing sent anywhere
-// Asks "Are you ready to put this phone inside a pumpkin?", then (yes) the 5-second put-me-in screen, then four pre-recorded
-// lines in the chosen pumpkin's voice. Each line waits for someone to talk and stop. Costs nothing per demo.
+// Asks "Are you ready to put this phone inside a pumpkin?" (with a short checklist, no sound), then (yes) the 5-second
+// put-me-in screen, then four pre-recorded lines in the picked character's voice. Each line waits for someone to talk and stop. Costs nothing per demo.
 const DM = { on:false, step:0, playing:false, heard:false, loudN:0, lastLoud:0, readyAt:0, bufs:{} };
 const DM_LINES = ["1", "2", "3", "4"];
-const dmChar = () => /^(jack|witch|count|grump|ghost|denial|prof|cabbie)$/.test($("persona").value) ? $("persona").value : "jack";
+const dmChar = () => /^(jack|witch|count|grump|ghost|denial|prof|cabbie)$/.test($("persona").value) ? $("persona").value : "jack";   // the 8 characters (custom: Jack)
 async function dmClip(ctx, line) {
   const k = dmChar() + "-" + line;
   if (!DM.bufs[k]) { const ab = await (await fetch("voices/demo/" + k + ".mp3")).arrayBuffer(); DM.bufs[k] = await new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej)); }
@@ -1219,16 +1221,10 @@ function dmScreen(html, buttons) {
   $("dm").style.display = "flex";
 }
 const dmHide = () => { $("dm").style.display = "none"; };
-async function dmSay(line) {                                // play a line on the page's sample player (before Start)
-  stopSample(); const ctx = SAMPLE.ctx || (SAMPLE.ctx = new (window.AudioContext || window.webkitAudioContext)());
-  try { ctx.resume(); } catch {}
-  try { dmPlay(ctx, ctx.destination, await dmClip(ctx, line)); } catch {}
-}
 $("dmbtn").onclick = () => {
   track("demo", "start");
-  dmSay("q");
-  dmScreen("Are you ready to put this phone inside a pumpkin?", [
-    ["No", "", () => { track("demo", "no"); dmSay("no"); dmScreen("Come back when you have a pumpkin ready. 🎃", [["Back", "", dmHide]]); }],
+  dmScreen('Are you ready to put this phone inside a pumpkin?<ul class="dmcheck"><li>Brightness all the way up</li><li>Volume all the way up</li></ul>', [
+    ["No", "", () => { track("demo", "no"); dmScreen("Come back when you have a pumpkin ready. 🎃", [["Back", "", dmHide]]); }],
     ["Yes", "go", dmGo],
   ]);
 };
@@ -1297,7 +1293,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015165928";
+const BUILD = "20261015171426";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
