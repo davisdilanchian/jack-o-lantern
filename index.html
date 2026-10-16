@@ -762,12 +762,14 @@ const labGen = () => ({ temperature: LAB.temp, ...(LAB.aff && labIs25() ? { enab
 const LAB_MOOD = { jack:"smug and snide", witch:"cackling and playful", count:"dramatic old-movie vampire", grump:"crabby old man", ghost:"nervous, jumpy, scared",
   denial:"defensive, in total denial", prof:"pompous, snobby professor", cabbie:"gruff New York cab driver", custom:"playful, in character" };
 const LAB_WRITE = " Your words are performed exactly as you write them, so write them the way they should sound: stretch words, put the stressed word in CAPITALS, use ... for dramatic pauses, and include real sound words (Mwahaha, Ugh, Pfft, Ooooh).";
+const LAB_STAGE = " Your words are performed exactly as you write them. For laughs, sighs, gasps, whispers and other sounds or moods, write a short stage direction in angle brackets instead of spelling the sound out, for example <laughs villainously>, <sighs dramatically>, <whispers>, <gasps>, <cackles>. Perform each direction with your voice; never read the bracketed words aloud.";
 const LAB_DIRS = {
   none: ["None (as on the pumpkins)", (f, b, t, n, m) => f],
   expressive: ["Expressive", (f, b, t, n, m) => f + " PERFORMANCE: You are a voice actor performing this character live, not reading lines. Perform every reply: vary pitch and pace, use dramatic pauses, stretch words, and laugh, scoff, sigh or gasp out loud where it fits. Whisper the asides and land the punchlines. Never sound flat or politely neutral. Your delivery is " + m + "."],
   big: ["Over the top", (f, b, t, n, m) => f + " PERFORMANCE: Play it big, like a stage actor voicing a theme-park animatronic. Exaggerated and theatrical: big character noises (Mwahaha, Hmph, Ughhh, Ooooh), long dramatic pauses, sudden loud bursts and creepy whispers, wild swings in pitch. Every single line is a show. Your delivery is " + m + "."],
   B: ["B · Director's notes", (f, b, t, n, m) => "### AUDIO PROFILE\n" + n + ". " + b + "\n### THE SCENE\nA front porch on Halloween night. A real trick-or-treater is standing right in front of you and you are performing live.\n### DIRECTOR'S NOTES\nStyle: " + m + ", a big theatrical performance, like a voice actor in an animated film.\nPacing: always changing. Slow, dramatic pauses before punchlines, quick clipped asides.\nPitch: swing high and low. Stretch the words you want to land. Whisper secrets, get loud when outraged.\nSounds: actually make them out loud: laugh, scoff, sigh, gasp, hmph.\nNever sound like a calm, polite assistant.\n" + t],
   D: ["D · Write it the way it should sound", (f, b, t, n, m) => f + LAB_WRITE],
+  S: ["S · Stage directions <laughs villainously>", (f, b, t, n, m) => f + LAB_STAGE],
   E: ["E · Fewer rules", (f, b, t, n, m) => b + t.split(SAFETY)[0] + " Your audience is mostly trick-or-treating kids and their parents: tease the situation, never the person, nothing hurtful, scary or unsuitable for children, and never ask for names, addresses or ages. Perform with big, " + m + " energy."],
   I: ["I · Director's notes + write it", (f, b, t, n, m) => LAB_DIRS.B[1](f, b, t, n, m) + LAB_WRITE],
 };
@@ -1334,7 +1336,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015195736";
+const BUILD = "20261015200040";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
