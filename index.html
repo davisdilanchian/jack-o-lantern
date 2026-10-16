@@ -1198,7 +1198,14 @@ $("buypass").onclick = e => { e.preventDefault(); save(); track("buy", $("buypas
 $("refill").onclick = e => { e.preventDefault(); save(); track("buy", "refill"); location.href = REFILL_URL + "?client_reference_id=" + ensurePassId(); };
 $("gofree").onclick = () => { $("ownkey").open = true; $("key-section").scrollIntoView({ behavior:"smooth", block:"start" }); setTimeout(() => $("key").focus(), 400); };
 // A link to a part of the page that sits in a folded section (for example #light-section) opens that section.
-(function openFolded() { const id = location.hash.slice(1); if (!id || /=/.test(id)) return; const t = document.getElementById(id), d = t && t.closest("details"); if (d) { d.open = true; setTimeout(() => t.scrollIntoView(), 200); } })();
+// Links like jack-o.io/#passbox or /#demo (ad sitelinks): open the folded part if needed, scroll to it, and make it glow for a moment.
+(function openFolded() {
+  let id = location.hash.slice(1); if (!id || /=/.test(id)) return;
+  if (id === "demo") id = "dmbtn";
+  const t = document.getElementById(id); if (!t) return;
+  const d = t.closest("details"); if (d) d.open = true;
+  setTimeout(() => { t.scrollIntoView({ block:"center" }); t.style.transition = "box-shadow .4s"; t.style.boxShadow = "0 0 0 4px #e5782a"; setTimeout(() => { t.style.boxShadow = ""; }, 2500); }, 300);
+})();
 $("hearchar").onclick = () => { track("hear", $("persona").value); playCharSample($("persona").value); };
 async function playCharSample(id) {
   stopSample(); const mine = ++SAMPLE.n;
@@ -1375,7 +1382,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261016151625";
+const BUILD = "20261016152017";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
