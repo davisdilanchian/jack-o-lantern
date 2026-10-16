@@ -867,7 +867,7 @@ const S = { ctx:null, mic:null, camTrack:null, torchOK:false, torchOn:false, tor
 const MIC_GAIN = 3;
 const FLOOR0 = 0.004;   // starting guess for a quiet room (raw mic); it settles to the real level within a second or two
 function learnFloor(rms) { S.floor = rms < S.floor ? S.floor * 0.85 + rms * 0.15 : S.floor * 0.995 + rms * 0.005; }
-const TUNE = { ratio:2.2, min:0.006, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.6 };
+const TUNE = { ratio:2.6, min:0.008, wakeN:4, wakeMs:900, idle:25000, maxVisit:180000, cooldown:12000, perHour:40, tail:0.6 };
 const status = t => $("status").textContent = t;
 const EL = { ws:null, open:false, ended:false, got:false, gen:0, out:[], hold:[], busy:false };   // ElevenLabs reply stream (see "ElevenLabs voice")
 const speaking = () => S.turn || EL.busy || PLAY.queued > 0 || (S.player && S.pbuf > 0.01) || (S.ctx && S.ctx.currentTime < S.playEnd + TUNE.tail);
@@ -1348,7 +1348,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261015231929";
+const BUILD = "20261015232319";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1568,8 +1568,11 @@ function onMic(samples) {
   if (DM.on) return dmMic(rms);                              // free demo: pre-recorded lines, no session
   if (S.phase === "idle") {
     if (speaking() || $("setup").style.display !== "none") return;
-    if (rms > S.floor * TUNE.ratio && rms > TUNE.min) { if (++S.loud >= 2 && Date.now() - S.end > TUNE.cooldown && !(Date.now() < (S.armAt || 0))) runVisit(false); }
-    else { S.loud = 0; learnFloor(rms); }
+    // Wake on a voice, not a bang: at least 4 loud 100 ms pieces within 0.9 s (a door, a clap or a car is shorter).
+    const now = Date.now();
+    S.loudAt = (S.loudAt || []).filter(t => now - t < TUNE.wakeMs);
+    if (rms > S.floor * TUNE.ratio && rms > TUNE.min) { S.loudAt.push(now); if (S.loudAt.length >= TUNE.wakeN && now - S.end > TUNE.cooldown && !(now < (S.armAt || 0))) { S.loudAt = []; runVisit(false); } }
+    else learnFloor(rms);
     return;
   }
   if (S.phase === "connecting") return;
