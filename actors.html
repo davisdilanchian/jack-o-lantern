@@ -86,6 +86,9 @@
   <label class="check"><input type="checkbox" id="tgreet" checked> Greet me first (like a visitor walking up)</label>
   <div id="talkstage" style="display:none;text-align:center;margin:12px 0">
     <div id="orb" style="width:120px;height:120px;margin:0 auto;border-radius:50%;background:radial-gradient(circle,#ffc65a,#e5782a 60%,#7a3200);box-shadow:0 0 0 rgba(229,120,42,.7);transition:transform .08s, box-shadow .08s"></div>
+    <div id="tstate" style="margin-top:12px;font:22px 'Patrick Hand',system-ui,sans-serif;color:#3a281a">…</div>
+    <div style="height:8px;max-width:220px;margin:6px auto 0;background:rgba(58,40,26,.12);border-radius:4px;overflow:hidden"><div id="micbar" style="height:100%;width:0;background:#2e7d32;transition:width .08s"></div></div>
+    <div style="font-size:12px;color:#6e5a48;margin-top:2px">your mic</div>
     <div id="tlog" style="text-align:left;margin-top:12px;font-size:14px;max-height:260px;overflow:auto"></div>
   </div>
   <button id="livebtn" class="go" style="background:#2b1d12;color:#fff">🎙 Start talking</button>
@@ -356,7 +359,25 @@ $("perform").onclick = () => guarded(() => ENGINE === "flash"
 $("talk").addEventListener("pointerdown", e => { e.preventDefault(); recStart().catch(err => status("Couldn't use the microphone: " + err.message, true)); });
 for (const ev of ["pointerup", "pointerleave", "pointercancel"]) $("talk").addEventListener(ev, () => recStop());
 // ------------------------------------------------------------------ talk live: mic -> live model -> speaker, like the pumpkin
-const LIVE = { ws:null, stream:null, src:null, proc:null, an:null, playT:0, turn:[], said:"", heard:"", raf:0 };
+const LIVE = { ws:null, stream:null, src:null, proc:null, an:null, playT:0, turn:[], said:"", heard:"", raf:0, micLv:0, loudAt:0, waiting:false, opening:false, ready:false };
+// iPhones play quietly through the earpiece while a page has the mic open, so (like the pumpkin) the mic closes
+// while it talks and the phone switches to normal speaker playback.
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const setSession = t => { try { if (navigator.audioSession) navigator.audioSession.type = t; } catch {} };
+const micOpts = { audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } };
+function micRelease() { if (!LIVE.stream) return; try { LIVE.src.disconnect(); LIVE.proc.disconnect(); } catch {} LIVE.stream.getTracks().forEach(t => t.stop()); LIVE.stream = LIVE.src = LIVE.proc = null; LIVE.micLv = 0; setSession("playback"); }
+async function micReopen() {
+  if (LIVE.stream || LIVE.opening || !LIVE.ws) return; LIVE.opening = true; setSession("play-and-record");
+  try { LIVE.stream = await navigator.mediaDevices.getUserMedia(micOpts); if (LIVE.ws) micOn(); else { LIVE.stream.getTracks().forEach(t => t.stop()); LIVE.stream = null; } } catch {}
+  LIVE.opening = false;
+}
+setInterval(() => {
+  if (!LIVE.ws || !ctx) return;
+  const talking = ctx.currentTime < LIVE.playT + 0.3;
+  if (IOS && LIVE.ready) { if (talking) micRelease(); else micReopen(); }
+  const st = !LIVE.ready ? "Connecting…" : talking ? "🗣 Talking" + (IOS ? " (mic paused)" : "") : LIVE.waiting ? "🤔 Thinking…" : Date.now() - LIVE.loudAt < 700 ? "👂 Hearing you…" : "🎙 Listening — talk now";
+  $("tstate").textContent = st;
+}, 150);
 function fillTalkDirs() {
   $("tdir").innerHTML = `<option value="above">Delivery buttons above</option>` + EXPERIMENTS.map(e => `<option value="${e.id}"${e.id === "B" ? " selected" : ""}>${e.id} · ${e.name}</option>`).join("");
 }
@@ -371,13 +392,13 @@ async function liveStart() {
   const key = keyFor("gemini"); if (!key) return status("No Google key on this phone. Enter one on jack-o.io first.", true);
   if (PROV !== "gemini") setProv("gemini");
   ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); await ctx.resume();
-  let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); }
+  let stream; setSession("play-and-record"); try { stream = await navigator.mediaDevices.getUserMedia(micOpts); }
   catch (e) { return status("Couldn't use the microphone: " + e.message, true); }
   const d = $("tdir").value, sys = d === "above" ? instructions(STYLE === "custom" ? undefined : STYLE) : expResolve(EXPERIMENTS.find(x => x.id === d)).sys(expParams());
   const gen = { responseModalities:["AUDIO"], temperature:+$("temp").value, speechConfig:{ voiceConfig:{ prebuiltVoiceConfig:{ voiceName:$("voice").value } } } };
   if ($("affect").checked && $("affectrow").style.display !== "none") gen.enableAffectiveDialog = true;
   const ws = new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=" + encodeURIComponent(key));
-  Object.assign(LIVE, { ws, stream, playT:0, turn:[], said:"", heard:"" });
+  Object.assign(LIVE, { ws, stream, playT:0, turn:[], said:"", heard:"", ready:false, waiting:false, micLv:0, loudAt:0 });
   $("tlog").innerHTML = ""; $("talkstage").style.display = "block"; $("livebtn").textContent = "■ Stop talking"; status("Connecting…");
   LIVE.an = ctx.createAnalyser(); LIVE.an.fftSize = 512; LIVE.an.connect(ctx.destination);
   ws.onopen = () => ws.send(JSON.stringify({ setup:{ model:"models/" + $("model").value, generationConfig:gen, systemInstruction:{ parts:[{ text:sys }] },
@@ -386,14 +407,14 @@ async function liveStart() {
   ws.onmessage = async ev => {
     const m = JSON.parse(typeof ev.data === "string" ? ev.data : await ev.data.text());
     if (m.setupComplete) {
-      status("Listening. Talk to it."); micOn();
-      if ($("tgreet").checked) ws.send(JSON.stringify({ realtimeInput:{ text:"(You just heard someone approach the porch. Greet them in character, briefly.)" } }));
+      status(""); LIVE.ready = true; micOn();
+      if ($("tgreet").checked) LIVE.waiting = true, ws.send(JSON.stringify({ realtimeInput:{ text:"(You just heard someone approach the porch. Greet them in character, briefly.)" } }));
       return;
     }
     const c = m.serverContent; if (!c) return;
-    if (c.inputTranscription && c.inputTranscription.text) tlog("you", c.inputTranscription.text);
+    if (c.inputTranscription && c.inputTranscription.text) { tlog("you", c.inputTranscription.text); LIVE.waiting = true; }
     if (c.outputTranscription && c.outputTranscription.text) { tlog("pumpkin", c.outputTranscription.text); LIVE.said += c.outputTranscription.text; }
-    for (const p of (c.modelTurn && c.modelTurn.parts) || []) if (p.inlineData && p.inlineData.data) { LIVE.turn.push(p.inlineData.data); enqueue(p.inlineData.data); }
+    for (const p of (c.modelTurn && c.modelTurn.parts) || []) if (p.inlineData && p.inlineData.data) { LIVE.waiting = false; if (IOS) micRelease(); LIVE.turn.push(p.inlineData.data); enqueue(p.inlineData.data); }
     if (c.turnComplete && LIVE.turn.length) {
       const samples = decode(LIVE.turn), d2 = $("tdir").value;
       addTake({ tag:"🎙", title:"Talk live · " + (d2 === "above" ? "delivery buttons" : d2), what:`Talk live<small>${$("model").value} · ${$("voice").value}</small>`, label:`${$("voice").value} · ${$("model").value} · temp ${$("temp").value}${gen.enableAffectiveDialog ? " · affective" : ""}`, said:LIVE.said.trim(), samples, file:"talk-" + $("char").value });
@@ -407,8 +428,11 @@ function micOn() {
   const s = ctx.createMediaStreamSource(LIVE.stream), proc = ctx.createScriptProcessor(4096, 1, 1), rate = ctx.sampleRate;
   proc.onaudioprocess = e => {
     if (!LIVE.ws || LIVE.ws.readyState !== 1) return;
-    if (ctx.currentTime < LIVE.playT + 0.35) return;                 // don't send its own voice back while it talks
-    const x = e.inputBuffer.getChannelData(0), y = resample(x, rate, 16000), i16 = new Int16Array(y.length);
+    const x = e.inputBuffer.getChannelData(0); let sum = 0; for (const v of x) sum += v * v;
+    LIVE.micLv = Math.sqrt(sum / x.length);
+    if (ctx.currentTime < LIVE.playT + 0.35) { LIVE.micLv = 0; return; }   // don't send its own voice back while it talks
+    if (LIVE.micLv > 0.02) LIVE.loudAt = Date.now();
+    const y = resample(x, rate, 16000), i16 = new Int16Array(y.length);
     for (let i = 0; i < y.length; i++) i16[i] = Math.max(-1, Math.min(1, y[i])) * 32767;
     LIVE.ws.send(JSON.stringify({ realtimeInput:{ audio:{ mimeType:"audio/pcm;rate=16000", data:toB64(i16) } } }));
   };
@@ -424,6 +448,7 @@ function orb() {
   cancelAnimationFrame(LIVE.raf); if (!LIVE.ws) return;
   const a = new Float32Array(LIVE.an.fftSize); LIVE.an.getFloatTimeDomainData(a); let sum = 0; for (const v of a) sum += v * v;
   const lv = Math.min(1, Math.sqrt(sum / a.length) * 6);
+  $("micbar").style.width = Math.min(100, LIVE.micLv * 900) + "%";
   $("orb").style.transform = `scale(${1 + lv * 0.25})`; $("orb").style.boxShadow = `0 0 ${20 + lv * 70}px rgba(255,170,60,${0.3 + lv * 0.6})`;
   LIVE.raf = requestAnimationFrame(orb);
 }
@@ -431,7 +456,7 @@ function liveStop() {
   const ws = LIVE.ws; LIVE.ws = null; try { ws && ws.close(1000); } catch {}
   try { LIVE.src && LIVE.src.disconnect(); LIVE.proc && LIVE.proc.disconnect(); } catch {}
   if (LIVE.stream) LIVE.stream.getTracks().forEach(t => t.stop());
-  LIVE.stream = LIVE.src = LIVE.proc = null; cancelAnimationFrame(LIVE.raf);
+  LIVE.stream = LIVE.src = LIVE.proc = null; LIVE.ready = false; cancelAnimationFrame(LIVE.raf); setSession("auto"); $("tstate").textContent = "…"; $("micbar").style.width = "0";
   $("livebtn").textContent = "🎙 Start talking"; $("orb").style.transform = ""; $("orb").style.boxShadow = ""; status("");
 }
 $("livebtn").onclick = () => LIVE.ws ? liveStop() : liveStart();
