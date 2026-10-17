@@ -53,10 +53,11 @@
   </div>
   <div id="out"></div>
 </main>
+<script>try { localStorage.setItem("ownerDevice", "1"); } catch {}   // this device is the owner's: the site stops counting it</script>
 <script>
 const $ = id => document.getElementById(id);
 const DAY = t => new Date(t - 7 * 3600000).toISOString().slice(0, 10);       // same day boundary as the server
-const MODE = { "demo":"Free demo", "stream":"Stream mode", "pass":"Pumpkin Pass", "pass+eleven":"Pass + own ElevenLabs voice", "google-free":"Own Google key (free)", "google-unlocked":"Own Google key + $1.99 unlock",
+const MODE = { "demo":"Free demo", "stream":"Stream mode", "pass":"Pumpkin Pass", "pass+eleven":"Pass + own ElevenLabs voice", "google-free":"Own Google key (free)", "google-unlocked":"Google key + old $1.99 unlock (your phones)",
   "openai-free":"Own OpenAI key (free)", "openai-unlocked":"Own OpenAI key + $1.99 unlock",
   "google-key+pass":"Own Google key, has a pass", "openai-key+pass":"Own OpenAI key, has a pass" };
 let DATA = null, PERIOD = "today";

@@ -481,8 +481,14 @@ const ERRS = [];                       // the last few page errors, sent with a 
 const keepErr = t => { ERRS.push(String(t).slice(0, 160)); ERRS.splice(0, ERRS.length - 5); };
 addEventListener("error", e => keepErr(e.message || e));
 addEventListener("unhandledrejection", e => keepErr("promise: " + ((e.reason && e.reason.message) || e.reason)));
+// The owner's own phones and computers are never counted: any device that has opened an owner page
+// (/streaming, /actors, /stats) or jack-o.io/?me=1 once is remembered as the owner's.
+const OWNER_DEVICE = (() => { try {
+  if (/^\/(streaming|actors)$/.test(location.pathname.replace(/\/$/, "")) || /[?&]me=1(&|$)/.test(location.search)) localStorage.setItem("ownerDevice", "1");
+  return localStorage.getItem("ownerDevice") === "1";
+} catch { return false; } })();
 function track(e, k) {
-  if (/^\/(streaming|actors)$/.test(location.pathname.replace(/\/$/, "")) || /^(localhost|127\.)/.test(location.hostname)) return;
+  if (OWNER_DEVICE || /^\/(streaming|actors)$/.test(location.pathname.replace(/\/$/, "")) || /^(localhost|127\.)/.test(location.hostname)) return;
   let b = ""; try { b = BUILD; } catch {}                     // site version, for "since the last update" on /stats
   const body = JSON.stringify({ e, k: k || "", aid: AID, dev: DEV, b, src: e === "load" ? visitSource() : undefined });
   const url = (/(^|\.)jack-o\.io$/.test(location.hostname) ? "" : "https://jack-o.io") + "/api/ev";
@@ -1382,7 +1388,7 @@ $("start").onclick = async () => {
 // ------------------------------------------------------------------ self-update
 // Once a minute, check whether a newer version of the site is out. When there is one, reload while the
 // pumpkin is idle, then start again by itself. If the phone won't allow sound without a touch, ask for one tap.
-const BUILD = "20261016152017";
+const BUILD = "20261016192823";
 let updateReady = false;
 // Show the build as "v2026.10.14 21:03" at the top of the setup page.
 $("version").textContent = BUILD === "dev" ? "dev build" : "v" + BUILD.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d{2}$/, "$1.$2.$3 $4:$5");
@@ -1764,7 +1770,7 @@ function failConnect(msg) { showErr(msg); status("Can't connect. Check Wi-Fi, th
 
 // ------------------------------------------------------------------ live count for /stats: while running, say "still on" once a minute
 (function livePing() {
-  if (/^(localhost|127\.)/.test(location.hostname) || LAB_ON) return;
+  if (/^(localhost|127\.)/.test(location.hostname) || LAB_ON || OWNER_DEVICE) return;
   const url = (/(^|\.)jack-o\.io$/.test(location.hostname) ? "" : "https://jack-o.io") + "/api/ping";
   const ping = () => {
     if (!S.ctx || $("setup").style.display !== "none" || !AID) return;              // only after Start, while it's out of the settings
